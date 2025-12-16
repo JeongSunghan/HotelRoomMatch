@@ -1,6 +1,6 @@
 import { useState } from 'react';
-import { roomData } from '../data/roomData';
-import { getGenderLabel } from '../utils/genderUtils';
+import { roomData } from '../../data/roomData';
+import { getGenderLabel } from '../../utils/genderUtils';
 
 /**
  * 객실 선택 확인 모달 - 룸메이트 선택 기능 추가

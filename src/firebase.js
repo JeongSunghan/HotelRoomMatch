@@ -151,6 +151,7 @@ export async function createRoommateInvitation(inviterData, inviteeName) {
         inviterSessionId: inviterData.sessionId,
         inviterName: inviterData.name,
         inviterCompany: inviterData.company || '',
+        inviterGender: inviterData.gender, // 성별 검증용
         inviteeName: inviteeName.trim(),
         status: 'pending',
         createdAt: Date.now()
@@ -186,6 +187,11 @@ export async function acceptInvitation(invitationId, acceptorData) {
 
     if (!invitation || invitation.status !== 'pending') {
         throw new Error('유효하지 않은 초대입니다.');
+    }
+
+    // 성별 검증: 초대자와 수락자의 성별이 다르면 거부
+    if (invitation.inviterGender && acceptorData.gender && invitation.inviterGender !== acceptorData.gender) {
+        throw new Error('성별이 다른 사용자와는 같은 객실을 사용할 수 없습니다.');
     }
 
     await update(invitationRef, {

@@ -1,4 +1,4 @@
-import { getGenderLabel } from '../utils/genderUtils';
+import { getGenderLabel } from '../../utils/genderUtils';
 
 /**
  * 헤더 컴포넌트 - 화이트 스타일 (수정됨)

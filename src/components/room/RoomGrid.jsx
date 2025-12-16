@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import RoomCard from './RoomCard';
-import { getRoomsByFloor, floorInfo } from '../data/roomData';
+import { getRoomsByFloor, floorInfo } from '../../data/roomData';
 
 /**
  * 객실 그리드 컴포넌트 - 네이비 스타일

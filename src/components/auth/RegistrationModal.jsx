@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { validateResidentId, getGenderLabel, getAgeFromResidentId } from '../utils/genderUtils';
+import { validateResidentId, getGenderLabel, getAgeFromResidentId } from '../../utils/genderUtils';
 
 export default function RegistrationModal({ onRegister, onClose }) {
     const [name, setName] = useState('');
@@ -198,8 +198,8 @@ export default function RegistrationModal({ onRegister, onClose }) {
                                     type="button"
                                     onClick={() => setSnoring('no')}
                                     className={`py-3 px-4 rounded-lg border-2 font-medium text-sm transition-all ${snoring === 'no'
-                                            ? 'border-emerald-500 bg-emerald-50 text-emerald-700'
-                                            : 'border-gray-200 hover:border-gray-300'
+                                        ? 'border-emerald-500 bg-emerald-50 text-emerald-700'
+                                        : 'border-gray-200 hover:border-gray-300'
                                         }`}
                                 >
                                     😴 없음
@@ -208,8 +208,8 @@ export default function RegistrationModal({ onRegister, onClose }) {
                                     type="button"
                                     onClick={() => setSnoring('sometimes')}
                                     className={`py-3 px-4 rounded-lg border-2 font-medium text-sm transition-all ${snoring === 'sometimes'
-                                            ? 'border-amber-500 bg-amber-50 text-amber-700'
-                                            : 'border-gray-200 hover:border-gray-300'
+                                        ? 'border-amber-500 bg-amber-50 text-amber-700'
+                                        : 'border-gray-200 hover:border-gray-300'
                                         }`}
                                 >
                                     😪 가끔
@@ -218,8 +218,8 @@ export default function RegistrationModal({ onRegister, onClose }) {
                                     type="button"
                                     onClick={() => setSnoring('yes')}
                                     className={`py-3 px-4 rounded-lg border-2 font-medium text-sm transition-all ${snoring === 'yes'
-                                            ? 'border-red-500 bg-red-50 text-red-700'
-                                            : 'border-gray-200 hover:border-gray-300'
+                                        ? 'border-red-500 bg-red-50 text-red-700'
+                                        : 'border-gray-200 hover:border-gray-300'
                                         }`}
                                 >
                                     😤 자주

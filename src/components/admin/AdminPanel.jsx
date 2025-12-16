@@ -1,12 +1,12 @@
 import { useState, useMemo, useEffect } from 'react';
-import { roomData, floors, floorInfo } from '../data/roomData';
-import { getGenderLabel } from '../utils/genderUtils';
+import { roomData, floors, floorInfo } from '../../data/roomData';
+import { getGenderLabel } from '../../utils/genderUtils';
 import {
     subscribeToRoomChangeRequests,
     resolveRoomChangeRequest,
     deleteRoomChangeRequest,
     clearUserSession
-} from '../firebase';
+} from '../../firebase';
 
 /**
  * Admin 패널 컴포넌트 - 네이비 스타일 (개선됨)
@@ -84,8 +84,14 @@ export default function AdminPanel({
         }
     };
 
-    const handleResolveRequest = async (requestId) => {
-        await resolveRoomChangeRequest(requestId);
+    // 요청 처리 완료 (취소 요청인 경우 방 배정도 삭제)
+    const handleResolveRequest = async (request) => {
+        // 취소 요청인 경우 실제로 방 배정 삭제
+        if (request.type === 'cancel' && request.currentRoom && request.sessionId) {
+            await onRemoveGuest(request.currentRoom, request.sessionId);
+            await clearUserSession(request.sessionId);
+        }
+        await resolveRoomChangeRequest(request.id);
     };
 
     const handleDeleteRequest = async (requestId) => {
@@ -316,8 +322,8 @@ export default function AdminPanel({
                                             <div className="flex-1">
                                                 <div className="flex items-center gap-2 mb-2">
                                                     <span className={`px-2 py-0.5 rounded text-xs font-medium ${request.type === 'cancel'
-                                                            ? 'bg-red-200 text-red-800'
-                                                            : 'bg-blue-200 text-blue-800'
+                                                        ? 'bg-red-200 text-red-800'
+                                                        : 'bg-blue-200 text-blue-800'
                                                         }`}>
                                                         {request.type === 'cancel' ? '취소 요청' : '변경 요청'}
                                                     </span>
@@ -357,10 +363,13 @@ export default function AdminPanel({
                                             <div className="flex gap-2">
                                                 {request.status === 'pending' && (
                                                     <button
-                                                        onClick={() => handleResolveRequest(request.id)}
-                                                        className="px-3 py-1.5 bg-green-500 hover:bg-green-600 text-white rounded text-sm font-medium"
+                                                        onClick={() => handleResolveRequest(request)}
+                                                        className={`px-3 py-1.5 text-white rounded text-sm font-medium ${request.type === 'cancel'
+                                                            ? 'bg-red-500 hover:bg-red-600'
+                                                            : 'bg-green-500 hover:bg-green-600'
+                                                            }`}
                                                     >
-                                                        처리 완료
+                                                        {request.type === 'cancel' ? '취소 승인' : '처리 완료'}
                                                     </button>
                                                 )}
                                                 <button

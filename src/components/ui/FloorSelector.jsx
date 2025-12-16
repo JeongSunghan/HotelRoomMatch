@@ -1,4 +1,4 @@
-import { floors, floorInfo } from '../data/roomData';
+import { floors, floorInfo } from '../../data/roomData';
 
 /**
  * 층 선택 탭 컴포넌트 - 간소화

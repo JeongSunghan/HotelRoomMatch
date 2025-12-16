@@ -1,13 +1,13 @@
 import { useState, useMemo, useEffect } from 'react';
-import Header from './components/Header';
-import FloorSelector from './components/FloorSelector';
-import RoomGrid from './components/RoomGrid';
-import RegistrationModal from './components/RegistrationModal';
-import SelectionModal from './components/SelectionModal';
-import InvitationModal from './components/InvitationModal';
-import MyRoomModal from './components/MyRoomModal';
-import AdminPanel from './components/AdminPanel';
-import AdminLoginModal from './components/AdminLoginModal';
+import Header from './components/ui/Header';
+import FloorSelector from './components/ui/FloorSelector';
+import RoomGrid from './components/room/RoomGrid';
+import RegistrationModal from './components/auth/RegistrationModal';
+import SelectionModal from './components/room/SelectionModal';
+import InvitationModal from './components/room/InvitationModal';
+import MyRoomModal from './components/room/MyRoomModal';
+import AdminPanel from './components/admin/AdminPanel';
+import AdminLoginModal from './components/auth/AdminLoginModal';
 import { useUser } from './hooks/useUser';
 import { useRooms } from './hooks/useRooms';
 import { floors, floorInfo } from './data/roomData';
@@ -157,7 +157,7 @@ export default function App() {
             selectUserRoom(roomNumber);
             setPendingInvitation(null);
         } catch (error) {
-            alert('초대 수락에 실패했습니다.');
+            alert(error.message || '초대 수락에 실패했습니다.');
         } finally {
             setInvitationLoading(false);
         }

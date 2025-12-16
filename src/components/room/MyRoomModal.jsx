@@ -1,6 +1,6 @@
 import { useState } from 'react';
-import { roomData } from '../data/roomData';
-import { getGenderLabel } from '../utils/genderUtils';
+import { roomData } from '../../data/roomData';
+import { getGenderLabel } from '../../utils/genderUtils';
 
 export default function MyRoomModal({
     user,
@@ -194,8 +194,8 @@ export default function MyRoomModal({
                                 onClick={handleSubmitRequest}
                                 disabled={isSubmitting || !phoneNumber.trim()}
                                 className={`flex-1 py-2 text-white rounded-lg text-sm font-medium disabled:opacity-50 ${requestType === 'cancel'
-                                        ? 'bg-red-500 hover:bg-red-600'
-                                        : 'bg-amber-500 hover:bg-amber-600'
+                                    ? 'bg-red-500 hover:bg-red-600'
+                                    : 'bg-amber-500 hover:bg-amber-600'
                                     }`}
                             >
                                 {isSubmitting ? '전송 중...' : (requestType === 'cancel' ? '취소 요청' : '변경 요청')}
