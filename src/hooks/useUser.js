@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { getGenderFromResidentId } from '../utils/genderUtils';
-import { subscribeToAuthState, adminSignIn, adminSignOut } from '../firebase';
+import { subscribeToAuthState, adminSignIn, adminSignOut, getUser as firebaseGetUser, isFirebaseInitialized } from '../firebase';
 
 const STORAGE_KEY = 'vup58_user';
 
@@ -26,17 +26,34 @@ export function useUser() {
             }
         });
 
-        // 저장된 사용자 정보 로드
-        const savedUser = localStorage.getItem(STORAGE_KEY);
-        if (savedUser) {
-            try {
-                const parsed = JSON.parse(savedUser);
-                setUser(parsed);
-            } catch (e) {
-                localStorage.removeItem(STORAGE_KEY);
+        // 저장된 사용자 정보 로드 및 세션 유효성 확인
+        const loadAndValidateUser = async () => {
+            const savedUser = localStorage.getItem(STORAGE_KEY);
+            if (savedUser) {
+                try {
+                    const parsed = JSON.parse(savedUser);
+
+                    // Firebase에서 세션이 삭제되었는지 확인 (관리자가 삭제한 경우)
+                    if (isFirebaseInitialized() && parsed.locked && parsed.sessionId) {
+                        const firebaseSession = await firebaseGetUser(parsed.sessionId);
+                        if (!firebaseSession) {
+                            // 세션이 Firebase에서 삭제됨 → localStorage 초기화
+                            localStorage.removeItem(STORAGE_KEY);
+                            setUser(null);
+                            setIsLoading(false);
+                            return;
+                        }
+                    }
+
+                    setUser(parsed);
+                } catch (e) {
+                    localStorage.removeItem(STORAGE_KEY);
+                }
             }
-        }
-        setIsLoading(false);
+            setIsLoading(false);
+        };
+
+        loadAndValidateUser();
 
         return () => unsubscribe();
     }, []);
