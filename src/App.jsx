@@ -211,12 +211,7 @@ export default function App() {
             return;
         }
 
-        // 1인실 클릭 시 문의처 안내
-        const roomStatus = getRoomStatus(roomNumber, user.gender, isAdmin);
-        if (roomStatus.adminOnly && !isAdmin) {
-            setShowContactModal(true);
-            return;
-        }
+        // 1인실은 완전 잠금되어 있으므로 여기까지 오지 않음
 
         setSelectedRoomForConfirm(roomNumber);
     };

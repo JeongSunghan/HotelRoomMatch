@@ -1,14 +1,12 @@
 import { useState } from 'react';
 import { validateResidentId, getGenderLabel, getAgeFromResidentId } from '../utils/genderUtils';
 
-/**
- * 사용자 등록 모달
- */
 export default function RegistrationModal({ onRegister, onClose }) {
     const [name, setName] = useState('');
     const [company, setCompany] = useState('');
     const [residentIdFront, setResidentIdFront] = useState('');
     const [residentIdBack, setResidentIdBack] = useState('');
+    const [snoring, setSnoring] = useState(null); // null, 'yes', 'no', 'sometimes'
     const [error, setError] = useState('');
     const [detectedGender, setDetectedGender] = useState(null);
     const [detectedAge, setDetectedAge] = useState(null);
@@ -74,13 +72,19 @@ export default function RegistrationModal({ onRegister, onClose }) {
             return;
         }
 
+        if (!snoring) {
+            setError('코골이 여부를 선택해주세요.');
+            return;
+        }
+
         try {
             onRegister({
                 name: name.trim(),
                 company: company.trim(),
                 residentIdFront,
                 residentIdBack,
-                age: detectedAge
+                age: detectedAge,
+                snoring // 'yes', 'no', 'sometimes'
             });
         } catch (err) {
             setError(err.message);
@@ -183,6 +187,48 @@ export default function RegistrationModal({ onRegister, onClose }) {
                         </div>
                     )}
 
+                    {/* 코골이 여부 선택 */}
+                    {detectedGender && (
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-2">
+                                코골이 여부 <span className="text-red-500">*</span>
+                            </label>
+                            <div className="grid grid-cols-3 gap-2">
+                                <button
+                                    type="button"
+                                    onClick={() => setSnoring('no')}
+                                    className={`py-3 px-4 rounded-lg border-2 font-medium text-sm transition-all ${snoring === 'no'
+                                            ? 'border-emerald-500 bg-emerald-50 text-emerald-700'
+                                            : 'border-gray-200 hover:border-gray-300'
+                                        }`}
+                                >
+                                    😴 없음
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => setSnoring('sometimes')}
+                                    className={`py-3 px-4 rounded-lg border-2 font-medium text-sm transition-all ${snoring === 'sometimes'
+                                            ? 'border-amber-500 bg-amber-50 text-amber-700'
+                                            : 'border-gray-200 hover:border-gray-300'
+                                        }`}
+                                >
+                                    😪 가끔
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => setSnoring('yes')}
+                                    className={`py-3 px-4 rounded-lg border-2 font-medium text-sm transition-all ${snoring === 'yes'
+                                            ? 'border-red-500 bg-red-50 text-red-700'
+                                            : 'border-gray-200 hover:border-gray-300'
+                                        }`}
+                                >
+                                    😤 자주
+                                </button>
+                            </div>
+                            <p className="text-xs text-gray-400 mt-1">룸메이트 매칭 시 참고됩니다.</p>
+                        </div>
+                    )}
+
                     {/* 에러 메시지 */}
                     {error && (
                         <div className="p-4 bg-red-50 border border-red-200 border-l-4 border-l-red-500 rounded-lg">
@@ -197,7 +243,6 @@ export default function RegistrationModal({ onRegister, onClose }) {
                             <li>• 등록 후 정보 수정이 <strong>불가능</strong>합니다.</li>
                             <li>• 객실 선택은 <strong>1회만</strong> 가능합니다.</li>
                             <li>• 신중하게 선택해주세요.</li>
-                            <li>• <strong>성별을 다르게 설정 후, 다른 성별의 객실에 들어가는 법적 책임은 묻지 않습니다.</strong>.</li>
                         </ul>
                     </div>
 

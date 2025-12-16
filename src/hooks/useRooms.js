@@ -69,9 +69,10 @@ export function useRooms() {
             return { ...result, status: 'wrong-gender', canSelect: false };
         }
 
+        // 1인실 - 완전 잠금 (관리자 직접 데이터 입력)
         if (room.capacity === 1) {
             if (guestCount === 0) {
-                return { ...result, status: 'empty', canSelect: isAdmin, adminOnly: true };
+                return { ...result, status: 'locked', canSelect: false, isLocked: true };
             } else {
                 return { ...result, status: 'full', canSelect: false };
             }

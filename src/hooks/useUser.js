@@ -74,7 +74,7 @@ export function useUser() {
     }, []);
 
     const registerUser = useCallback((userData) => {
-        const { name, company, residentIdFront, residentIdBack, age } = userData;
+        const { name, company, residentIdFront, residentIdBack, age, snoring } = userData;
 
         const gender = getGenderFromResidentId(residentIdBack);
         if (!gender) {
@@ -87,6 +87,7 @@ export function useUser() {
             company: company?.trim() || '',
             gender,
             age: age || null,
+            snoring: snoring || 'no',
             residentIdFront,
             registeredAt: Date.now(),
             selectedRoom: null,

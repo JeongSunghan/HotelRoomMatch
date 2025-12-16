@@ -10,7 +10,7 @@ export default function RoomCard({
     onClick,
     isAdmin
 }) {
-    const { guests, guestCount, capacity, roomType, roomGender, adminOnly } = status;
+    const { guests, guestCount, capacity, roomType, roomGender, isLocked } = status;
 
     // 상태별 스타일 결정
     const getCardStyle = () => {
@@ -19,9 +19,9 @@ export default function RoomCard({
             return 'bg-emerald-50 border-2 border-emerald-500 my-room';
         }
 
-        // 1인실 관리자 전용 (빈 방)
-        if (adminOnly && !isAdmin && guestCount === 0) {
-            return 'bg-amber-50 border-2 border-amber-400 opacity-80';
+        // 1인실 잠금 (관리자 직접 데이터 입력)
+        if (isLocked) {
+            return 'bg-gray-200 border-2 border-gray-400 opacity-50 cursor-not-allowed';
         }
 
         // 상태별 스타일
@@ -49,8 +49,8 @@ export default function RoomCard({
         }
     };
 
-    // 클릭 가능 여부 (adminOnly도 클릭 허용 - 문의 모달 표시용)
-    const isClickable = canSelect || adminOnly || isAdmin;
+    // 클릭 가능 여부 (1인실 잠금은 클릭 불가)
+    const isClickable = !isLocked && (canSelect || isAdmin);
 
     return (
         <div
@@ -95,7 +95,7 @@ export default function RoomCard({
                     </div>
                 ) : (
                     <p className="text-xs text-gray-500 italic">
-                        {adminOnly && !isAdmin ? '관리자 배정' : '빈 방'}
+                        {isLocked ? '1인실 (잠금)' : '빈 방'}
                     </p>
                 )}
             </div>
@@ -106,9 +106,9 @@ export default function RoomCard({
                     {guestCount}/{capacity}
                 </span>
 
-                {/* 1인실 관리자 전용 표시 */}
-                {adminOnly && !isAdmin && guestCount === 0 && (
-                    <span className="text-xs text-amber-600 font-medium">💰 결제 필요</span>
+                {/* 1인실 잠금 표시 */}
+                {isLocked && (
+                    <span className="text-xs text-gray-500 font-medium">� 잠금</span>
                 )}
 
                 {/* 선택 불가 표시 */}
@@ -122,13 +122,8 @@ export default function RoomCard({
                 )}
 
                 {/* 선택 가능 표시 */}
-                {canSelect && !isMyRoom && !adminOnly && (
+                {canSelect && !isMyRoom && !isLocked && (
                     <span className="text-xs text-blue-600 font-medium">선택 가능</span>
-                )}
-
-                {/* 관리자 배정 가능 */}
-                {isAdmin && adminOnly && guestCount === 0 && (
-                    <span className="text-xs text-amber-600 font-medium">배정 가능</span>
                 )}
             </div>
         </div>

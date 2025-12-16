@@ -94,6 +94,64 @@ export default function SelectionModal({
                     </p>
                 </div>
 
+                {/* 기존 투숙객 정보 (2인실 반배정) */}
+                {isDoubleRoom && !isEmptyDoubleRoom && roomStatus?.guests?.[0] && (() => {
+                    const existingGuest = roomStatus.guests[0];
+                    const ageDiff = user.age && existingGuest.age ? Math.abs(user.age - existingGuest.age) : null;
+                    const hasAgeWarning = ageDiff && ageDiff > 5;
+                    const snoringLabel = {
+                        'no': '😴 없음',
+                        'sometimes': '😪 가끔',
+                        'yes': '😤 자주'
+                    };
+                    const hasSnoringConflict =
+                        (existingGuest.snoring === 'yes' && user.snoring !== 'yes') ||
+                        (user.snoring === 'yes' && existingGuest.snoring !== 'yes');
+
+                    return (
+                        <div className="mb-5 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                            <p className="font-medium text-blue-800 mb-3">
+                                👤 현재 투숙객 정보
+                            </p>
+                            <div className="space-y-2 text-sm">
+                                <div className="flex justify-between">
+                                    <span className="text-gray-600">이름</span>
+                                    <span className="font-medium">{existingGuest.name} {existingGuest.company && `(${existingGuest.company})`}</span>
+                                </div>
+                                <div className="flex justify-between">
+                                    <span className="text-gray-600">나이</span>
+                                    <span className={`font-medium ${hasAgeWarning ? 'text-amber-600' : ''}`}>
+                                        {existingGuest.age ? `${existingGuest.age}세` : '미공개'}
+                                        {ageDiff !== null && ` (차이: ${ageDiff}세)`}
+                                    </span>
+                                </div>
+                                <div className="flex justify-between">
+                                    <span className="text-gray-600">코골이</span>
+                                    <span className={`font-medium ${existingGuest.snoring === 'yes' ? 'text-red-600' : ''}`}>
+                                        {snoringLabel[existingGuest.snoring] || '미공개'}
+                                    </span>
+                                </div>
+                            </div>
+
+                            {/* 호환성 경고 */}
+                            {(hasAgeWarning || hasSnoringConflict) && (
+                                <div className="mt-3 space-y-2">
+                                    {hasAgeWarning && (
+                                        <div className="p-2 bg-amber-100 border border-amber-300 rounded text-xs text-amber-800">
+                                            ⚠️ 나이 차이가 {ageDiff}세입니다. (권장: 5세 이내)
+                                        </div>
+                                    )}
+                                    {hasSnoringConflict && (
+                                        <div className="p-2 bg-red-100 border border-red-300 rounded text-xs text-red-800">
+                                            ⚠️ 코골이 호환성에 문제가 있을 수 있습니다.
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+                        </div>
+                    );
+                })()}
+
                 {/* 2인실 룸메이트 질문 */}
                 {needRoommateQuestion && (
                     <div className="mb-5 p-4 bg-purple-50 border border-purple-200 rounded-lg">

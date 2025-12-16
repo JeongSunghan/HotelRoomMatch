@@ -73,7 +73,7 @@ export default function Header({ user, stats, isAdmin, onUserClick }) {
                 </div>
                 <div className="legend-item">
                     <div className="legend-color bg-gray-300" />
-                    <span className="text-gray-600">선택 불가</span>
+                    <span className="text-gray-600">1인실 (잠금)</span>
                 </div>
             </div>
 
