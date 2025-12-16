@@ -7,6 +7,7 @@ import SelectionModal from './components/SelectionModal';
 import InvitationModal from './components/InvitationModal';
 import MyRoomModal from './components/MyRoomModal';
 import AdminPanel from './components/AdminPanel';
+import AdminLoginModal from './components/AdminLoginModal';
 import { useUser } from './hooks/useUser';
 import { useRooms } from './hooks/useRooms';
 import { floors, floorInfo } from './data/roomData';
@@ -32,7 +33,9 @@ export default function App() {
         canSelect,
         registerUser,
         selectRoom: selectUserRoom,
-        isMyRoom
+        isMyRoom,
+        loginAdmin,
+        logoutAdmin
     } = useUser();
 
     // 객실 상태
@@ -58,6 +61,11 @@ export default function App() {
     const [pendingInvitation, setPendingInvitation] = useState(null);
     const [invitationLoading, setInvitationLoading] = useState(false);
     const [rejectionNotification, setRejectionNotification] = useState(null);
+
+    // Admin 로그인 상태
+    const [showAdminLoginModal, setShowAdminLoginModal] = useState(false);
+    const [adminLoginLoading, setAdminLoginLoading] = useState(false);
+    const [adminLoginError, setAdminLoginError] = useState(null);
 
     // 사용자 성별에 맞는 기본 층 설정
     useEffect(() => {
@@ -169,6 +177,26 @@ export default function App() {
             // 에러 무시
         } finally {
             setInvitationLoading(false);
+        }
+    };
+
+    // Admin 로그인
+    const handleAdminLogin = async (email, password) => {
+        setAdminLoginLoading(true);
+        setAdminLoginError(null);
+        try {
+            await loginAdmin(email, password);
+            setShowAdminLoginModal(false);
+        } catch (error) {
+            if (error.code === 'auth/user-not-found' || error.code === 'auth/wrong-password') {
+                setAdminLoginError('이메일 또는 비밀번호가 올바르지 않습니다.');
+            } else if (error.code === 'auth/invalid-email') {
+                setAdminLoginError('올바른 이메일 형식이 아닙니다.');
+            } else {
+                setAdminLoginError('로그인에 실패했습니다.');
+            }
+        } finally {
+            setAdminLoginLoading(false);
         }
     };
 
@@ -395,16 +423,45 @@ export default function App() {
                     />
                 )}
 
+                {/* Admin 로그인 모달 */}
+                {showAdminLoginModal && (
+                    <AdminLoginModal
+                        onLogin={handleAdminLogin}
+                        onClose={() => {
+                            setShowAdminLoginModal(false);
+                            setAdminLoginError(null);
+                        }}
+                        isLoading={adminLoginLoading}
+                        error={adminLoginError}
+                    />
+                )}
+
                 {/* 푸터 */}
                 <footer className="footer">
                     <p>KVCA V-Up 객실 배정 시스템</p>
-                    {isAdmin && (
+                    {isAdmin ? (
+                        <div className="flex gap-3 mt-3">
+                            <button
+                                onClick={() => setShowAdminPanel(true)}
+                                className="px-6 py-2 bg-navy-800 hover:bg-navy-900 
+                                           text-white rounded-lg font-medium transition-colors"
+                            >
+                                🔑 관리자 패널
+                            </button>
+                            <button
+                                onClick={logoutAdmin}
+                                className="px-4 py-2 bg-gray-500 hover:bg-gray-600 
+                                           text-white rounded-lg text-sm transition-colors"
+                            >
+                                로그아웃
+                            </button>
+                        </div>
+                    ) : (
                         <button
-                            onClick={() => setShowAdminPanel(true)}
-                            className="mt-3 px-6 py-2 bg-navy-800 hover:bg-navy-900 
-                                       text-white rounded-lg font-medium transition-colors"
+                            onClick={() => setShowAdminLoginModal(true)}
+                            className="mt-3 text-xs text-gray-400 hover:text-gray-600"
                         >
-                            🔑 관리자 패널 열기
+                            관리자 로그인
                         </button>
                     )}
                 </footer>

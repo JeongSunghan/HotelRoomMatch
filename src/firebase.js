@@ -1,5 +1,6 @@
 import { initializeApp } from 'firebase/app';
 import { getDatabase, ref, onValue, set, update, get } from 'firebase/database';
+import { getAuth, signInWithEmailAndPassword, signOut as firebaseSignOut, onAuthStateChanged } from 'firebase/auth';
 
 const firebaseConfig = {
     apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
@@ -13,14 +14,38 @@ const firebaseConfig = {
 
 let app = null;
 let database = null;
+let auth = null;
 
 try {
     if (firebaseConfig.apiKey && firebaseConfig.databaseURL) {
         app = initializeApp(firebaseConfig);
         database = getDatabase(app);
+        auth = getAuth(app);
     }
 } catch (error) {
     // Firebase 초기화 실패 - 로컬 모드로 동작
+}
+
+// ==================== Admin Authentication ====================
+
+export async function adminSignIn(email, password) {
+    if (!auth) throw new Error('Firebase가 초기화되지 않았습니다.');
+
+    const userCredential = await signInWithEmailAndPassword(auth, email, password);
+    return userCredential.user;
+}
+
+export async function adminSignOut() {
+    if (!auth) return;
+    await firebaseSignOut(auth);
+}
+
+export function subscribeToAuthState(callback) {
+    if (!auth) {
+        callback(null);
+        return () => { };
+    }
+    return onAuthStateChanged(auth, callback);
 }
 
 export function isFirebaseInitialized() {
