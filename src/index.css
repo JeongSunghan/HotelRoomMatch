@@ -1,0 +1,257 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+    font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    line-height: 1.6;
+    font-weight: 400;
+
+    /* 공기업 스타일 컬러 팔레트 */
+    --navy-900: #0f1729;
+    --navy-800: #1a2744;
+    --navy-700: #1e3a5f;
+    --navy-600: #2563eb;
+    --navy-500: #3b82f6;
+
+    color-scheme: light;
+    color: #1f2937;
+    background-color: #f3f4f6;
+
+    font-synthesis: none;
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+    margin: 0;
+    min-width: 320px;
+    min-height: 100vh;
+    background: linear-gradient(180deg, #e5e7eb 0%, #f9fafb 100%);
+}
+
+/* 커스텀 스크롤바 */
+::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+::-webkit-scrollbar-track {
+    background: #e5e7eb;
+    border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb {
+    background: #9ca3af;
+    border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: #6b7280;
+}
+
+/* 네이비 헤더 스타일 */
+.header-navy {
+    background: linear-gradient(135deg, #1a2744 0%, #1e3a5f 100%);
+    color: white;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+}
+
+/* 화이트 카드 스타일 */
+.card-white {
+    background: white;
+    border: 1px solid #e5e7eb;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+}
+
+.card-white:hover {
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+/* 객실 카드 호버 효과 */
+.room-card {
+    transition: all 0.2s ease-in-out;
+    background: white;
+    border: 2px solid #e5e7eb;
+}
+
+.room-card:hover:not(.disabled) {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.12);
+}
+
+/* 선택된 방 펄스 애니메이션 */
+@keyframes pulse-green {
+
+    0%,
+    100% {
+        box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.4);
+    }
+
+    50% {
+        box-shadow: 0 0 0 8px rgba(16, 185, 129, 0);
+    }
+}
+
+.my-room {
+    animation: pulse-green 2s infinite;
+}
+
+/* 층 탭 스타일 */
+.floor-tab {
+    transition: all 0.2s ease;
+    background: white;
+    border: 1px solid #e5e7eb;
+    color: #374151;
+}
+
+.floor-tab:hover {
+    background: #f9fafb;
+    border-color: #3b82f6;
+}
+
+.floor-tab.active {
+    background: linear-gradient(135deg, #1a2744 0%, #2563eb 100%);
+    border-color: #1a2744;
+    color: white;
+}
+
+/* 모달 오버레이 */
+.modal-overlay {
+    backdrop-filter: blur(4px);
+    background: rgba(0, 0, 0, 0.5);
+}
+
+/* 모달 카드 */
+.modal-card {
+    background: white;
+    border: 1px solid #e5e7eb;
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.2);
+}
+
+/* 버튼 스타일 */
+.btn-primary {
+    background: linear-gradient(135deg, #1a2744 0%, #2563eb 100%);
+    color: white;
+    border: none;
+    transition: all 0.2s;
+}
+
+.btn-primary:hover {
+    background: linear-gradient(135deg, #0f1729 0%, #1d4ed8 100%);
+    transform: translateY(-1px);
+}
+
+.btn-secondary {
+    background: #f3f4f6;
+    color: #374151;
+    border: 1px solid #d1d5db;
+}
+
+.btn-secondary:hover {
+    background: #e5e7eb;
+}
+
+/* 그라데이션 텍스트 - 네이비 버전 */
+.gradient-text {
+    background: linear-gradient(135deg, #1a2744 0%, #2563eb 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}
+
+/* 범례 아이템 */
+.legend-item {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.75rem;
+}
+
+.legend-color {
+    width: 1rem;
+    height: 1rem;
+    border-radius: 0.25rem;
+}
+
+/* 통계 카드 */
+.stat-card {
+    background: white;
+    border: 1px solid #e5e7eb;
+    border-radius: 0.75rem;
+    padding: 1rem;
+    text-align: center;
+}
+
+/* 상태 배지 */
+.badge {
+    padding: 0.25rem 0.75rem;
+    border-radius: 9999px;
+    font-size: 0.75rem;
+    font-weight: 500;
+}
+
+.badge-male {
+    background: #dbeafe;
+    color: #1d4ed8;
+}
+
+.badge-female {
+    background: #fce7f3;
+    color: #be185d;
+}
+
+/* 안내 박스 */
+.info-box {
+    background: #eff6ff;
+    border: 1px solid #bfdbfe;
+    border-left: 4px solid #2563eb;
+    padding: 1rem;
+    border-radius: 0.5rem;
+}
+
+.warning-box {
+    background: #fffbeb;
+    border: 1px solid #fcd34d;
+    border-left: 4px solid #f59e0b;
+    padding: 1rem;
+    border-radius: 0.5rem;
+}
+
+.success-box {
+    background: #ecfdf5;
+    border: 1px solid #6ee7b7;
+    border-left: 4px solid #10b981;
+    padding: 1rem;
+    border-radius: 0.5rem;
+}
+
+/* 입력 필드 */
+.input-field {
+    width: 100%;
+    padding: 0.75rem 1rem;
+    background: #f9fafb;
+    border: 1px solid #d1d5db;
+    border-radius: 0.5rem;
+    color: #1f2937;
+    transition: all 0.2s;
+}
+
+.input-field:focus {
+    outline: none;
+    border-color: #2563eb;
+    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+}
+
+.input-field::placeholder {
+    color: #9ca3af;
+}
+
+/* 푸터 */
+.footer {
+    color: #6b7280;
+    padding: 2rem;
+    text-align: center;
+    font-size: 0.875rem;
+}

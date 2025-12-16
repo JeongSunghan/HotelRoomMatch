@@ -1,0 +1,414 @@
+import { useState, useMemo, useEffect } from 'react';
+import Header from './components/Header';
+import FloorSelector from './components/FloorSelector';
+import RoomGrid from './components/RoomGrid';
+import RegistrationModal from './components/RegistrationModal';
+import SelectionModal from './components/SelectionModal';
+import InvitationModal from './components/InvitationModal';
+import MyRoomModal from './components/MyRoomModal';
+import AdminPanel from './components/AdminPanel';
+import { useUser } from './hooks/useUser';
+import { useRooms } from './hooks/useRooms';
+import { floors, floorInfo } from './data/roomData';
+import {
+    checkPendingInvitations,
+    acceptInvitation,
+    rejectInvitation,
+    createRoommateInvitation,
+    subscribeToMyInvitations,
+    createRoomChangeRequest
+} from './firebase';
+
+/**
+ * 메인 앱 컴포넌트
+ */
+export default function App() {
+    // 사용자 상태
+    const {
+        user,
+        isAdmin,
+        isLoading: userLoading,
+        isRegistered,
+        canSelect,
+        registerUser,
+        selectRoom: selectUserRoom,
+        isMyRoom
+    } = useUser();
+
+    // 객실 상태
+    const {
+        roomGuests,
+        isLoading: roomsLoading,
+        getRoomStatus,
+        addGuestToRoom,
+        removeGuestFromRoom,
+        getStats,
+        isFirebaseConnected
+    } = useRooms();
+
+    // UI 상태
+    const [selectedFloor, setSelectedFloor] = useState(null);
+    const [showRegistrationModal, setShowRegistrationModal] = useState(false);
+    const [selectedRoomForConfirm, setSelectedRoomForConfirm] = useState(null);
+    const [showAdminPanel, setShowAdminPanel] = useState(false);
+    const [showContactModal, setShowContactModal] = useState(false);
+    const [showMyRoomModal, setShowMyRoomModal] = useState(false);
+
+    // 초대 시스템 상태
+    const [pendingInvitation, setPendingInvitation] = useState(null);
+    const [invitationLoading, setInvitationLoading] = useState(false);
+    const [rejectionNotification, setRejectionNotification] = useState(null);
+
+    // 사용자 성별에 맞는 기본 층 설정
+    useEffect(() => {
+        if (user?.gender) {
+            const defaultFloor = floors.find(f => floorInfo[f].gender === user.gender);
+            if (defaultFloor && selectedFloor === null) {
+                setSelectedFloor(defaultFloor);
+            }
+        }
+    }, [user?.gender, selectedFloor]);
+
+    // 기본 층 설정 (사용자 등록 전)
+    if (selectedFloor === null) {
+        setSelectedFloor(floors[0]);
+    }
+
+    // 내가 보낸 초대 상태 구독 (거절 알림용)
+    useEffect(() => {
+        if (!user?.sessionId) return;
+
+        const unsubscribe = subscribeToMyInvitations(user.sessionId, (myInvitations) => {
+            // 거절된 초대 찾기
+            const rejected = myInvitations.find(inv =>
+                inv.status === 'rejected' && !inv.notified
+            );
+            if (rejected) {
+                setRejectionNotification(rejected);
+            }
+        });
+
+        return () => unsubscribe();
+    }, [user?.sessionId]);
+
+    // 통계 계산
+    const stats = useMemo(() => {
+        return {
+            male: getStats('M'),
+            female: getStats('F'),
+            total: getStats()
+        };
+    }, [getStats]);
+
+    // 로딩 중
+    if (userLoading || roomsLoading) {
+        return (
+            <div className="min-h-screen flex items-center justify-center">
+                <div className="text-center">
+                    <div className="w-16 h-16 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+                    <p className="text-gray-400">로딩 중...</p>
+                </div>
+            </div>
+        );
+    }
+
+    // 사용자 등록 후 초대 확인
+    const handleRegister = async (userData) => {
+        const newUser = registerUser(userData);
+        setShowRegistrationModal(false);
+
+        // 성별에 맞는 층으로 이동
+        const defaultFloor = floors.find(f => floorInfo[f].gender === newUser.gender);
+        if (defaultFloor) {
+            setSelectedFloor(defaultFloor);
+        }
+
+        // 대기 중인 초대 확인
+        const invitations = await checkPendingInvitations(newUser.name);
+        if (invitations.length > 0) {
+            setPendingInvitation(invitations[0]); // 첫 번째 초대만 처리
+        }
+    };
+
+    // 초대 수락
+    const handleAcceptInvitation = async () => {
+        if (!pendingInvitation || !user) return;
+
+        setInvitationLoading(true);
+        try {
+            const roomNumber = await acceptInvitation(pendingInvitation.id, {
+                name: user.name,
+                company: user.company || '',
+                gender: user.gender,
+                age: user.age,
+                sessionId: user.sessionId,
+                registeredAt: Date.now()
+            });
+
+            // 사용자 상태 업데이트
+            selectUserRoom(roomNumber);
+            setPendingInvitation(null);
+        } catch (error) {
+            alert('초대 수락에 실패했습니다.');
+        } finally {
+            setInvitationLoading(false);
+        }
+    };
+
+    // 초대 거절
+    const handleRejectInvitation = async () => {
+        if (!pendingInvitation || !user) return;
+
+        setInvitationLoading(true);
+        try {
+            await rejectInvitation(pendingInvitation.id, {
+                sessionId: user.sessionId
+            });
+            setPendingInvitation(null);
+        } catch (error) {
+            // 에러 무시
+        } finally {
+            setInvitationLoading(false);
+        }
+    };
+
+    // 객실 클릭
+    const handleRoomClick = (roomNumber) => {
+        if (!user) {
+            setShowRegistrationModal(true);
+            return;
+        }
+
+        if (user.locked) {
+            return;
+        }
+
+        // 1인실 클릭 시 문의처 안내
+        const roomStatus = getRoomStatus(roomNumber, user.gender, isAdmin);
+        if (roomStatus.adminOnly && !isAdmin) {
+            setShowContactModal(true);
+            return;
+        }
+
+        setSelectedRoomForConfirm(roomNumber);
+    };
+
+    // 객실 선택 확정
+    const handleConfirmSelection = async (roomNumber, roommateInfo = {}) => {
+        if (!user) return;
+
+        // Firebase에 저장
+        await addGuestToRoom(roomNumber, {
+            name: user.name,
+            company: user.company || '',
+            gender: user.gender,
+            age: user.age,
+            sessionId: user.sessionId,
+            registeredAt: Date.now()
+        });
+
+        // 룸메이트 초대 생성
+        if (roommateInfo.hasRoommate && roommateInfo.roommateName) {
+            await createRoommateInvitation(
+                { ...user, roomNumber },
+                roommateInfo.roommateName
+            );
+        }
+
+        // 사용자 상태 업데이트
+        selectUserRoom(roomNumber);
+        setSelectedRoomForConfirm(null);
+    };
+
+    return (
+        <div className="min-h-screen p-4 md:p-6">
+            <div className="max-w-7xl mx-auto">
+                {/* Firebase 연결 상태 */}
+                {!isFirebaseConnected && (
+                    <div className="warning-box mb-4 text-center">
+                        <p className="text-amber-700 text-sm">
+                            ⚠️ Firebase 미연결 - 로컬 모드로 동작 중 (데이터가 이 브라우저에만 저장됩니다)
+                        </p>
+                    </div>
+                )}
+
+                {/* 거절 알림 */}
+                {rejectionNotification && (
+                    <div className="fixed top-4 right-4 z-50 bg-red-100 border border-red-300 rounded-lg p-4 shadow-lg max-w-sm">
+                        <div className="flex items-start gap-3">
+                            <span className="text-2xl">😢</span>
+                            <div>
+                                <p className="font-medium text-red-800">룸메이트 거절</p>
+                                <p className="text-red-700 text-sm">
+                                    {rejectionNotification.inviteeName}님께서 룸메이트 지정을 거부하셨습니다.
+                                </p>
+                            </div>
+                            <button
+                                onClick={() => setRejectionNotification(null)}
+                                className="text-red-500 hover:text-red-700"
+                            >
+                                ✕
+                            </button>
+                        </div>
+                    </div>
+                )}
+
+                {/* 헤더 */}
+                <Header
+                    user={user}
+                    stats={stats}
+                    isAdmin={isAdmin}
+                    onUserClick={() => user?.locked && setShowMyRoomModal(true)}
+                />
+
+                {/* 미등록 사용자 안내 */}
+                {!isRegistered && (
+                    <div className="card-white rounded-xl p-6 text-center mb-6">
+                        <div className="w-14 h-14 bg-slate-800 rounded-full flex items-center justify-center mx-auto mb-3">
+                            <svg className="w-7 h-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                            </svg>
+                        </div>
+                        <h2 className="text-lg font-bold text-gray-800 mb-1">객실 배정에 참여하세요</h2>
+                        <p className="text-gray-500 text-sm mb-4">
+                            본인 확인을 위해 간단한 정보를 입력해주세요.
+                        </p>
+                        <button
+                            onClick={() => setShowRegistrationModal(true)}
+                            className="px-6 py-2.5 btn-primary rounded-lg font-medium text-sm"
+                        >
+                            등록하기
+                        </button>
+                    </div>
+                )}
+
+                {/* 선택 완료 안내 */}
+                {user?.locked && (
+                    <div className="success-box mb-6">
+                        <div className="flex items-center gap-4">
+                            <div className="w-12 h-12 bg-emerald-500 rounded-full flex items-center justify-center text-white text-2xl">
+                                ✓
+                            </div>
+                            <div>
+                                <h3 className="font-bold text-emerald-700">객실 선택 완료!</h3>
+                                <p className="text-emerald-600">
+                                    <span className="font-semibold">{user.selectedRoom}호</span>에 배정되었습니다.
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {/* 층 선택 탭 */}
+                <FloorSelector
+                    selectedFloor={selectedFloor}
+                    onSelectFloor={setSelectedFloor}
+                    userGender={user?.gender}
+                />
+
+                {/* 객실 그리드 */}
+                <RoomGrid
+                    selectedFloor={selectedFloor}
+                    userGender={user?.gender}
+                    getRoomStatus={getRoomStatus}
+                    isMyRoom={isMyRoom}
+                    onRoomClick={handleRoomClick}
+                    canUserSelect={canSelect}
+                    isAdmin={isAdmin}
+                />
+
+                {/* 등록 모달 */}
+                {showRegistrationModal && (
+                    <RegistrationModal
+                        onRegister={handleRegister}
+                        onClose={() => setShowRegistrationModal(false)}
+                    />
+                )}
+
+                {/* 룸메이트 초대 모달 */}
+                {pendingInvitation && (
+                    <InvitationModal
+                        invitation={pendingInvitation}
+                        onAccept={handleAcceptInvitation}
+                        onReject={handleRejectInvitation}
+                        isLoading={invitationLoading}
+                    />
+                )}
+
+                {/* 내 방 정보 모달 */}
+                {showMyRoomModal && user?.locked && (
+                    <MyRoomModal
+                        user={user}
+                        roomGuests={roomGuests}
+                        onRequestChange={async (requestData) => {
+                            await createRoomChangeRequest(requestData);
+                        }}
+                        onClose={() => setShowMyRoomModal(false)}
+                    />
+                )}
+
+                {/* 선택 확인 모달 */}
+                {selectedRoomForConfirm && user && (
+                    <SelectionModal
+                        roomNumber={selectedRoomForConfirm}
+                        roomStatus={getRoomStatus(selectedRoomForConfirm, user.gender, isAdmin)}
+                        user={user}
+                        onConfirm={handleConfirmSelection}
+                        onCancel={() => setSelectedRoomForConfirm(null)}
+                    />
+                )}
+
+                {/* 1인실 문의 안내 모달 */}
+                {showContactModal && (
+                    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+                        <div className="absolute inset-0 modal-overlay" onClick={() => setShowContactModal(false)} />
+                        <div className="relative modal-card rounded-xl p-6 w-full max-w-sm text-center">
+                            <div className="w-14 h-14 bg-amber-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                                <span className="text-3xl">💰</span>
+                            </div>
+                            <h3 className="text-lg font-bold text-gray-800 mb-2">1인실 배정 안내</h3>
+                            <p className="text-gray-600 mb-4">
+                                1인실은 별도 결제가 필요합니다.<br />
+                                아래 담당자에게 연락해주세요.
+                            </p>
+                            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
+                                <p className="text-blue-800 font-bold text-lg">📞 02-3017-7092</p>
+                                <p className="text-blue-600 text-sm mt-1">담당자에게 연락해주세요</p>
+                            </div>
+                            <button
+                                onClick={() => setShowContactModal(false)}
+                                className="w-full py-3 btn-primary rounded-lg font-medium"
+                            >
+                                확인
+                            </button>
+                        </div>
+                    </div>
+                )}
+
+                {/* Admin 패널 */}
+                {showAdminPanel && isAdmin && (
+                    <AdminPanel
+                        roomGuests={roomGuests}
+                        onRemoveGuest={removeGuestFromRoom}
+                        onClose={() => setShowAdminPanel(false)}
+                        getStats={getStats}
+                    />
+                )}
+
+                {/* 푸터 */}
+                <footer className="footer">
+                    <p>KVCA V-Up 객실 배정 시스템</p>
+                    {isAdmin && (
+                        <button
+                            onClick={() => setShowAdminPanel(true)}
+                            className="mt-3 px-6 py-2 bg-navy-800 hover:bg-navy-900 
+                                       text-white rounded-lg font-medium transition-colors"
+                        >
+                            🔑 관리자 패널 열기
+                        </button>
+                    )}
+                </footer>
+            </div>
+        </div>
+    );
+}
