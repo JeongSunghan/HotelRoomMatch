@@ -128,8 +128,8 @@ export default function AdminPanel({
                         <button
                             onClick={() => setActiveTab('rooms')}
                             className={`px-4 py-2 rounded-lg font-medium transition-colors ${activeTab === 'rooms'
-                                    ? 'bg-white text-navy-800'
-                                    : 'bg-white/10 text-white hover:bg-white/20'
+                                ? 'bg-white text-navy-800'
+                                : 'bg-white/10 text-white hover:bg-white/20'
                                 }`}
                         >
                             🏨 객실 관리
@@ -137,8 +137,8 @@ export default function AdminPanel({
                         <button
                             onClick={() => setActiveTab('requests')}
                             className={`px-4 py-2 rounded-lg font-medium transition-colors relative ${activeTab === 'requests'
-                                    ? 'bg-white text-navy-800'
-                                    : 'bg-white/10 text-white hover:bg-white/20'
+                                ? 'bg-white text-navy-800'
+                                : 'bg-white/10 text-white hover:bg-white/20'
                                 }`}
                         >
                             📋 수정 요청
@@ -308,16 +308,22 @@ export default function AdminPanel({
                                     <div
                                         key={request.id}
                                         className={`p-4 rounded-lg border bg-white ${request.status === 'pending'
-                                                ? 'border-amber-300 bg-amber-50'
-                                                : 'border-gray-200 opacity-60'
+                                            ? 'border-amber-300 bg-amber-50'
+                                            : 'border-gray-200 opacity-60'
                                             }`}
                                     >
                                         <div className="flex items-start justify-between gap-4">
                                             <div className="flex-1">
                                                 <div className="flex items-center gap-2 mb-2">
+                                                    <span className={`px-2 py-0.5 rounded text-xs font-medium ${request.type === 'cancel'
+                                                            ? 'bg-red-200 text-red-800'
+                                                            : 'bg-blue-200 text-blue-800'
+                                                        }`}>
+                                                        {request.type === 'cancel' ? '취소 요청' : '변경 요청'}
+                                                    </span>
                                                     <span className={`px-2 py-0.5 rounded text-xs font-medium ${request.status === 'pending'
-                                                            ? 'bg-amber-200 text-amber-800'
-                                                            : 'bg-green-200 text-green-800'
+                                                        ? 'bg-amber-200 text-amber-800'
+                                                        : 'bg-green-200 text-green-800'
                                                         }`}>
                                                         {request.status === 'pending' ? '대기 중' : '처리 완료'}
                                                     </span>

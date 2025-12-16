@@ -1,6 +1,6 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { getGenderFromResidentId } from '../utils/genderUtils';
-import { subscribeToAuthState, adminSignIn, adminSignOut, getUser as firebaseGetUser, isFirebaseInitialized } from '../firebase';
+import { subscribeToAuthState, adminSignIn, adminSignOut, getUser as firebaseGetUser, isFirebaseInitialized, subscribeToUserSession } from '../firebase';
 
 const STORAGE_KEY = 'vup58_user';
 
@@ -13,6 +13,7 @@ export function useUser() {
     const [isAdmin, setIsAdmin] = useState(false);
     const [adminUser, setAdminUser] = useState(null);
     const [isLoading, setIsLoading] = useState(true);
+    const sessionUnsubscribeRef = useRef(null);
 
     // Firebase Auth 상태 구독 (Admin)
     useEffect(() => {
@@ -43,6 +44,15 @@ export function useUser() {
                             setIsLoading(false);
                             return;
                         }
+
+                        // 실시간 세션 구독 (관리자 삭제 즉시 감지)
+                        sessionUnsubscribeRef.current = subscribeToUserSession(parsed.sessionId, (sessionData) => {
+                            if (!sessionData) {
+                                // 세션이 삭제됨 → 즉시 로그아웃
+                                localStorage.removeItem(STORAGE_KEY);
+                                setUser(null);
+                            }
+                        });
                     }
 
                     setUser(parsed);
@@ -55,7 +65,12 @@ export function useUser() {
 
         loadAndValidateUser();
 
-        return () => unsubscribe();
+        return () => {
+            unsubscribe();
+            if (sessionUnsubscribeRef.current) {
+                sessionUnsubscribeRef.current();
+            }
+        };
     }, []);
 
     const registerUser = useCallback((userData) => {

@@ -197,6 +197,7 @@ export default function RegistrationModal({ onRegister, onClose }) {
                             <li>• 등록 후 정보 수정이 <strong>불가능</strong>합니다.</li>
                             <li>• 객실 선택은 <strong>1회만</strong> 가능합니다.</li>
                             <li>• 신중하게 선택해주세요.</li>
+                            <li>• <strong>성별을 다르게 설정 후, 다른 성별의 객실에 들어가는 법적 책임은 묻지 않습니다.</strong>.</li>
                         </ul>
                     </div>
 

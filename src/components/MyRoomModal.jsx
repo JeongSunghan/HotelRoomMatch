@@ -2,9 +2,6 @@ import { useState } from 'react';
 import { roomData } from '../data/roomData';
 import { getGenderLabel } from '../utils/genderUtils';
 
-/**
- * 내 방 정보 모달 - 방 정보 확인 및 수정 요청
- */
 export default function MyRoomModal({
     user,
     roomGuests,
@@ -12,6 +9,7 @@ export default function MyRoomModal({
     onClose
 }) {
     const [showRequestForm, setShowRequestForm] = useState(false);
+    const [requestType, setRequestType] = useState('change'); // 'change' or 'cancel'
     const [phoneNumber, setPhoneNumber] = useState('');
     const [requestReason, setRequestReason] = useState('');
     const [isSubmitting, setIsSubmitting] = useState(false);
@@ -31,6 +29,7 @@ export default function MyRoomModal({
         setIsSubmitting(true);
         try {
             await onRequestChange({
+                type: requestType,
                 userName: user.name,
                 userCompany: user.company,
                 currentRoom: user.selectedRoom,
@@ -38,7 +37,10 @@ export default function MyRoomModal({
                 reason: requestReason.trim(),
                 sessionId: user.sessionId
             });
-            alert('방 수정 요청이 전송되었습니다. 담당자가 연락드릴 예정입니다.');
+            const message = requestType === 'cancel'
+                ? '배정 취소 요청이 전송되었습니다. 담당자가 연락드릴 예정입니다.'
+                : '방 수정 요청이 전송되었습니다. 담당자가 연락드릴 예정입니다.';
+            alert(message);
             onClose();
         } catch (error) {
             alert('요청 전송에 실패했습니다.');
@@ -133,17 +135,27 @@ export default function MyRoomModal({
                     </div>
                 </div>
 
-                {/* 방 수정 요청 */}
+                {/* 방 수정/취소 요청 */}
                 {!showRequestForm ? (
-                    <button
-                        onClick={() => setShowRequestForm(true)}
-                        className="w-full py-3 border border-gray-300 text-gray-600 rounded-lg font-medium hover:bg-gray-50 transition-colors"
-                    >
-                        🔄 방 수정 요청
-                    </button>
+                    <div className="flex gap-2">
+                        <button
+                            onClick={() => { setRequestType('change'); setShowRequestForm(true); }}
+                            className="flex-1 py-3 border border-gray-300 text-gray-600 rounded-lg font-medium hover:bg-gray-50 transition-colors"
+                        >
+                            🔄 방 변경
+                        </button>
+                        <button
+                            onClick={() => { setRequestType('cancel'); setShowRequestForm(true); }}
+                            className="flex-1 py-3 border border-red-300 text-red-600 rounded-lg font-medium hover:bg-red-50 transition-colors"
+                        >
+                            ❌ 배정 취소
+                        </button>
+                    </div>
                 ) : (
-                    <div className="border border-amber-200 bg-amber-50 rounded-lg p-4">
-                        <h4 className="font-medium text-amber-800 mb-3">방 수정 요청</h4>
+                    <div className={`border rounded-lg p-4 ${requestType === 'cancel' ? 'border-red-200 bg-red-50' : 'border-amber-200 bg-amber-50'}`}>
+                        <h4 className={`font-medium mb-3 ${requestType === 'cancel' ? 'text-red-800' : 'text-amber-800'}`}>
+                            {requestType === 'cancel' ? '배정 취소 요청' : '방 변경 요청'}
+                        </h4>
 
                         <div className="space-y-3">
                             <div>
@@ -181,13 +193,16 @@ export default function MyRoomModal({
                             <button
                                 onClick={handleSubmitRequest}
                                 disabled={isSubmitting || !phoneNumber.trim()}
-                                className="flex-1 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-lg text-sm font-medium disabled:opacity-50"
+                                className={`flex-1 py-2 text-white rounded-lg text-sm font-medium disabled:opacity-50 ${requestType === 'cancel'
+                                        ? 'bg-red-500 hover:bg-red-600'
+                                        : 'bg-amber-500 hover:bg-amber-600'
+                                    }`}
                             >
-                                {isSubmitting ? '전송 중...' : '수정 요청'}
+                                {isSubmitting ? '전송 중...' : (requestType === 'cancel' ? '취소 요청' : '변경 요청')}
                             </button>
                         </div>
 
-                        <p className="text-xs text-amber-600 mt-3">
+                        <p className={`text-xs mt-3 ${requestType === 'cancel' ? 'text-red-600' : 'text-amber-600'}`}>
                             * 담당자가 확인 후 연락드릴 예정입니다.
                         </p>
                     </div>

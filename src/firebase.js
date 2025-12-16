@@ -109,6 +109,21 @@ export async function getUser(sessionId) {
     return snapshot.val();
 }
 
+// 사용자 세션 실시간 구독 (관리자 삭제 감지용)
+export function subscribeToUserSession(sessionId, callback) {
+    if (!database || !sessionId) {
+        callback(null);
+        return () => { };
+    }
+
+    const userRef = ref(database, `users/${sessionId}`);
+    const unsubscribe = onValue(userRef, (snapshot) => {
+        callback(snapshot.val());
+    });
+
+    return unsubscribe;
+}
+
 export async function removeGuestFromRoom(roomNumber, sessionId) {
     if (!database) return false;
 
