@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { getGenderFromResidentId } from '../utils/genderUtils';
 import { STORAGE_KEYS } from '../utils/constants';
+import { sanitizeUserData } from '../utils/sanitize';
 import { subscribeToAuthState, adminSignIn, adminSignOut, getUser as firebaseGetUser, isFirebaseInitialized, subscribeToUserSession } from '../firebase/index';
 
 const STORAGE_KEY = STORAGE_KEYS.USER;
@@ -80,7 +81,9 @@ export function useUser() {
     }, []);
 
     const registerUser = useCallback((userData) => {
-        const { name, company, residentIdFront, residentIdBack, age, snoring } = userData;
+        // 입력값 정리 (XSS 방지)
+        const sanitized = sanitizeUserData(userData);
+        const { name, company, residentIdBack, age, snoring } = sanitized;
 
         const gender = getGenderFromResidentId(residentIdBack);
         if (!gender) {
@@ -89,8 +92,8 @@ export function useUser() {
 
         const newUser = {
             sessionId: generateSessionId(),
-            name: name.trim(),
-            company: company?.trim() || '',
+            name,
+            company,
             gender,
             age: age || null,
             snoring: snoring || 'no',

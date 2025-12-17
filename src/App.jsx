@@ -9,6 +9,7 @@ import MyRoomModal from './components/room/MyRoomModal';
 import { useUser } from './hooks/useUser';
 import { useRooms } from './hooks/useRooms';
 import { floors, floorInfo, roomData } from './data/roomData';
+import { sanitizeName } from './utils/sanitize';
 import {
     checkPendingInvitations,
     acceptInvitation,
@@ -266,11 +267,11 @@ export default function App() {
                 registeredAt: Date.now()
             });
 
-            // 룸메이트 초대 생성
+            // 룸메이트 초대 생성 (이름 sanitize 적용)
             if (roommateInfo.hasRoommate && roommateInfo.roommateName) {
                 await createRoommateInvitation(
                     { ...user, roomNumber },
-                    roommateInfo.roommateName
+                    sanitizeName(roommateInfo.roommateName)
                 );
             }
 
