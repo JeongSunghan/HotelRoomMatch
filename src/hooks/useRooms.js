@@ -10,6 +10,7 @@ export function useRooms() {
     useEffect(() => {
         if (isFirebaseInitialized()) {
             const unsubscribe = subscribeToRooms((data) => {
+                console.log('[useRooms] Firebase 업데이트 수신:', Object.keys(data));
                 const guests = {};
                 for (const [roomNumber, roomInfo] of Object.entries(data)) {
                     let guestList = roomInfo.guests || [];
@@ -18,6 +19,7 @@ export function useRooms() {
                     }
                     guests[roomNumber] = guestList;
                 }
+                console.log('[useRooms] 701호 게스트:', guests['701'] || []);
                 setRoomGuests(guests);
                 setIsLoading(false);
             });
@@ -100,10 +102,12 @@ export function useRooms() {
     const addGuestToRoom = useCallback(async (roomNumber, guestData) => {
         const room = roomData[roomNumber];
         const capacity = room?.capacity || 2;
+        const roomGender = room?.gender || null;  // 성별 검증용
 
         if (isFirebaseInitialized()) {
             try {
-                await firebaseSelectRoom(roomNumber, guestData, capacity);
+                // 서버 측 검증 강화: capacity와 roomGender 전달
+                await firebaseSelectRoom(roomNumber, guestData, capacity, roomGender);
             } catch (err) {
                 setError(err.message);
                 throw err; // 에러를 상위로 전파

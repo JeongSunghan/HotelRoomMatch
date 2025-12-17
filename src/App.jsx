@@ -6,11 +6,9 @@ import RegistrationModal from './components/auth/RegistrationModal';
 import SelectionModal from './components/room/SelectionModal';
 import InvitationModal from './components/room/InvitationModal';
 import MyRoomModal from './components/room/MyRoomModal';
-import AdminPanel from './components/admin/AdminPanel';
-import AdminLoginModal from './components/auth/AdminLoginModal';
 import { useUser } from './hooks/useUser';
 import { useRooms } from './hooks/useRooms';
-import { floors, floorInfo } from './data/roomData';
+import { floors, floorInfo, roomData } from './data/roomData';
 import {
     checkPendingInvitations,
     acceptInvitation,
@@ -27,15 +25,12 @@ export default function App() {
     // 사용자 상태
     const {
         user,
-        isAdmin,
         isLoading: userLoading,
         isRegistered,
         canSelect,
         registerUser,
         selectRoom: selectUserRoom,
-        isMyRoom,
-        loginAdmin,
-        logoutAdmin
+        isMyRoom
     } = useUser();
 
     // 객실 상태
@@ -53,7 +48,6 @@ export default function App() {
     const [selectedFloor, setSelectedFloor] = useState(null);
     const [showRegistrationModal, setShowRegistrationModal] = useState(false);
     const [selectedRoomForConfirm, setSelectedRoomForConfirm] = useState(null);
-    const [showAdminPanel, setShowAdminPanel] = useState(false);
     const [showContactModal, setShowContactModal] = useState(false);
     const [showMyRoomModal, setShowMyRoomModal] = useState(false);
 
@@ -61,11 +55,6 @@ export default function App() {
     const [pendingInvitation, setPendingInvitation] = useState(null);
     const [invitationLoading, setInvitationLoading] = useState(false);
     const [rejectionNotification, setRejectionNotification] = useState(null);
-
-    // Admin 로그인 상태
-    const [showAdminLoginModal, setShowAdminLoginModal] = useState(false);
-    const [adminLoginLoading, setAdminLoginLoading] = useState(false);
-    const [adminLoginError, setAdminLoginError] = useState(null);
 
     // 방 배정 취소 알림 모달
     const [showCancelledModal, setShowCancelledModal] = useState(false);
@@ -88,11 +77,22 @@ export default function App() {
         const myRoom = user.selectedRoom;
         const guestsInMyRoom = roomGuests[myRoom] || [];
 
+        // 디버깅 로그
+        console.log('[동기화 체크]', {
+            myRoom,
+            mySessionId: user.sessionId,
+            guestsInMyRoom: guestsInMyRoom.map(g => g.sessionId),
+            showCancelledModal
+        });
+
         // 내가 아직 그 방에 있는지 확인
         const amIStillInRoom = guestsInMyRoom.some(guest => guest.sessionId === user.sessionId);
 
+        console.log('[동기화 결과]', { amIStillInRoom });
+
         if (!amIStillInRoom && !showCancelledModal) {
             // 관리자가 나를 삭제함 → 취소 알림 모달 표시
+            console.log('[동기화] 모달 표시!');
             setShowCancelledModal(true);
         }
     }, [roomGuests, user?.selectedRoom, user?.sessionId, showCancelledModal]);
@@ -220,47 +220,79 @@ export default function App() {
         }
     };
 
-    // 객실 클릭
+    // 객실 클릭 (클라이언트 보안 강화)
     const handleRoomClick = (roomNumber) => {
+        // 1. 유저 등록 여부 확인
         if (!user) {
             setShowRegistrationModal(true);
             return;
         }
 
-        if (user.locked) {
+        // 2. 이미 방 배정됨 확인 (클라이언트 재검증)
+        if (user.locked || user.selectedRoom) {
+            console.warn('보안: 이미 배정된 유저가 방 클릭 시도');
             return;
         }
 
-        // 1인실은 완전 잠금되어 있으므로 여기까지 오지 않음
+        // 3. 성별 불일치 확인 (클라이언트 재검증)
+        const room = roomData[roomNumber];
+        if (room && room.gender !== user.gender) {
+            console.warn('보안: 성별 불일치 방 클릭 시도');
+            return;
+        }
 
         setSelectedRoomForConfirm(roomNumber);
     };
 
-    // 객실 선택 확정
+    // 객실 선택 확정 (클라이언트 보안 강화)
     const handleConfirmSelection = async (roomNumber, roommateInfo = {}) => {
+        // 1. 유저 검증
         if (!user) return;
 
-        // Firebase에 저장
-        await addGuestToRoom(roomNumber, {
-            name: user.name,
-            company: user.company || '',
-            gender: user.gender,
-            age: user.age,
-            sessionId: user.sessionId,
-            registeredAt: Date.now()
-        });
-
-        // 룸메이트 초대 생성
-        if (roommateInfo.hasRoommate && roommateInfo.roommateName) {
-            await createRoommateInvitation(
-                { ...user, roomNumber },
-                roommateInfo.roommateName
-            );
+        // 2. 이미 배정됨 재검증 (개발자도구 우회 방지)
+        if (user.locked || user.selectedRoom) {
+            console.warn('보안: 이미 배정된 유저가 확정 시도');
+            alert('이미 객실이 배정되어 있습니다.');
+            setSelectedRoomForConfirm(null);
+            return;
         }
 
-        // 사용자 상태 업데이트
-        selectUserRoom(roomNumber);
-        setSelectedRoomForConfirm(null);
+        // 3. 성별 불일치 재검증
+        const room = roomData[roomNumber];
+        if (room && room.gender !== user.gender) {
+            console.warn('보안: 성별 불일치 확정 시도');
+            alert('성별이 맞지 않는 객실입니다.');
+            setSelectedRoomForConfirm(null);
+            return;
+        }
+
+        try {
+            // Firebase에 저장 (서버에서 추가 검증)
+            await addGuestToRoom(roomNumber, {
+                name: user.name,
+                company: user.company || '',
+                gender: user.gender,
+                age: user.age,
+                sessionId: user.sessionId,
+                registeredAt: Date.now()
+            });
+
+            // 룸메이트 초대 생성
+            if (roommateInfo.hasRoommate && roommateInfo.roommateName) {
+                await createRoommateInvitation(
+                    { ...user, roomNumber },
+                    roommateInfo.roommateName
+                );
+            }
+
+            // 사용자 상태 업데이트
+            selectUserRoom(roomNumber);
+            setSelectedRoomForConfirm(null);
+        } catch (error) {
+            // 서버 측 검증 실패 시 사용자에게 알림
+            alert(error.message || '객실 선택에 실패했습니다.');
+            setSelectedRoomForConfirm(null);
+        }
     };
 
     return (
@@ -300,7 +332,6 @@ export default function App() {
                 <Header
                     user={user}
                     stats={stats}
-                    isAdmin={isAdmin}
                     onUserClick={() => user?.locked && setShowMyRoomModal(true)}
                 />
 
@@ -357,7 +388,6 @@ export default function App() {
                     isMyRoom={isMyRoom}
                     onRoomClick={handleRoomClick}
                     canUserSelect={canSelect}
-                    isAdmin={isAdmin}
                 />
 
                 {/* 등록 모달 */}
@@ -394,7 +424,7 @@ export default function App() {
                 {selectedRoomForConfirm && user && (
                     <SelectionModal
                         roomNumber={selectedRoomForConfirm}
-                        roomStatus={getRoomStatus(selectedRoomForConfirm, user.gender, isAdmin)}
+                        roomStatus={getRoomStatus(selectedRoomForConfirm, user.gender, false)}
                         user={user}
                         onConfirm={handleConfirmSelection}
                         onCancel={() => setSelectedRoomForConfirm(null)}
@@ -428,29 +458,6 @@ export default function App() {
                     </div>
                 )}
 
-                {/* Admin 패널 */}
-                {showAdminPanel && isAdmin && (
-                    <AdminPanel
-                        roomGuests={roomGuests}
-                        onRemoveGuest={removeGuestFromRoom}
-                        onClose={() => setShowAdminPanel(false)}
-                        getStats={getStats}
-                    />
-                )}
-
-                {/* Admin 로그인 모달 */}
-                {showAdminLoginModal && (
-                    <AdminLoginModal
-                        onLogin={handleAdminLogin}
-                        onClose={() => {
-                            setShowAdminLoginModal(false);
-                            setAdminLoginError(null);
-                        }}
-                        isLoading={adminLoginLoading}
-                        error={adminLoginError}
-                    />
-                )}
-
                 {/* 방 배정 취소 알림 모달 */}
                 {showCancelledModal && (
                     <div className="fixed inset-0 z-[200] flex items-center justify-center p-4">
@@ -477,31 +484,6 @@ export default function App() {
                 )}
                 <footer className="footer">
                     <p>KVCA V-Up 객실 배정 시스템</p>
-                    {isAdmin ? (
-                        <div className="flex gap-3 mt-3">
-                            <button
-                                onClick={() => setShowAdminPanel(true)}
-                                className="px-6 py-2 bg-navy-800 hover:bg-navy-900 
-                                           text-white rounded-lg font-medium transition-colors"
-                            >
-                                🔑 관리자 패널
-                            </button>
-                            <button
-                                onClick={logoutAdmin}
-                                className="px-4 py-2 bg-gray-500 hover:bg-gray-600 
-                                           text-white rounded-lg text-sm transition-colors"
-                            >
-                                로그아웃
-                            </button>
-                        </div>
-                    ) : (
-                        <button
-                            onClick={() => setShowAdminLoginModal(true)}
-                            className="mt-3 text-xs text-gray-400 hover:text-gray-600"
-                        >
-                            관리자 로그인
-                        </button>
-                    )}
                 </footer>
             </div>
         </div>

@@ -51,29 +51,59 @@ export async function checkPendingInvitations(userName) {
     return pendingInvitations;
 }
 
-export async function acceptInvitation(invitationId, acceptorData) {
+/**
+ * 초대 수락 (서버 측 검증 강화)
+ */
+export async function acceptInvitation(invitationId, acceptorData, roomGender = null) {
     if (!database) return false;
 
     const invitationRef = ref(database, `roommateInvitations/${invitationId}`);
     const snapshot = await get(invitationRef);
     const invitation = snapshot.val();
 
+    // 1. 초대 유효성 검증
     if (!invitation || invitation.status !== 'pending') {
         throw new Error('유효하지 않은 초대입니다.');
     }
 
-    // 성별 검증: 초대자와 수락자의 성별이 다르면 거부
+    // 2. 초대 만료 검증 (서버 측)
+    const now = Date.now();
+    if (invitation.createdAt && (now - invitation.createdAt) > INVITATION_EXPIRY_MS) {
+        // 만료된 초대 삭제
+        await set(invitationRef, null);
+        throw new Error('초대가 만료되었습니다.');
+    }
+
+    // 3. 성별 검증: 초대자와 수락자의 성별이 다르면 거부
     if (invitation.inviterGender && acceptorData.gender && invitation.inviterGender !== acceptorData.gender) {
         throw new Error('성별이 다른 사용자와는 같은 객실을 사용할 수 없습니다.');
     }
 
+    // 4. 수락자가 이미 다른 방에 배정되어 있는지 확인 (서버 측)
+    const allRoomsRef = ref(database, 'rooms');
+    const allRoomsSnapshot = await get(allRoomsRef);
+    const allRooms = allRoomsSnapshot.val() || {};
+
+    for (const [existingRoom, roomInfo] of Object.entries(allRooms)) {
+        let guests = roomInfo.guests || [];
+        if (!Array.isArray(guests)) {
+            guests = Object.values(guests);
+        }
+
+        if (guests.some(g => g.sessionId === acceptorData.sessionId)) {
+            throw new Error('이미 다른 객실에 배정되어 있습니다.');
+        }
+    }
+
+    // 5. 초대 상태 업데이트
     await update(invitationRef, {
         status: 'accepted',
         acceptedAt: Date.now(),
         acceptorSessionId: acceptorData.sessionId
     });
 
-    await selectRoom(invitation.roomNumber, acceptorData);
+    // 6. 방 선택 (selectRoom에서 추가 검증 수행)
+    await selectRoom(invitation.roomNumber, acceptorData, 2, roomGender);
     return invitation.roomNumber;
 }
 
