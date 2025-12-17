@@ -73,7 +73,7 @@ export default function App() {
     // 방 삭제 실시간 동기화: 관리자가 유저를 삭제하면 rooms 구독으로 감지
     useEffect(() => {
         // 유저가 방을 선택한 상태이고 roomGuests 데이터가 로드된 경우
-        if (!user?.selectedRoom || !user?.sessionId || Object.keys(roomGuests).length === 0) return;
+        if (!user?.selectedRoom || !user?.sessionId || roomsLoading) return;
 
         const myRoom = user.selectedRoom;
         const guestsInMyRoom = roomGuests[myRoom] || [];
@@ -85,7 +85,7 @@ export default function App() {
             // 관리자가 나를 삭제함 → 취소 알림 모달 표시
             setShowCancelledModal(true);
         }
-    }, [roomGuests, user?.selectedRoom, user?.sessionId, showCancelledModal]);
+    }, [roomGuests, user?.selectedRoom, user?.sessionId, showCancelledModal, roomsLoading]);
 
     // 기본 층 설정 (사용자 등록 전)
     if (selectedFloor === null) {
