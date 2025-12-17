@@ -77,22 +77,11 @@ export default function App() {
         const myRoom = user.selectedRoom;
         const guestsInMyRoom = roomGuests[myRoom] || [];
 
-        // 디버깅 로그
-        console.log('[동기화 체크]', {
-            myRoom,
-            mySessionId: user.sessionId,
-            guestsInMyRoom: guestsInMyRoom.map(g => g.sessionId),
-            showCancelledModal
-        });
-
         // 내가 아직 그 방에 있는지 확인
         const amIStillInRoom = guestsInMyRoom.some(guest => guest.sessionId === user.sessionId);
 
-        console.log('[동기화 결과]', { amIStillInRoom });
-
         if (!amIStillInRoom && !showCancelledModal) {
             // 관리자가 나를 삭제함 → 취소 알림 모달 표시
-            console.log('[동기화] 모달 표시!');
             setShowCancelledModal(true);
         }
     }, [roomGuests, user?.selectedRoom, user?.sessionId, showCancelledModal]);

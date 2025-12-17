@@ -10,7 +10,6 @@ export function useRooms() {
     useEffect(() => {
         if (isFirebaseInitialized()) {
             const unsubscribe = subscribeToRooms((data) => {
-                console.log('[useRooms] Firebase 업데이트 수신:', Object.keys(data));
                 const guests = {};
                 for (const [roomNumber, roomInfo] of Object.entries(data)) {
                     let guestList = roomInfo.guests || [];
@@ -19,7 +18,6 @@ export function useRooms() {
                     }
                     guests[roomNumber] = guestList;
                 }
-                console.log('[useRooms] 701호 게스트:', guests['701'] || []);
                 setRoomGuests(guests);
                 setIsLoading(false);
             });
