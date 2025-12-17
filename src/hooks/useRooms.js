@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { roomData } from '../data/roomData';
-import { subscribeToRooms, isFirebaseInitialized, selectRoom as firebaseSelectRoom, removeGuestFromRoom as firebaseRemoveGuest } from '../firebase';
+import { subscribeToRooms, isFirebaseInitialized, selectRoom as firebaseSelectRoom, removeGuestFromRoom as firebaseRemoveGuest } from '../firebase/index';
 
 export function useRooms() {
     const [roomGuests, setRoomGuests] = useState({});
@@ -98,16 +98,23 @@ export function useRooms() {
     }, [roomGuests]);
 
     const addGuestToRoom = useCallback(async (roomNumber, guestData) => {
+        const room = roomData[roomNumber];
+        const capacity = room?.capacity || 2;
+
         if (isFirebaseInitialized()) {
             try {
-                await firebaseSelectRoom(roomNumber, guestData);
+                await firebaseSelectRoom(roomNumber, guestData, capacity);
             } catch (err) {
                 setError(err.message);
+                throw err; // 에러를 상위로 전파
             }
         } else {
             setRoomGuests(prev => {
                 const currentGuests = prev[roomNumber] || [];
                 if (currentGuests.some(g => g.sessionId === guestData.sessionId)) {
+                    return prev;
+                }
+                if (currentGuests.length >= capacity) {
                     return prev;
                 }
                 return {

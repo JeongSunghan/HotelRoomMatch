@@ -1,10 +1,16 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { getGenderFromResidentId } from '../utils/genderUtils';
-import { subscribeToAuthState, adminSignIn, adminSignOut, getUser as firebaseGetUser, isFirebaseInitialized, subscribeToUserSession } from '../firebase';
+import { STORAGE_KEYS } from '../utils/constants';
+import { subscribeToAuthState, adminSignIn, adminSignOut, getUser as firebaseGetUser, isFirebaseInitialized, subscribeToUserSession } from '../firebase/index';
 
-const STORAGE_KEY = 'vup58_user';
+const STORAGE_KEY = STORAGE_KEYS.USER;
 
+// 보안 강화된 세션 ID 생성
 function generateSessionId() {
+    if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+        return 'session_' + crypto.randomUUID();
+    }
+    // Fallback for older browsers
     return 'session_' + Math.random().toString(36).substring(2, 15) + Date.now().toString(36);
 }
 
@@ -88,7 +94,7 @@ export function useUser() {
             gender,
             age: age || null,
             snoring: snoring || 'no',
-            residentIdFront,
+            // residentIdFront는 보안상 저장하지 않음
             registeredAt: Date.now(),
             selectedRoom: null,
             locked: false

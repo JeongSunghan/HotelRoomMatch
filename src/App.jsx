@@ -18,7 +18,7 @@ import {
     createRoommateInvitation,
     subscribeToMyInvitations,
     createRoomChangeRequest
-} from './firebase';
+} from './firebase/index';
 
 /**
  * 메인 앱 컴포넌트

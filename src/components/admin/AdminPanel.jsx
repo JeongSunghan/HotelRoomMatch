@@ -1,12 +1,15 @@
 import { useState, useMemo, useEffect } from 'react';
 import { roomData, floors, floorInfo } from '../../data/roomData';
 import { getGenderLabel } from '../../utils/genderUtils';
+import { exportRoomAssignmentsToCSV } from '../../utils/csvExport';
+import RoomManagementTab from './RoomManagementTab';
+import RequestsTab from './RequestsTab';
 import {
     subscribeToRoomChangeRequests,
     resolveRoomChangeRequest,
     deleteRoomChangeRequest,
     clearUserSession
-} from '../../firebase';
+} from '../../firebase/index';
 
 /**
  * Admin 패널 컴포넌트 - 네이비 스타일 (개선됨)
@@ -119,14 +122,26 @@ export default function AdminPanel({
                             <h2 className="text-2xl font-bold text-white">🔑 관리자 패널</h2>
                             <p className="text-blue-200 text-sm">배정 현황 조회 및 수정</p>
                         </div>
-                        <button
-                            onClick={onClose}
-                            className="p-2 hover:bg-white/10 rounded-lg transition-colors text-white"
-                        >
-                            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                            </svg>
-                        </button>
+                        <div className="flex items-center gap-2">
+                            <button
+                                onClick={() => exportRoomAssignmentsToCSV(roomGuests, roomData)}
+                                className="px-3 py-2 bg-green-500 hover:bg-green-600 text-white rounded-lg font-medium transition-colors flex items-center gap-2"
+                                title="CSV 내보내기"
+                            >
+                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                </svg>
+                                CSV
+                            </button>
+                            <button
+                                onClick={onClose}
+                                className="p-2 hover:bg-white/10 rounded-lg transition-colors text-white"
+                            >
+                                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                </svg>
+                            </button>
+                        </div>
                     </div>
 
                     {/* 탭 */}
@@ -218,172 +233,17 @@ export default function AdminPanel({
                 {/* 컨텐츠 */}
                 <div className="p-6 max-h-[60vh] overflow-y-auto bg-gray-50">
                     {activeTab === 'rooms' ? (
-                        // 객실 목록
-                        <div className="space-y-3">
-                            {assignedRooms.length === 0 ? (
-                                <div className="text-center py-12 text-gray-500">
-                                    <p>검색 결과가 없습니다.</p>
-                                </div>
-                            ) : (
-                                assignedRooms.map(room => (
-                                    <div
-                                        key={room.roomNumber}
-                                        className={`
-                                            p-4 rounded-lg border bg-white transition-colors
-                                            ${room.isFull
-                                                ? room.gender === 'M'
-                                                    ? 'border-blue-300'
-                                                    : 'border-pink-300'
-                                                : room.guests.length > 0
-                                                    ? 'border-gray-300'
-                                                    : 'border-gray-200'
-                                            }
-                                        `}
-                                    >
-                                        <div className="flex flex-wrap items-start justify-between gap-4">
-                                            <div className="flex items-center gap-4">
-                                                <div className={`
-                                                    w-12 h-12 rounded-lg flex items-center justify-center font-bold text-white
-                                                    ${room.gender === 'M' ? 'bg-blue-500' : 'bg-pink-500'}
-                                                `}>
-                                                    {room.roomNumber}
-                                                </div>
-                                                <div>
-                                                    <div className="flex items-center gap-2">
-                                                        <span className="font-semibold text-gray-800">{room.floor}층</span>
-                                                        <span className="text-gray-400">•</span>
-                                                        <span className="text-gray-500 text-sm">{room.roomType}</span>
-                                                        <span className={`
-                                                            text-xs px-2 py-0.5 rounded-full font-medium
-                                                            ${room.capacity === 2 ? 'bg-purple-100 text-purple-700' : 'bg-gray-100 text-gray-600'}
-                                                        `}>
-                                                            {room.capacity === 2 ? '2인실' : '1인실'}
-                                                        </span>
-                                                    </div>
-                                                    <p className="text-sm text-gray-500">
-                                                        {getGenderLabel(room.gender)} 전용 • {room.guests.length}/{room.capacity} 배정
-                                                    </p>
-                                                </div>
-                                            </div>
-
-                                            <div className="flex flex-wrap gap-2">
-                                                {room.guests.length === 0 ? (
-                                                    <span className="text-gray-400 text-sm italic">빈 방</span>
-                                                ) : (
-                                                    room.guests.map((guest, idx) => (
-                                                        <div
-                                                            key={idx}
-                                                            className={`
-                                                                flex items-center gap-2 px-3 py-1.5 rounded-lg
-                                                                ${guest.gender === 'M' ? 'bg-blue-100 text-blue-800' : 'bg-pink-100 text-pink-800'}
-                                                            `}
-                                                        >
-                                                            <div>
-                                                                <span className="font-medium">{guest.name}</span>
-                                                                {guest.company && (
-                                                                    <span className="text-xs ml-1 opacity-70">({guest.company})</span>
-                                                                )}
-                                                            </div>
-                                                            <button
-                                                                onClick={() => handleRemoveGuest(room.roomNumber, guest.sessionId, guest.name)}
-                                                                className="p-1 hover:bg-red-100 rounded transition-colors"
-                                                                title="삭제"
-                                                            >
-                                                                <svg className="w-4 h-4 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                                                                </svg>
-                                                            </button>
-                                                        </div>
-                                                    ))
-                                                )}
-                                            </div>
-                                        </div>
-                                    </div>
-                                ))
-                            )}
-                        </div>
+                        <RoomManagementTab
+                            assignedRooms={assignedRooms}
+                            onRemoveGuest={handleRemoveGuest}
+                        />
                     ) : (
-                        // 수정 요청 목록
-                        <div className="space-y-3">
-                            {changeRequests.length === 0 ? (
-                                <div className="text-center py-12 text-gray-500">
-                                    <p>수정 요청이 없습니다.</p>
-                                </div>
-                            ) : (
-                                changeRequests.map(request => (
-                                    <div
-                                        key={request.id}
-                                        className={`p-4 rounded-lg border bg-white ${request.status === 'pending'
-                                            ? 'border-amber-300 bg-amber-50'
-                                            : 'border-gray-200 opacity-60'
-                                            }`}
-                                    >
-                                        <div className="flex items-start justify-between gap-4">
-                                            <div className="flex-1">
-                                                <div className="flex items-center gap-2 mb-2">
-                                                    <span className={`px-2 py-0.5 rounded text-xs font-medium ${request.type === 'cancel'
-                                                        ? 'bg-red-200 text-red-800'
-                                                        : 'bg-blue-200 text-blue-800'
-                                                        }`}>
-                                                        {request.type === 'cancel' ? '취소 요청' : '변경 요청'}
-                                                    </span>
-                                                    <span className={`px-2 py-0.5 rounded text-xs font-medium ${request.status === 'pending'
-                                                        ? 'bg-amber-200 text-amber-800'
-                                                        : 'bg-green-200 text-green-800'
-                                                        }`}>
-                                                        {request.status === 'pending' ? '대기 중' : '처리 완료'}
-                                                    </span>
-                                                    <span className="text-gray-400 text-sm">
-                                                        {formatDate(request.createdAt)}
-                                                    </span>
-                                                </div>
-
-                                                <p className="font-medium text-gray-800">
-                                                    {request.userName}
-                                                    {request.userCompany && (
-                                                        <span className="text-gray-500 text-sm ml-1">({request.userCompany})</span>
-                                                    )}
-                                                </p>
-
-                                                <p className="text-sm text-gray-600 mt-1">
-                                                    현재 방: <strong>{request.currentRoom}호</strong>
-                                                </p>
-
-                                                <p className="text-sm text-blue-600 mt-1">
-                                                    📞 {request.phoneNumber}
-                                                </p>
-
-                                                {request.reason && (
-                                                    <p className="text-sm text-gray-500 mt-2 p-2 bg-gray-100 rounded">
-                                                        "{request.reason}"
-                                                    </p>
-                                                )}
-                                            </div>
-
-                                            <div className="flex gap-2">
-                                                {request.status === 'pending' && (
-                                                    <button
-                                                        onClick={() => handleResolveRequest(request)}
-                                                        className={`px-3 py-1.5 text-white rounded text-sm font-medium ${request.type === 'cancel'
-                                                            ? 'bg-red-500 hover:bg-red-600'
-                                                            : 'bg-green-500 hover:bg-green-600'
-                                                            }`}
-                                                    >
-                                                        {request.type === 'cancel' ? '취소 승인' : '처리 완료'}
-                                                    </button>
-                                                )}
-                                                <button
-                                                    onClick={() => handleDeleteRequest(request.id)}
-                                                    className="px-3 py-1.5 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded text-sm"
-                                                >
-                                                    삭제
-                                                </button>
-                                            </div>
-                                        </div>
-                                    </div>
-                                ))
-                            )}
-                        </div>
+                        <RequestsTab
+                            changeRequests={changeRequests}
+                            onResolveRequest={handleResolveRequest}
+                            onDeleteRequest={handleDeleteRequest}
+                            formatDate={formatDate}
+                        />
                     )}
                 </div>
 
