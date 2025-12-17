@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useUser } from '../hooks/useUser';
 import { useRooms } from '../hooks/useRooms';
-import AdminPanel from '../components/admin/AdminPanel';
+import AdminDashboard from '../components/admin/AdminDashboard';
 import AdminLoginModal from '../components/auth/AdminLoginModal';
 
 /**
@@ -55,65 +55,40 @@ export default function AdminPage() {
     };
 
     return (
-        <div className="min-h-screen bg-gray-100">
-            {/* 헤더 */}
-            <header className="header-navy py-4 px-6">
-                <div className="max-w-7xl mx-auto flex items-center justify-between">
-                    <div>
-                        <h1 className="text-xl font-bold text-white">🔑 V-Up 관리자</h1>
-                        <p className="text-blue-200 text-sm">객실 배정 관리 시스템</p>
-                    </div>
-                    {isAdmin && (
-                        <div className="flex items-center gap-4">
-                            <span className="text-green-300 text-sm">✓ 로그인됨</span>
-                            <button
-                                onClick={logoutAdmin}
-                                className="px-4 py-2 bg-white/10 hover:bg-white/20 text-white rounded-lg text-sm transition-colors"
-                            >
-                                로그아웃
-                            </button>
-                        </div>
-                    )}
-                </div>
-            </header>
-
-            {/* Firebase 연결 상태 */}
+        <div className="min-h-screen">
+            {/* Firebase 연결 상태 경고 (연결 안됨) */}
             {!isFirebaseConnected && (
-                <div className="max-w-7xl mx-auto px-6 pt-4">
-                    <div className="warning-box text-center">
-                        <p className="text-amber-700 text-sm">
-                            ⚠️ Firebase 미연결 - 관리 기능 사용 불가
-                        </p>
-                    </div>
+                <div className="bg-amber-100 p-2 text-center">
+                    <p className="text-amber-700 text-sm font-bold">
+                        ⚠️ Firebase 미연결 - 관리 기능 사용 불가
+                    </p>
                 </div>
             )}
 
             {/* 메인 콘텐츠 */}
-            <main className="max-w-7xl mx-auto px-6 py-8">
-                {isAdmin ? (
-                    <div className="bg-white rounded-xl shadow-lg overflow-hidden">
-                        <AdminPanel
-                            roomGuests={roomGuests}
-                            onRemoveGuest={removeGuestFromRoom}
-                            onAddGuest={addGuestToRoom}
-                            onClose={() => window.location.href = '/'}
-                            getStats={getStats}
-                        />
-                    </div>
-                ) : (
-                    <div className="text-center py-20">
+            {isAdmin ? (
+                <AdminDashboard
+                    roomGuests={roomGuests}
+                    onRemoveGuest={removeGuestFromRoom}
+                    onAddGuest={addGuestToRoom}
+                    onLogout={logoutAdmin}
+                    getStats={getStats}
+                />
+            ) : (
+                <div className="min-h-screen bg-gray-100 flex items-center justify-center">
+                    <div className="text-center p-8">
                         <div className="text-6xl mb-4">🔒</div>
                         <h2 className="text-2xl font-bold text-gray-700 mb-2">관리자 전용 페이지</h2>
                         <p className="text-gray-500 mb-6">이 페이지에 접근하려면 관리자 로그인이 필요합니다.</p>
                         <button
                             onClick={() => setShowLoginModal(true)}
-                            className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors"
+                            className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors shadow-lg"
                         >
                             관리자 로그인
                         </button>
                     </div>
-                )}
-            </main>
+                </div>
+            )}
 
             {/* 로그인 모달 */}
             {showLoginModal && !isAdmin && (

@@ -476,8 +476,11 @@ export default function App() {
                         </div>
                     </div>
                 )}
-                <footer className="footer">
+                <footer className="footer flex justify-between items-center px-4">
                     <p>KVCA V-Up 객실 배정 시스템</p>
+                    <a href="/contact" className="text-gray-400 hover:text-gray-600 text-sm underline">
+                        1:1 문의사항
+                    </a>
                 </footer>
             </div>
         </div>

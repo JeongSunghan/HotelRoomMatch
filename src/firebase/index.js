@@ -32,3 +32,12 @@ export {
     resolveRoomChangeRequest,
     deleteRoomChangeRequest
 } from './requests';
+
+// Inquiries
+export {
+    createInquiry,
+    subscribeToInquiries,
+    getMyInquiries,
+    replyToInquiry,
+    deleteInquiry
+} from './inquiries';
