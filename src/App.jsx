@@ -49,8 +49,8 @@ export default function App() {
     const [selectedFloor, setSelectedFloor] = useState(null);
     const [showRegistrationModal, setShowRegistrationModal] = useState(false);
     const [selectedRoomForConfirm, setSelectedRoomForConfirm] = useState(null);
-    const [showContactModal, setShowContactModal] = useState(false);
     const [showMyRoomModal, setShowMyRoomModal] = useState(false);
+    const [showSingleRoomModal, setShowSingleRoomModal] = useState(false);  // 1인실 안내 모달
 
     // 초대 시스템 상태
     const [pendingInvitation, setPendingInvitation] = useState(null);
@@ -377,6 +377,7 @@ export default function App() {
                     getRoomStatus={getRoomStatus}
                     isMyRoom={isMyRoom}
                     onRoomClick={handleRoomClick}
+                    onSingleRoomClick={() => setShowSingleRoomModal(true)}
                     canUserSelect={canSelect}
                 />
 
@@ -421,32 +422,7 @@ export default function App() {
                     />
                 )}
 
-                {/* 1인실 문의 안내 모달 */}
-                {showContactModal && (
-                    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-                        <div className="absolute inset-0 modal-overlay" onClick={() => setShowContactModal(false)} />
-                        <div className="relative modal-card rounded-xl p-6 w-full max-w-sm text-center">
-                            <div className="w-14 h-14 bg-amber-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                                <span className="text-3xl">💰</span>
-                            </div>
-                            <h3 className="text-lg font-bold text-gray-800 mb-2">1인실 배정 안내</h3>
-                            <p className="text-gray-600 mb-4">
-                                1인실은 별도 결제가 필요합니다.<br />
-                                아래 담당자에게 연락해주세요.
-                            </p>
-                            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
-                                <p className="text-blue-800 font-bold text-lg">📞 02-3017-7092</p>
-                                <p className="text-blue-600 text-sm mt-1">담당자에게 연락해주세요</p>
-                            </div>
-                            <button
-                                onClick={() => setShowContactModal(false)}
-                                className="w-full py-3 btn-primary rounded-lg font-medium"
-                            >
-                                확인
-                            </button>
-                        </div>
-                    </div>
-                )}
+
 
                 {/* 방 배정 취소 알림 모달 */}
                 {showCancelledModal && (
@@ -468,6 +444,34 @@ export default function App() {
                                 className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-semibold transition-colors"
                             >
                                 🔄 새로고침
+                            </button>
+                        </div>
+                    </div>
+                )}
+
+                {/* 1인실 안내 모달 */}
+                {showSingleRoomModal && (
+                    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+                        <div
+                            className="fixed inset-0 bg-black/50"
+                            onClick={() => setShowSingleRoomModal(false)}
+                        />
+                        <div className="relative bg-white rounded-2xl p-8 max-w-md w-full text-center shadow-2xl">
+                            <div className="w-16 h-16 bg-amber-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                                <span className="text-3xl">🏨</span>
+                            </div>
+                            <h2 className="text-xl font-bold text-gray-800 mb-3">
+                                1인실 안내
+                            </h2>
+                            <p className="text-gray-600 mb-6">
+                                1인실은 별도 홈페이지에서 신청 후<br />
+                                관리자가 직접 추가합니다.
+                            </p>
+                            <button
+                                onClick={() => setShowSingleRoomModal(false)}
+                                className="w-full py-3 bg-slate-700 hover:bg-slate-800 text-white rounded-xl font-semibold transition-colors"
+                            >
+                                확인
                             </button>
                         </div>
                     </div>

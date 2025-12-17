@@ -11,6 +11,7 @@ export default function RoomGrid({
     getRoomStatus,
     isMyRoom,
     onRoomClick,
+    onSingleRoomClick,  // 1인실 클릭 시 안내 모달
     canUserSelect,
     isAdmin
 }) {
@@ -83,6 +84,7 @@ export default function RoomGrid({
                                     isMyRoom={isThisMyRoom}
                                     canSelect={canSelect}
                                     onClick={onRoomClick}
+                                    onSingleRoomClick={onSingleRoomClick}
                                     isAdmin={isAdmin}
                                 />
                             );

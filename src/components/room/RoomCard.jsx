@@ -8,6 +8,7 @@ export default function RoomCard({
     isMyRoom,
     canSelect,
     onClick,
+    onSingleRoomClick,  // 1인실 클릭 시 안내 모달 표시
     isAdmin
 }) {
     const { guests, guestCount, capacity, roomType, roomGender, isLocked } = status;
@@ -49,12 +50,23 @@ export default function RoomCard({
         }
     };
 
-    // 클릭 가능 여부 (1인실 잠금은 클릭 불가)
-    const isClickable = !isLocked && (canSelect || isAdmin);
+    // 클릭 가능 여부
+    const isClickable = canSelect || isAdmin || isLocked;  // 1인실도 클릭 가능 (안내 모달용)
+
+    // 클릭 핸들러
+    const handleClick = () => {
+        if (isLocked) {
+            // 1인실 클릭 → 안내 모달 표시
+            onSingleRoomClick && onSingleRoomClick(roomNumber);
+        } else if (canSelect || isAdmin) {
+            // 일반 방 클릭 → 선택 모달
+            onClick(roomNumber);
+        }
+    };
 
     return (
         <div
-            onClick={() => isClickable && onClick(roomNumber)}
+            onClick={handleClick}
             className={`
                 room-card p-4 rounded-lg cursor-pointer
                 ${getCardStyle()}
