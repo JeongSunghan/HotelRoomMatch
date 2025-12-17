@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { getGenderFromResidentId } from '../utils/genderUtils';
 import { STORAGE_KEYS } from '../utils/constants';
 import { sanitizeUserData } from '../utils/sanitize';
-import { subscribeToAuthState, adminSignIn, adminSignOut, getUser as firebaseGetUser, isFirebaseInitialized, subscribeToUserSession } from '../firebase/index';
+import { subscribeToAuthState, adminSignIn, adminSignOut, isFirebaseInitialized, checkGuestInRoom } from '../firebase/index';
 
 const STORAGE_KEY = STORAGE_KEYS.USER;
 
@@ -20,7 +20,6 @@ export function useUser() {
     const [isAdmin, setIsAdmin] = useState(false);
     const [adminUser, setAdminUser] = useState(null);
     const [isLoading, setIsLoading] = useState(true);
-    const sessionUnsubscribeRef = useRef(null);
 
     // Firebase Auth 상태 구독 (Admin)
     useEffect(() => {
@@ -41,29 +40,26 @@ export function useUser() {
                 try {
                     const parsed = JSON.parse(savedUser);
 
-                    // Firebase에서 세션이 삭제되었는지 확인 (관리자가 삭제한 경우)
-                    if (isFirebaseInitialized() && parsed.locked && parsed.sessionId) {
-                        const firebaseSession = await firebaseGetUser(parsed.sessionId);
-                        if (!firebaseSession) {
-                            // 세션이 Firebase에서 삭제됨 → localStorage 초기화
+                    // Firebase 연결 상태일 때만 유효성 검사 수행
+                    if (isFirebaseInitialized() && parsed.locked && parsed.sessionId && parsed.selectedRoom) {
+                        // 실제 방에 유저가 존재하는지 확인 (users 컬렉션 대신 rooms 조회)
+                        const exists = await checkGuestInRoom(parsed.selectedRoom, parsed.sessionId);
+
+                        if (!exists) {
+                            // 방에서 삭제된 경우 (관리자 취소 등)
+                            // 단, 일시적 네트워크 오류일 수 있으므로 신중해야 함.
+                            // 하지만 checkGuestInRoom은 DB를 직접 조회하므로 데이터가 확실함.
+                            console.log('세션 유효성 검사 실패: 방에 유저 없음 -> 로그아웃 처리');
                             localStorage.removeItem(STORAGE_KEY);
                             setUser(null);
                             setIsLoading(false);
                             return;
                         }
-
-                        // 실시간 세션 구독 (관리자 삭제 즉시 감지)
-                        sessionUnsubscribeRef.current = subscribeToUserSession(parsed.sessionId, (sessionData) => {
-                            if (!sessionData) {
-                                // 세션이 삭제됨 → 즉시 로그아웃
-                                localStorage.removeItem(STORAGE_KEY);
-                                setUser(null);
-                            }
-                        });
                     }
 
                     setUser(parsed);
                 } catch (e) {
+                    console.error('세션 복구 오류:', e);
                     localStorage.removeItem(STORAGE_KEY);
                 }
             }
@@ -74,9 +70,6 @@ export function useUser() {
 
         return () => {
             unsubscribe();
-            if (sessionUnsubscribeRef.current) {
-                sessionUnsubscribeRef.current();
-            }
         };
     }, []);
 

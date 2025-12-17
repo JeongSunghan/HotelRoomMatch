@@ -10,7 +10,7 @@ export { isFirebaseInitialized, database, ref, onValue, set, update, get } from 
 export { adminSignIn, adminSignOut, subscribeToAuthState } from './auth';
 
 // Rooms
-export { subscribeToRooms, selectRoom, removeGuestFromRoom } from './rooms';
+export { subscribeToRooms, selectRoom, removeGuestFromRoom, checkGuestInRoom } from './rooms';
 
 // Users
 export { saveUser, getUser, subscribeToUserSession, clearUserSession } from './users';

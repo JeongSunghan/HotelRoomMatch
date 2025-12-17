@@ -98,3 +98,24 @@ export async function removeGuestFromRoom(roomNumber, sessionId) {
 
     return true;
 }
+
+/**
+ * 특정 방에 게스트가 존재하는지 확인 (세션 유효성 검증용)
+ * @param {string} roomNumber - 방 번호
+ * @param {string} sessionId - 세션 ID
+ * @returns {Promise<boolean>} 존재 여부
+ */
+export async function checkGuestInRoom(roomNumber, sessionId) {
+    if (!database) return false;
+
+    const roomRef = ref(database, `rooms/${roomNumber}/guests`);
+    const snapshot = await get(roomRef);
+    const currentGuests = snapshot.val() || [];
+
+    let guests = currentGuests;
+    if (guests && !Array.isArray(guests)) {
+        guests = Object.values(guests);
+    }
+
+    return guests.some(g => g.sessionId === sessionId);
+}

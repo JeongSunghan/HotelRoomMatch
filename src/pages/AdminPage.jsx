@@ -19,6 +19,7 @@ export default function AdminPage() {
     const {
         roomGuests,
         removeGuestFromRoom,
+        addGuestToRoom,
         getStats,
         isFirebaseConnected
     } = useRooms();
@@ -94,6 +95,7 @@ export default function AdminPage() {
                         <AdminPanel
                             roomGuests={roomGuests}
                             onRemoveGuest={removeGuestFromRoom}
+                            onAddGuest={addGuestToRoom}
                             onClose={() => window.location.href = '/'}
                             getStats={getStats}
                         />

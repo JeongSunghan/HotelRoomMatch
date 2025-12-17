@@ -8,7 +8,8 @@ import {
     subscribeToRoomChangeRequests,
     resolveRoomChangeRequest,
     deleteRoomChangeRequest,
-    clearUserSession
+    clearUserSession,
+    checkGuestInRoom
 } from '../../firebase/index';
 
 /**
@@ -17,6 +18,7 @@ import {
 export default function AdminPanel({
     roomGuests,
     onRemoveGuest,
+    onAddGuest,
     onClose,
     getStats
 }) {
@@ -87,14 +89,52 @@ export default function AdminPanel({
         }
     };
 
-    // 요청 처리 완료 (취소 요청인 경우 방 배정도 삭제)
+    // 요청 처리 완료
     const handleResolveRequest = async (request) => {
-        // 취소 요청인 경우 실제로 방 배정 삭제
-        if (request.type === 'cancel' && request.currentRoom && request.sessionId) {
-            await onRemoveGuest(request.currentRoom, request.sessionId);
-            await clearUserSession(request.sessionId);
+        try {
+            // 1. 취소 요청인 경우
+            if (request.type === 'cancel' && request.currentRoom && request.sessionId) {
+                await onRemoveGuest(request.currentRoom, request.sessionId);
+                await clearUserSession(request.sessionId);
+            }
+            // 2. 방 변경 요청인 경우 (핵심 로직 추가)
+            else if (request.type === 'change' && request.currentRoom && request.targetRoom && request.sessionId) {
+                // (1) 유저가 현재 방에 실제로 존재하는지 확인 (중복 처리/충돌 방지)
+                const exists = await checkGuestInRoom(request.currentRoom, request.sessionId);
+
+                if (!exists) {
+                    const proceed = window.confirm(
+                        '⚠️ 경고: 해당 유저는 이미 현재 방에 존재하지 않습니다.\n' +
+                        '(이미 관리자에 의해 취소되었거나 나간 상태일 수 있음)\n\n' +
+                        '그래도 요청을 "완료" 상태로 변경하시겠습니까? (방 이동 로직은 수행되지 않음)'
+                    );
+                    if (!proceed) return;
+                } else {
+                    // (2) 유저 존재 시: 이동 로직 수행
+                    // 유저 정보 가져오기 (roomGuests에서)
+                    const currentRoomGuests = roomGuests[request.currentRoom] || [];
+                    const guestData = currentRoomGuests.find(g => g.sessionId === request.sessionId);
+
+                    if (!guestData) {
+                        alert('오류: 유저 정보를 찾을 수 없습니다.');
+                        return;
+                    }
+
+                    // 기존 방에서 제거 & 새 방에 추가 (순차 실행)
+                    await onRemoveGuest(request.currentRoom, request.sessionId);
+
+                    // 새 방 정보 조회 (성별 검증 등을 위해 roomData 활용 가능하지만 useRooms 내부에서 처리됨)
+                    await onAddGuest(request.targetRoom, guestData);
+                }
+            }
+
+            // 요청 상태 업데이트 (DB)
+            await resolveRoomChangeRequest(request.id);
+
+        } catch (error) {
+            console.error('요청 처리 중 오류:', error);
+            alert('요청 처리 중 오류가 발생했습니다: ' + error.message);
         }
-        await resolveRoomChangeRequest(request.id);
     };
 
     const handleDeleteRequest = async (requestId) => {
