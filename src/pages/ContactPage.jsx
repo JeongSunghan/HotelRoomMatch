@@ -37,7 +37,7 @@ export default function ContactPage() {
         if (!title.trim() || !content.trim()) return;
 
         if (!user) {
-            alert('문의를 남기려면 먼저 메인 페이지에서 등록을 진행해주세요.');
+            alert('문의를 남기려면 먼저 메인 페이지(객실) 등록을 진행해주세요.');
             window.location.href = '/';
             return;
         }
