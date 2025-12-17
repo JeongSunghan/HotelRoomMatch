@@ -35,7 +35,8 @@ export default function App() {
         selectRoom: selectUserRoom,
         isMyRoom,
         loginAdmin,
-        logoutAdmin
+        logoutAdmin,
+        logout  // 동기화용
     } = useUser();
 
     // 객실 상태
@@ -76,6 +77,24 @@ export default function App() {
             }
         }
     }, [user?.gender, selectedFloor]);
+
+    // 방 삭제 실시간 동기화: 관리자가 유저를 삭제하면 rooms 구독으로 감지
+    useEffect(() => {
+        // 유저가 방을 선택한 상태이고 roomGuests 데이터가 로드된 경우
+        if (!user?.selectedRoom || !user?.sessionId || Object.keys(roomGuests).length === 0) return;
+
+        const myRoom = user.selectedRoom;
+        const guestsInMyRoom = roomGuests[myRoom] || [];
+
+        // 내가 아직 그 방에 있는지 확인
+        const amIStillInRoom = guestsInMyRoom.some(guest => guest.sessionId === user.sessionId);
+
+        if (!amIStillInRoom) {
+            // 관리자가 나를 삭제함 → 즉시 로그아웃
+            console.log('방에서 삭제됨. 로그아웃 처리.');
+            logout();
+        }
+    }, [roomGuests, user?.selectedRoom, user?.sessionId, logout]);
 
     // 기본 층 설정 (사용자 등록 전)
     if (selectedFloor === null) {
