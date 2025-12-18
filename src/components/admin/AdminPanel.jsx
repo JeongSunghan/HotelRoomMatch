@@ -276,6 +276,7 @@ export default function AdminPanel({
                         <RoomManagementTab
                             assignedRooms={assignedRooms}
                             onRemoveGuest={handleRemoveGuest}
+                            onAddGuest={onAddGuest}
                         />
                     ) : (
                         <RequestsTab
