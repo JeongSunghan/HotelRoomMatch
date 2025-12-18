@@ -13,7 +13,8 @@ export default function RoomGrid({
     onRoomClick,
     onSingleRoomClick,  // 1인실 클릭 시 안내 모달
     canUserSelect,
-    isAdmin
+    isAdmin,
+    roomTypeFilter = 'all'  // 'all', 'twin', 'single'
 }) {
     // 해당 층의 객실 가져오기
     const floorRooms = useMemo(() => {
@@ -23,15 +24,22 @@ export default function RoomGrid({
     // 층 정보
     const info = floorInfo[selectedFloor];
 
-    // 객실을 위치(row, col) 기준으로 정렬
+    // 객실을 위치(row, col) 기준으로 정렬 + 필터링
     const sortedRooms = useMemo(() => {
-        return Object.entries(floorRooms).sort((a, b) => {
-            const posA = a[1].position;
-            const posB = b[1].position;
-            if (posA.row !== posB.row) return posA.row - posB.row;
-            return posA.col - posB.col;
-        });
-    }, [floorRooms]);
+        return Object.entries(floorRooms)
+            .filter(([, roomData]) => {
+                // 필터 적용
+                if (roomTypeFilter === 'twin') return roomData.capacity === 2;
+                if (roomTypeFilter === 'single') return roomData.capacity === 1;
+                return true; // 'all'
+            })
+            .sort((a, b) => {
+                const posA = a[1].position;
+                const posB = b[1].position;
+                if (posA.row !== posB.row) return posA.row - posB.row;
+                return posA.col - posB.col;
+            });
+    }, [floorRooms, roomTypeFilter]);
 
     // 행별로 그룹화
     const roomsByRow = useMemo(() => {
@@ -64,34 +72,45 @@ export default function RoomGrid({
             </div>
 
             {/* 객실 그리드 */}
-            <div className="space-y-4">
-                {Object.entries(roomsByRow).map(([rowIndex, rooms]) => (
-                    <div
-                        key={rowIndex}
-                        className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3"
-                    >
-                        {rooms.map(({ roomNumber, roomData }) => {
-                            const status = getRoomStatus(roomNumber, userGender, isAdmin);
-                            const isThisMyRoom = isMyRoom(roomNumber);
-                            const canSelect = canUserSelect && status.canSelect && !isThisMyRoom;
+            {sortedRooms.length > 0 ? (
+                <div className="space-y-4">
+                    {Object.entries(roomsByRow).map(([rowIndex, rooms]) => (
+                        <div
+                            key={rowIndex}
+                            className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3"
+                        >
+                            {rooms.map(({ roomNumber, roomData }) => {
+                                const status = getRoomStatus(roomNumber, userGender, isAdmin);
+                                const isThisMyRoom = isMyRoom(roomNumber);
+                                const canSelect = canUserSelect && status.canSelect && !isThisMyRoom;
 
-                            return (
-                                <RoomCard
-                                    key={roomNumber}
-                                    roomNumber={roomNumber}
-                                    roomInfo={roomData}
-                                    status={status}
-                                    isMyRoom={isThisMyRoom}
-                                    canSelect={canSelect}
-                                    onClick={onRoomClick}
-                                    onSingleRoomClick={onSingleRoomClick}
-                                    isAdmin={isAdmin}
-                                />
-                            );
-                        })}
-                    </div>
-                ))}
-            </div>
+                                return (
+                                    <RoomCard
+                                        key={roomNumber}
+                                        roomNumber={roomNumber}
+                                        roomInfo={roomData}
+                                        status={status}
+                                        isMyRoom={isThisMyRoom}
+                                        canSelect={canSelect}
+                                        onClick={onRoomClick}
+                                        onSingleRoomClick={onSingleRoomClick}
+                                        isAdmin={isAdmin}
+                                    />
+                                );
+                            })}
+                        </div>
+                    ))}
+                </div>
+            ) : (
+                <div className="py-12 text-center bg-gray-50 rounded-lg border border-gray-100">
+                    <p className="text-gray-500 font-medium">
+                        {roomTypeFilter === 'twin' && '해당 층에는 2인실이 존재하지 않습니다.'}
+                        {roomTypeFilter === 'single' && '해당 층에는 1인실이 존재하지 않습니다.'}
+                        {roomTypeFilter === 'all' && '표시할 객실이 없습니다.'}
+                    </p>
+                    <p className="text-sm text-gray-400 mt-1">다른 층을 선택하거나 필터를 변경해보세요.</p>
+                </div>
+            )}
 
             {/* 다른 성별 층일 때 안내 */}
             {info.gender !== userGender && userGender && (

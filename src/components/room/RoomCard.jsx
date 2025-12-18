@@ -96,12 +96,17 @@ export default function RoomCard({
                             <div
                                 key={idx}
                                 className={`
-                                    text-sm px-2 py-1 rounded font-medium
+                                    text-sm px-2 py-1 rounded font-medium flex items-center justify-between
                                     ${guest.gender === 'M' ? 'bg-blue-100 text-blue-800' : 'bg-pink-100 text-pink-800'}
                                 `}
                             >
-                                {guest.name}
-                                {guest.company && <span className="text-xs ml-1 opacity-70">({guest.company})</span>}
+                                <span>
+                                    {guest.name}
+                                    {guest.company && <span className="text-xs ml-1 opacity-70">({guest.company})</span>}
+                                </span>
+                                {guest.age && (
+                                    <span className="text-xs bg-white/50 px-1.5 py-0.5 rounded">{guest.age}세</span>
+                                )}
                             </div>
                         ))}
                     </div>

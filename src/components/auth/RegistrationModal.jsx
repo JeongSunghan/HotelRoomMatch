@@ -9,6 +9,7 @@ export default function RegistrationModal({ onRegister, onClose }) {
     const [residentIdFront, setResidentIdFront] = useState('');
     const [residentIdBack, setResidentIdBack] = useState('');
     const [snoring, setSnoring] = useState(null); // null, 'yes', 'no', 'sometimes'
+    const [ageTolerance, setAgeTolerance] = useState(5); // 나이차 허용 (기본 ±5세)
     const [error, setError] = useState('');
     const [detectedGender, setDetectedGender] = useState(null);
     const [detectedAge, setDetectedAge] = useState(null);
@@ -89,7 +90,8 @@ export default function RegistrationModal({ onRegister, onClose }) {
                 residentIdFront,
                 residentIdBack,
                 age: detectedAge,
-                snoring // 'yes', 'no', 'sometimes'
+                snoring, // 'yes', 'no', 'sometimes'
+                ageTolerance // 나이차 허용 범위
             });
         } catch (err) {
             setError(err.message);
@@ -320,7 +322,40 @@ export default function RegistrationModal({ onRegister, onClose }) {
                                 </div>
                             )}
 
-                            {/* 에러 메시지 */}
+                            {/* 나이차 허용 설정 */}
+                            {detectedGender && snoring && (
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                                        룸메이트 나이차 허용 범위
+                                    </label>
+                                    <div className="bg-gray-50 p-4 rounded-lg border">
+                                        <div className="flex items-center justify-between mb-2">
+                                            <span className="text-sm text-gray-600">
+                                                내 나이 {detectedAge}세 기준
+                                            </span>
+                                            <span className="text-lg font-bold text-blue-600">
+                                                ±{ageTolerance}세
+                                            </span>
+                                        </div>
+                                        <input
+                                            type="range"
+                                            min="0"
+                                            max="10"
+                                            value={ageTolerance}
+                                            onChange={(e) => setAgeTolerance(parseInt(e.target.value))}
+                                            className="w-full h-2 bg-blue-200 rounded-lg appearance-none cursor-pointer"
+                                        />
+                                        <div className="flex justify-between text-xs text-gray-400 mt-1">
+                                            <span>동갑만</span>
+                                            <span>±5세</span>
+                                            <span>±10세</span>
+                                        </div>
+                                        <p className="text-xs text-blue-600 mt-2 bg-blue-50 p-2 rounded">
+                                            📌 {detectedAge - ageTolerance}세 ~ {detectedAge + ageTolerance}세 룸메이트와 매칭 가능
+                                        </p>
+                                    </div>
+                                </div>
+                            )}
                             {error && (
                                 <div className="p-4 bg-red-50 border border-red-200 border-l-4 border-l-red-500 rounded-lg">
                                     <p className="text-red-700 text-sm">{error}</p>

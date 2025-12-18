@@ -53,6 +53,7 @@ export default function App() {
     const [showMyRoomModal, setShowMyRoomModal] = useState(false);
     const [showSingleRoomModal, setShowSingleRoomModal] = useState(false);  // 1인실 안내 모달
     const [showSearchModal, setShowSearchModal] = useState(false);  // 검색 모달
+    const [roomTypeFilter, setRoomTypeFilter] = useState('twin');  // 기본: 2인실만 표시
 
     // 초대 시스템 상태
     const [pendingInvitation, setPendingInvitation] = useState(null);
@@ -62,12 +63,14 @@ export default function App() {
     // 방 배정 취소 알림 모달
     const [showCancelledModal, setShowCancelledModal] = useState(false);
 
-    // 사용자 성별에 맞는 기본 층 설정
+    // 사용자 성별에 맞는 기본 층 설정 (초기 진입 시)
     useEffect(() => {
-        if (user?.gender) {
+        if (user?.gender && selectedFloor === null) {
             const defaultFloor = floors.find(f => floorInfo[f].gender === user.gender);
-            if (defaultFloor && selectedFloor === null) {
+            if (defaultFloor) {
                 setSelectedFloor(defaultFloor);
+            } else {
+                setSelectedFloor(floors[0]);
             }
         }
     }, [user?.gender, selectedFloor]);
@@ -337,7 +340,7 @@ export default function App() {
                         </div>
                         <h2 className="text-lg font-bold text-gray-800 mb-1">객실 배정 등록 요청</h2>
                         <p className="text-gray-500 text-sm mb-4">
-                            객실 배정을 위해 간단한 정보를 입력해주세요.
+                            객실 배정을 위해 정보를 입력해주세요.
                         </p>
                         <button
                             onClick={() => setShowRegistrationModal(true)}
@@ -370,6 +373,8 @@ export default function App() {
                     selectedFloor={selectedFloor}
                     onSelectFloor={setSelectedFloor}
                     userGender={user?.gender}
+                    roomTypeFilter={roomTypeFilter}
+                    onRoomTypeFilterChange={setRoomTypeFilter}
                 />
 
                 {/* 객실 그리드 */}
@@ -381,6 +386,7 @@ export default function App() {
                     onRoomClick={handleRoomClick}
                     onSingleRoomClick={() => setShowSingleRoomModal(true)}
                     canUserSelect={canSelect}
+                    roomTypeFilter={roomTypeFilter}
                 />
 
                 {/* 등록 모달 */}
