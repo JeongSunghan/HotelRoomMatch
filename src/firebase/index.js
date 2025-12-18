@@ -63,3 +63,15 @@ export {
     checkDeadline,
     getTimeUntilDeadline
 } from './settings';
+
+// Allowed Users (사전등록 유저)
+export {
+    subscribeToAllowedUsers,
+    getAllowedUsers,
+    verifyUser,
+    markUserAsRegistered,
+    addAllowedUser,
+    removeAllowedUser,
+    bulkAddAllowedUsers,
+    clearAllAllowedUsers
+} from './allowedUsers';

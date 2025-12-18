@@ -1,8 +1,10 @@
 import { useState } from 'react';
 import { validateResidentId, getGenderLabel, getAgeFromResidentId } from '../../utils/genderUtils';
+import { verifyUser } from '../../firebase/index';
 
 export default function RegistrationModal({ onRegister, onClose }) {
     const [name, setName] = useState('');
+    const [phone, setPhone] = useState('');
     const [company, setCompany] = useState('');
     const [residentIdFront, setResidentIdFront] = useState('');
     const [residentIdBack, setResidentIdBack] = useState('');
@@ -10,6 +12,9 @@ export default function RegistrationModal({ onRegister, onClose }) {
     const [error, setError] = useState('');
     const [detectedGender, setDetectedGender] = useState(null);
     const [detectedAge, setDetectedAge] = useState(null);
+    const [isVerifying, setIsVerifying] = useState(false);
+    const [isVerified, setIsVerified] = useState(false);
+    const [verifiedUser, setVerifiedUser] = useState(null);
 
     // 주민번호 뒷자리 입력 시 성별/나이 감지
     const handleBackDigitChange = (value) => {
@@ -108,161 +113,249 @@ export default function RegistrationModal({ onRegister, onClose }) {
                 </div>
 
                 <form onSubmit={handleSubmit} className="space-y-4">
-                    {/* 이름 입력 */}
-                    <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">이름</label>
-                        <input
-                            type="text"
-                            value={name}
-                            onChange={(e) => setName(e.target.value)}
-                            placeholder="홍길동"
-                            className="input-field"
-                            autoFocus
-                        />
-                    </div>
+                    {/* 1단계: 이름 + 휴대폰 번호 입력 (사전등록 검증) */}
+                    {!isVerified ? (
+                        <>
+                            <div className="info-box mb-4">
+                                <p className="text-blue-700 text-sm">
+                                    📌 사전등록된 정보로 본인 확인을 진행합니다.
+                                </p>
+                            </div>
 
-                    {/* 소속(회사명) 입력 */}
-                    <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">소속 (회사명)</label>
-                        <input
-                            type="text"
-                            value={company}
-                            onChange={(e) => setCompany(e.target.value)}
-                            placeholder="회사명을 입력하세요"
-                            className="input-field"
-                        />
-                    </div>
-
-                    {/* 주민번호 입력 */}
-                    <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">주민등록번호</label>
-                        <div className="flex items-center">
-                            {/* 앞자리 6자리 */}
-                            <input
-                                type="text"
-                                value={residentIdFront}
-                                onChange={(e) => handleFrontChange(e.target.value)}
-                                placeholder="생년월일"
-                                maxLength={6}
-                                className="input-field flex-1 text-center"
-                            />
-                            <span className="px-3 text-gray-400 font-bold">-</span>
-                            {/* 뒷자리 (첫 번째 숫자 + 마스킹) */}
-                            <div className="flex items-center flex-1 input-field px-0 overflow-hidden">
+                            {/* 이름 입력 */}
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-2">이름</label>
                                 <input
                                     type="text"
-                                    value={residentIdBack}
-                                    onChange={(e) => handleBackDigitChange(e.target.value.replace(/\D/g, ''))}
-                                    placeholder="●"
-                                    maxLength={1}
-                                    className="w-10 text-center bg-transparent border-none focus:outline-none focus:ring-0"
+                                    value={name}
+                                    onChange={(e) => setName(e.target.value)}
+                                    placeholder="홍길동"
+                                    className="input-field"
+                                    autoFocus
                                 />
-                                <span className="text-gray-300 tracking-widest pr-3">●●●●●●</span>
                             </div>
-                        </div>
-                        <p className="text-xs text-gray-400 mt-2">* 생년월일 6자리 + 뒷자리 첫 번째 숫자만 입력</p>
-                    </div>
 
-                    {/* 감지된 성별/나이 표시 */}
-                    {detectedGender && (
-                        <div className={`
+                            {/* 휴대폰 번호 입력 */}
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-2">휴대폰 번호</label>
+                                <input
+                                    type="tel"
+                                    value={phone}
+                                    onChange={(e) => setPhone(e.target.value.replace(/[^0-9-]/g, ''))}
+                                    placeholder="010-1234-5678"
+                                    className="input-field"
+                                />
+                            </div>
+
+                            {/* 에러 메시지 */}
+                            {error && (
+                                <div className="p-4 bg-red-50 border border-red-200 border-l-4 border-l-red-500 rounded-lg">
+                                    <p className="text-red-700 text-sm">{error}</p>
+                                </div>
+                            )}
+
+                            {/* 본인확인 버튼 */}
+                            <div className="flex gap-3 pt-2">
+                                <button
+                                    type="button"
+                                    onClick={onClose}
+                                    className="flex-1 px-6 py-3 btn-secondary rounded-lg font-medium"
+                                >
+                                    취소
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={async () => {
+                                        setError('');
+                                        setIsVerifying(true);
+                                        try {
+                                            const result = await verifyUser(name, phone);
+                                            if (result.valid) {
+                                                setIsVerified(true);
+                                                setVerifiedUser(result.user);
+                                                // 사전등록된 소속을 기본값으로 설정
+                                                if (result.user?.company) {
+                                                    setCompany(result.user.company);
+                                                }
+                                            } else {
+                                                setError(result.message);
+                                            }
+                                        } catch (err) {
+                                            setError('검증 중 오류가 발생했습니다.');
+                                        } finally {
+                                            setIsVerifying(false);
+                                        }
+                                    }}
+                                    disabled={!name.trim() || !phone.trim() || isVerifying}
+                                    className="flex-1 px-6 py-3 btn-primary rounded-lg font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                                >
+                                    {isVerifying ? '확인 중...' : '본인확인'}
+                                </button>
+                            </div>
+                        </>
+                    ) : (
+                        <>
+                            {/* 본인확인 완료 안내 */}
+                            <div className="success-box mb-4">
+                                <p className="text-emerald-700 font-medium">✅ 본인확인 완료</p>
+                                <p className="text-emerald-600 text-sm">{name}님 환영합니다!</p>
+                            </div>
+
+                            {/* 이름 (수정 불가) */}
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-2">이름</label>
+                                <input
+                                    type="text"
+                                    value={name}
+                                    disabled
+                                    className="input-field bg-gray-100"
+                                />
+                            </div>
+
+                            {/* 소속(회사명) 입력 */}
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-2">소속 (회사명)</label>
+                                <input
+                                    type="text"
+                                    value={company}
+                                    onChange={(e) => setCompany(e.target.value)}
+                                    placeholder="회사명을 입력하세요"
+                                    className="input-field"
+                                />
+                            </div>
+
+                            {/* 주민번호 입력 */}
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-2">주민등록번호</label>
+                                <div className="flex items-center">
+                                    {/* 앞자리 6자리 */}
+                                    <input
+                                        type="text"
+                                        value={residentIdFront}
+                                        onChange={(e) => handleFrontChange(e.target.value)}
+                                        placeholder="생년월일"
+                                        maxLength={6}
+                                        className="input-field flex-1 text-center"
+                                    />
+                                    <span className="px-3 text-gray-400 font-bold">-</span>
+                                    {/* 뒷자리 (첫 번째 숫자 + 마스킹) */}
+                                    <div className="flex items-center flex-1 input-field px-0 overflow-hidden">
+                                        <input
+                                            type="text"
+                                            value={residentIdBack}
+                                            onChange={(e) => handleBackDigitChange(e.target.value.replace(/\D/g, ''))}
+                                            placeholder="●"
+                                            maxLength={1}
+                                            className="w-10 text-center bg-transparent border-none focus:outline-none focus:ring-0"
+                                        />
+                                        <span className="text-gray-300 tracking-widest pr-3">●●●●●●</span>
+                                    </div>
+                                </div>
+                                <p className="text-xs text-gray-400 mt-2">* 생년월일 6자리 + 뒷자리 첫 번째 숫자만 입력</p>
+                            </div>
+
+                            {/* 감지된 성별/나이 표시 */}
+                            {detectedGender && (
+                                <div className={`
                             flex items-center gap-3 p-4 rounded-lg border-l-4
                             ${detectedGender === 'M' ? 'bg-blue-50 border-blue-500' : 'bg-pink-50 border-pink-500'}
                         `}>
-                            <div className={`
+                                    <div className={`
                                 w-12 h-12 rounded-full flex items-center justify-center text-xl text-white font-bold
                                 ${detectedGender === 'M' ? 'bg-blue-500' : 'bg-pink-500'}
                             `}>
-                                {detectedGender === 'M' ? '♂' : '♀'}
-                            </div>
-                            <div>
-                                <p className="font-semibold text-gray-800">
-                                    {getGenderLabel(detectedGender)}
-                                    {detectedAge && <span className="ml-2 text-gray-500">({detectedAge}세)</span>}
-                                </p>
-                                <p className="text-xs text-gray-500">
-                                    {detectedGender === 'M' ? '남성 전용 객실' : '여성 전용 객실'}을 선택할 수 있습니다.
-                                </p>
-                            </div>
-                        </div>
-                    )}
+                                        {detectedGender === 'M' ? '♂' : '♀'}
+                                    </div>
+                                    <div>
+                                        <p className="font-semibold text-gray-800">
+                                            {getGenderLabel(detectedGender)}
+                                            {detectedAge && <span className="ml-2 text-gray-500">({detectedAge}세)</span>}
+                                        </p>
+                                        <p className="text-xs text-gray-500">
+                                            {detectedGender === 'M' ? '남성 전용 객실' : '여성 전용 객실'}을 선택할 수 있습니다.
+                                        </p>
+                                    </div>
+                                </div>
+                            )}
 
-                    {/* 코골이 여부 선택 */}
-                    {detectedGender && (
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-2">
-                                코골이 여부 <span className="text-red-500">*</span>
-                            </label>
-                            <div className="grid grid-cols-3 gap-2">
+                            {/* 코골이 여부 선택 */}
+                            {detectedGender && (
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                                        코골이 여부 <span className="text-red-500">*</span>
+                                    </label>
+                                    <div className="grid grid-cols-3 gap-2">
+                                        <button
+                                            type="button"
+                                            onClick={() => setSnoring('no')}
+                                            className={`py-3 px-4 rounded-lg border-2 font-medium text-sm transition-all ${snoring === 'no'
+                                                ? 'border-emerald-500 bg-emerald-50 text-emerald-700'
+                                                : 'border-gray-200 hover:border-gray-300'
+                                                }`}
+                                        >
+                                            😴 없음
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => setSnoring('sometimes')}
+                                            className={`py-3 px-4 rounded-lg border-2 font-medium text-sm transition-all ${snoring === 'sometimes'
+                                                ? 'border-amber-500 bg-amber-50 text-amber-700'
+                                                : 'border-gray-200 hover:border-gray-300'
+                                                }`}
+                                        >
+                                            😪 가끔
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => setSnoring('yes')}
+                                            className={`py-3 px-4 rounded-lg border-2 font-medium text-sm transition-all ${snoring === 'yes'
+                                                ? 'border-red-500 bg-red-50 text-red-700'
+                                                : 'border-gray-200 hover:border-gray-300'
+                                                }`}
+                                        >
+                                            😤 자주
+                                        </button>
+                                    </div>
+                                    <p className="text-xs text-gray-400 mt-1">룸메이트 매칭 시 참고됩니다.</p>
+                                </div>
+                            )}
+
+                            {/* 에러 메시지 */}
+                            {error && (
+                                <div className="p-4 bg-red-50 border border-red-200 border-l-4 border-l-red-500 rounded-lg">
+                                    <p className="text-red-700 text-sm">{error}</p>
+                                </div>
+                            )}
+
+                            {/* 안내 메시지 */}
+                            <div className="warning-box">
+                                <p className="text-amber-700 text-sm font-medium mb-1">⚠️ 주의사항</p>
+                                <ul className="text-xs text-amber-600 space-y-1">
+                                    <li>• 등록 후 정보 수정이 <strong>불가능</strong>합니다.</li>
+                                    <li>• 객실 선택은 <strong>1회만</strong> 가능합니다.</li>
+                                    <li>• 신중하게 선택해주세요.</li>
+                                </ul>
+                            </div>
+
+                            {/* 버튼 */}
+                            <div className="flex gap-3 pt-2">
                                 <button
                                     type="button"
-                                    onClick={() => setSnoring('no')}
-                                    className={`py-3 px-4 rounded-lg border-2 font-medium text-sm transition-all ${snoring === 'no'
-                                        ? 'border-emerald-500 bg-emerald-50 text-emerald-700'
-                                        : 'border-gray-200 hover:border-gray-300'
-                                        }`}
+                                    onClick={onClose}
+                                    className="flex-1 px-6 py-3 btn-secondary rounded-lg font-medium"
                                 >
-                                    😴 없음
+                                    취소
                                 </button>
                                 <button
-                                    type="button"
-                                    onClick={() => setSnoring('sometimes')}
-                                    className={`py-3 px-4 rounded-lg border-2 font-medium text-sm transition-all ${snoring === 'sometimes'
-                                        ? 'border-amber-500 bg-amber-50 text-amber-700'
-                                        : 'border-gray-200 hover:border-gray-300'
-                                        }`}
+                                    type="submit"
+                                    disabled={!detectedGender}
+                                    className="flex-1 px-6 py-3 btn-primary rounded-lg font-medium disabled:opacity-50 disabled:cursor-not-allowed"
                                 >
-                                    😪 가끔
-                                </button>
-                                <button
-                                    type="button"
-                                    onClick={() => setSnoring('yes')}
-                                    className={`py-3 px-4 rounded-lg border-2 font-medium text-sm transition-all ${snoring === 'yes'
-                                        ? 'border-red-500 bg-red-50 text-red-700'
-                                        : 'border-gray-200 hover:border-gray-300'
-                                        }`}
-                                >
-                                    😤 자주
+                                    등록하기
                                 </button>
                             </div>
-                            <p className="text-xs text-gray-400 mt-1">룸메이트 매칭 시 참고됩니다.</p>
-                        </div>
+                        </>
                     )}
-
-                    {/* 에러 메시지 */}
-                    {error && (
-                        <div className="p-4 bg-red-50 border border-red-200 border-l-4 border-l-red-500 rounded-lg">
-                            <p className="text-red-700 text-sm">{error}</p>
-                        </div>
-                    )}
-
-                    {/* 안내 메시지 */}
-                    <div className="warning-box">
-                        <p className="text-amber-700 text-sm font-medium mb-1">⚠️ 주의사항</p>
-                        <ul className="text-xs text-amber-600 space-y-1">
-                            <li>• 등록 후 정보 수정이 <strong>불가능</strong>합니다.</li>
-                            <li>• 객실 선택은 <strong>1회만</strong> 가능합니다.</li>
-                            <li>• 신중하게 선택해주세요.</li>
-                        </ul>
-                    </div>
-
-                    {/* 버튼 */}
-                    <div className="flex gap-3 pt-2">
-                        <button
-                            type="button"
-                            onClick={onClose}
-                            className="flex-1 px-6 py-3 btn-secondary rounded-lg font-medium"
-                        >
-                            취소
-                        </button>
-                        <button
-                            type="submit"
-                            disabled={!detectedGender}
-                            className="flex-1 px-6 py-3 btn-primary rounded-lg font-medium disabled:opacity-50 disabled:cursor-not-allowed"
-                        >
-                            등록하기
-                        </button>
-                    </div>
                 </form>
             </div>
         </div>
