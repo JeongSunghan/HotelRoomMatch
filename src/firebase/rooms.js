@@ -119,3 +119,68 @@ export async function checkGuestInRoom(roomNumber, sessionId) {
 
     return guests.some(g => g.sessionId === sessionId);
 }
+
+/**
+ * 게스트 정보 수정
+ * @param {string} roomNumber - 방 번호
+ * @param {string} sessionId - 세션 ID
+ * @param {Object} newData - 수정할 데이터 (name, company, age 등)
+ */
+export async function updateGuestInfo(roomNumber, sessionId, newData) {
+    if (!database) return false;
+
+    const roomRef = ref(database, `rooms/${roomNumber}/guests`);
+    const snapshot = await get(roomRef);
+    let currentGuests = snapshot.val() || [];
+
+    if (currentGuests && !Array.isArray(currentGuests)) {
+        currentGuests = Object.values(currentGuests);
+    }
+
+    const guestIndex = currentGuests.findIndex(g => g.sessionId === sessionId);
+    if (guestIndex === -1) {
+        throw new Error('해당 유저를 찾을 수 없습니다.');
+    }
+
+    // 기존 데이터 유지하면서 수정할 필드만 업데이트
+    currentGuests[guestIndex] = {
+        ...currentGuests[guestIndex],
+        ...newData,
+        updatedAt: Date.now()
+    };
+
+    await set(roomRef, currentGuests);
+    return true;
+}
+
+/**
+ * 중복 이름 체크 (전체 방 대상)
+ * @param {string} name - 체크할 이름
+ * @param {string} excludeSessionId - 제외할 세션 ID (수정 시 자기 자신 제외)
+ * @returns {Promise<{isDuplicate: boolean, roomNumber: string|null}>}
+ */
+export async function checkDuplicateName(name, excludeSessionId = null) {
+    if (!database) return { isDuplicate: false, roomNumber: null };
+
+    const allRoomsRef = ref(database, 'rooms');
+    const snapshot = await get(allRoomsRef);
+    const allRooms = snapshot.val() || {};
+
+    for (const [roomNumber, roomInfo] of Object.entries(allRooms)) {
+        let guests = roomInfo.guests || [];
+        if (!Array.isArray(guests)) {
+            guests = Object.values(guests);
+        }
+
+        const duplicateGuest = guests.find(g =>
+            g.name === name && g.sessionId !== excludeSessionId
+        );
+
+        if (duplicateGuest) {
+            return { isDuplicate: true, roomNumber };
+        }
+    }
+
+    return { isDuplicate: false, roomNumber: null };
+}
+

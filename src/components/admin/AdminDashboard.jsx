@@ -10,13 +10,17 @@ import {
     checkGuestInRoom,
     subscribeToInquiries,
     replyToInquiry,
-    deleteInquiry
+    deleteInquiry,
+    logGuestRemove
 } from '../../firebase/index';
 
 import Sidebar from './Sidebar';
 import RoomManagementTab from './RoomManagementTab';
 import RequestsTab from './RequestsTab';
 import InquiryManagement from './InquiryManagement';
+import CsvUploadModal from './CsvUploadModal';
+import HistoryTab from './HistoryTab';
+import DeadlineSettings from './DeadlineSettings';
 
 /**
  * 관리자 대시보드 (페이지 전체 레이아웃)
@@ -35,6 +39,7 @@ export default function AdminDashboard({
     const [confirmDelete, setConfirmDelete] = useState(null);
     const [changeRequests, setChangeRequests] = useState([]);
     const [inquiries, setInquiries] = useState([]);
+    const [showCsvModal, setShowCsvModal] = useState(false);
 
     // 방 수정 요청 구독
     useEffect(() => {
@@ -98,6 +103,10 @@ export default function AdminDashboard({
         if (confirmDelete) {
             await onRemoveGuest(confirmDelete.roomNumber, confirmDelete.sessionId);
             await clearUserSession(confirmDelete.sessionId);
+
+            // 히스토리 로깅
+            await logGuestRemove(confirmDelete.roomNumber, confirmDelete.guestName, confirmDelete.sessionId, 'admin');
+
             setConfirmDelete(null);
         }
     };
@@ -221,6 +230,9 @@ export default function AdminDashboard({
                     )}
                 </div>
             </div>
+
+            {/* 마감 설정 */}
+            <DeadlineSettings />
         </div>
     );
 
@@ -237,10 +249,16 @@ export default function AdminDashboard({
                             <h2 className="text-2xl font-bold text-gray-800">객실 관리</h2>
                             <div className="flex gap-2">
                                 <button
+                                    onClick={() => setShowCsvModal(true)}
+                                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium"
+                                >
+                                    📤 CSV 업로드
+                                </button>
+                                <button
                                     onClick={() => exportRoomAssignmentsToCSV(roomGuests, roomData)}
                                     className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm font-medium"
                                 >
-                                    CSV 다운로드
+                                    📥 CSV 다운로드
                                 </button>
                             </div>
                         </div>
@@ -279,6 +297,7 @@ export default function AdminDashboard({
                         <RoomManagementTab
                             assignedRooms={assignedRooms}
                             onRemoveGuest={handleRemoveGuest}
+                            onAddGuest={onAddGuest}
                         />
                     </div>
                 )}
@@ -304,6 +323,13 @@ export default function AdminDashboard({
                             onDelete={deleteInquiry}
                             formatDate={formatDate}
                         />
+                    </div>
+                )}
+
+                {activeTab === 'history' && (
+                    <div className="space-y-4">
+                        <h2 className="text-2xl font-bold text-gray-800">히스토리</h2>
+                        <HistoryTab />
                     </div>
                 )}
             </div>
@@ -332,6 +358,14 @@ export default function AdminDashboard({
                         </div>
                     </div>
                 </div>
+            )}
+
+            {/* CSV 업로드 모달 */}
+            {showCsvModal && (
+                <CsvUploadModal
+                    onUpload={onAddGuest}
+                    onClose={() => setShowCsvModal(false)}
+                />
             )}
         </div>
     );

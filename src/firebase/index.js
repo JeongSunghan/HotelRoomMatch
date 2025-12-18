@@ -10,7 +10,7 @@ export { isFirebaseInitialized, database, ref, onValue, set, update, get } from 
 export { adminSignIn, adminSignOut, subscribeToAuthState } from './auth';
 
 // Rooms
-export { subscribeToRooms, selectRoom, removeGuestFromRoom, checkGuestInRoom } from './rooms';
+export { subscribeToRooms, selectRoom, removeGuestFromRoom, checkGuestInRoom, updateGuestInfo, checkDuplicateName } from './rooms';
 
 // Users
 export { saveUser, getUser, subscribeToUserSession, clearUserSession } from './users';
@@ -41,3 +41,25 @@ export {
     replyToInquiry,
     deleteInquiry
 } from './inquiries';
+
+// History
+export {
+    HISTORY_ACTIONS,
+    addHistory,
+    logGuestAdd,
+    logGuestRemove,
+    logGuestEdit,
+    logRoomChange,
+    subscribeToHistory,
+    getRoomHistory
+} from './history';
+
+// Settings
+export {
+    subscribeToSettings,
+    getSettings,
+    saveSettings,
+    setDeadline,
+    checkDeadline,
+    getTimeUntilDeadline
+} from './settings';

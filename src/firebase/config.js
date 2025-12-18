@@ -2,7 +2,7 @@
  * Firebase 기본 설정 및 초기화
  */
 import { initializeApp } from 'firebase/app';
-import { getDatabase, ref, onValue, set, update, get, runTransaction } from 'firebase/database';
+import { getDatabase, ref, onValue, set, update, get, runTransaction, push, query, orderByChild, limitToLast } from 'firebase/database';
 import { getAuth } from 'firebase/auth';
 
 const firebaseConfig = {
@@ -33,4 +33,4 @@ export function isFirebaseInitialized() {
     return database !== null;
 }
 
-export { app, database, auth, ref, onValue, set, update, get, runTransaction };
+export { app, database, auth, ref, onValue, set, update, get, runTransaction, push, query, orderByChild, limitToLast };

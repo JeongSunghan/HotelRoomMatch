@@ -286,3 +286,97 @@ body {
 .animate-slide-in-down {
     animation: slide-in-down 0.3s ease-out;
 }
+
+/* ===================================
+   모바일 터치 UX 개선
+   =================================== */
+
+/* 터치 타겟 최소 크기 보장 (44px 이상) */
+@media (pointer: coarse) {
+    button, 
+    a, 
+    [role="button"],
+    .floor-tab,
+    .room-card {
+        min-height: 44px;
+        min-width: 44px;
+    }
+}
+
+/* 탭 하이라이트 제거 (모바일) */
+* {
+    -webkit-tap-highlight-color: transparent;
+}
+
+/* 터치 시 시각적 피드백 */
+.room-card:active, .floor-tab:active, button:active {
+    transform: scale(0.97);
+    opacity: 0.9;
+}
+
+/* 모바일에서 호버 효과 제거 (터치 기기) */
+@media (hover: none) and (pointer: coarse) {
+    .room-card:hover {
+        transform: none;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+    }
+    
+    .floor-tab:hover {
+        background: white;
+    }
+}
+
+/* 모달 - 모바일 풀스크린 */
+@media (max-width: 640px) {
+    .modal-card {
+        border-radius: 1rem 1rem 0 0;
+        max-height: 90vh;
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        margin: 0;
+        width: 100%;
+    }
+}
+
+/* 부드러운 스크롤 */
+html {
+    scroll-behavior: smooth;
+}
+
+/* 터치 스크롤 최적화 */
+.overflow-y-auto, .overflow-x-auto {
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
+}
+
+/* 플로팅 버튼 터치 영역 확대 */
+.fixed.bottom-20.right-4 {
+    touch-action: manipulation;
+}
+
+/* 입력 필드 터치 최적화 */
+.input-field {
+    font-size: 16px; /* iOS에서 줌 방지 */
+}
+
+/* 탭 전환 시 부드러운 전환 */
+.floor-tab, .room-card, button {
+    transition: all 0.15s ease-out;
+}
+
+/* Pull-to-refresh 방지 (필요시) */
+body {
+    overscroll-behavior-y: contain;
+}
+
+/* 모바일 검색 모달 최적화 */
+@media (max-width: 640px) {
+    .fixed.inset-0.z-50 > .relative {
+        max-height: 85vh;
+        border-radius: 1rem 1rem 0 0;
+        position: fixed;
+        bottom: 0;
+    }
+}

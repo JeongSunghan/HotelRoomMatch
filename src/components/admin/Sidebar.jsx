@@ -8,6 +8,7 @@ export default function Sidebar({ activeTab, onTabChange, onLogout }) {
         { id: 'rooms', label: '객실 관리', icon: '🏨' },
         { id: 'requests', label: '요청 관리', icon: '📋' },
         { id: 'inquiries', label: '1:1 문의', icon: '❓' },
+        { id: 'history', label: '히스토리', icon: '📜' },
     ];
 
     return (

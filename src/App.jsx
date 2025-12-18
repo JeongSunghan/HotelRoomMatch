@@ -6,6 +6,7 @@ import RegistrationModal from './components/auth/RegistrationModal';
 import SelectionModal from './components/room/SelectionModal';
 import InvitationModal from './components/room/InvitationModal';
 import MyRoomModal from './components/room/MyRoomModal';
+import SearchModal from './components/ui/SearchModal';
 import { useUser } from './hooks/useUser';
 import { useRooms } from './hooks/useRooms';
 import { floors, floorInfo, roomData } from './data/roomData';
@@ -51,6 +52,7 @@ export default function App() {
     const [selectedRoomForConfirm, setSelectedRoomForConfirm] = useState(null);
     const [showMyRoomModal, setShowMyRoomModal] = useState(false);
     const [showSingleRoomModal, setShowSingleRoomModal] = useState(false);  // 1인실 안내 모달
+    const [showSearchModal, setShowSearchModal] = useState(false);  // 검색 모달
 
     // 초대 시스템 상태
     const [pendingInvitation, setPendingInvitation] = useState(null);
@@ -476,6 +478,31 @@ export default function App() {
                         </div>
                     </div>
                 )}
+
+                {/* 검색 모달 */}
+                {showSearchModal && (
+                    <SearchModal
+                        roomGuests={roomGuests}
+                        onClose={() => setShowSearchModal(false)}
+                        onRoomClick={(roomNumber) => {
+                            // 해당 층으로 이동
+                            const room = roomData[roomNumber];
+                            if (room) {
+                                setSelectedFloor(room.floor);
+                            }
+                        }}
+                    />
+                )}
+
+                {/* 플로팅 검색 버튼 */}
+                <button
+                    onClick={() => setShowSearchModal(true)}
+                    className="fixed bottom-20 right-4 z-40 w-14 h-14 bg-blue-600 hover:bg-blue-700 text-white rounded-full shadow-lg flex items-center justify-center text-2xl transition-transform hover:scale-110"
+                    title="검색"
+                >
+                    🔍
+                </button>
+
                 <footer className="footer flex justify-between items-center px-4">
                     <p>KVCA V-Up 객실 배정 시스템</p>
                     <a href="/contact" className="text-gray-400 hover:text-gray-600 text-sm underline">

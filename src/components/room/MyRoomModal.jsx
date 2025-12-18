@@ -17,7 +17,15 @@ export default function MyRoomModal({
     if (!user?.selectedRoom) return null;
 
     const room = roomData[user.selectedRoom];
-    const guests = roomGuests[user.selectedRoom] || [];
+    let guests = roomGuests[user.selectedRoom] || [];
+
+    // guests가 객체 형태일 경우 배열로 변환
+    if (guests && !Array.isArray(guests)) {
+        guests = Object.values(guests);
+    }
+
+    // Firebase에서 최신 본인 정보 가져오기 (관리자 수정 반영)
+    const currentUser = guests.find(g => g.sessionId === user.sessionId) || user;
     const roommate = guests.find(g => g.sessionId !== user.sessionId);
 
     const handleSubmitRequest = async () => {
@@ -103,8 +111,8 @@ export default function MyRoomModal({
                             </div>
                             <div>
                                 <p className="font-medium text-gray-800">
-                                    {user.name}
-                                    {user.company && <span className="text-gray-500 text-sm ml-1">({user.company})</span>}
+                                    {currentUser.name}
+                                    {currentUser.company && <span className="text-gray-500 text-sm ml-1">({currentUser.company})</span>}
                                 </p>
                                 <p className="text-xs text-emerald-600">본인</p>
                             </div>
