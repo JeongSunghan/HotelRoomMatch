@@ -109,6 +109,63 @@ export function sanitizeUserData(userData) {
         residentIdFront: sanitizeNumber(userData.residentIdFront || '').substring(0, 6),
         residentIdBack: sanitizeNumber(userData.residentIdBack || '').substring(0, 7),
         age: userData.age ? parseInt(sanitizeNumber(String(userData.age)), 10) || null : null,
-        snoring: ['yes', 'no'].includes(userData.snoring) ? userData.snoring : 'no'
+        snoring: ['yes', 'no', 'sometimes'].includes(userData.snoring) ? userData.snoring : 'no'
     };
+}
+
+// ==================== Security Validation ====================
+
+/**
+ * 방번호 형식 검증 (경로 traversal 방지)
+ * 유효한 형식: 3자리 숫자 (예: 701, 702, 801)
+ * @param {string} roomNumber - 방 번호
+ * @returns {boolean} 유효 여부
+ */
+export function isValidRoomNumber(roomNumber) {
+    if (typeof roomNumber !== 'string') return false;
+
+    // 경로 traversal 문자 차단
+    if (roomNumber.includes('.') || roomNumber.includes('/') || roomNumber.includes('\\')) {
+        return false;
+    }
+
+    // 3자리 숫자만 허용 (7xx, 8xx, 9xx 형식)
+    return /^[789]\d{2}$/.test(roomNumber);
+}
+
+/**
+ * 세션 ID 형식 검증
+ * @param {string} sessionId - 세션 ID
+ * @returns {boolean} 유효 여부
+ */
+export function isValidSessionId(sessionId) {
+    if (typeof sessionId !== 'string') return false;
+
+    // 경로 traversal 문자 차단
+    if (sessionId.includes('.') || sessionId.includes('/') || sessionId.includes('\\')) {
+        return false;
+    }
+
+    // 세션 ID 형식: session_ 또는 admin- 접두사 + 영숫자/-만 허용
+    return /^(session_|admin-)[a-zA-Z0-9\-_]+$/.test(sessionId) && sessionId.length <= 100;
+}
+
+/**
+ * Firebase 경로 안전성 검증
+ * @param {string} path - Firebase 경로
+ * @returns {boolean} 안전 여부
+ */
+export function isSafeFirebasePath(path) {
+    if (typeof path !== 'string') return false;
+
+    // 위험한 패턴 차단
+    const dangerousPatterns = [
+        '..',           // 경로 traversal
+        '.json',        // Firebase REST API 엔드포인트
+        '.priority',    // Firebase 내부 키
+        '.value',       // Firebase 내부 키
+        '.info',        // Firebase 시스템 경로
+    ];
+
+    return !dangerousPatterns.some(pattern => path.includes(pattern));
 }

@@ -2,6 +2,7 @@
  * Firebase 객실 관련 모듈
  */
 import { database, ref, onValue, set, get, runTransaction } from './config';
+import { isValidRoomNumber, isValidSessionId } from '../utils/sanitize';
 
 export function subscribeToRooms(callback) {
     if (!database) {
@@ -27,6 +28,14 @@ export function subscribeToRooms(callback) {
  */
 export async function selectRoom(roomNumber, guestData, maxCapacity = 2, roomGender = null) {
     if (!database) return false;
+
+    // 0. 입력값 검증 (보안 강화)
+    if (!isValidRoomNumber(roomNumber)) {
+        throw new Error('유효하지 않은 방 번호입니다.');
+    }
+    if (!isValidSessionId(guestData.sessionId)) {
+        throw new Error('유효하지 않은 세션입니다.');
+    }
 
     // 1. 성별 검증 (서버 측)
     if (roomGender && guestData.gender && roomGender !== guestData.gender) {

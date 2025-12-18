@@ -8,6 +8,17 @@ export const STORAGE_KEYS = {
     ROOM_GUESTS: 'vup58_room_guests'
 };
 
+// ==================== Security ====================
+export const SESSION_EXPIRY_MS = 24 * 60 * 60 * 1000;  // 세션 만료: 24시간
+export const SESSION_REFRESH_INTERVAL_MS = 60 * 1000;  // 세션 갱신 체크: 1분
+
+// Rate Limiting 설정
+export const RATE_LIMIT = {
+    MAX_REQUESTS: 10,         // 윈도우 내 최대 요청 수
+    WINDOW_MS: 60 * 1000,     // 윈도우 크기: 1분
+    COOLDOWN_MS: 30 * 1000    // 제한 시 대기 시간: 30초
+};
+
 // ==================== Invitation ====================
 export const INVITATION_EXPIRY_MS = 24 * 60 * 60 * 1000; // 24시간
 

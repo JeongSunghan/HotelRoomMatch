@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { getGenderFromResidentId } from '../utils/genderUtils';
-import { STORAGE_KEYS } from '../utils/constants';
-import { sanitizeUserData } from '../utils/sanitize';
+import { STORAGE_KEYS, SESSION_EXPIRY_MS } from '../utils/constants';
+import { sanitizeUserData, isValidSessionId } from '../utils/sanitize';
 import { subscribeToAuthState, adminSignIn, adminSignOut, isFirebaseInitialized, checkGuestInRoom } from '../firebase/index';
 
 const STORAGE_KEY = STORAGE_KEYS.USER;
@@ -39,6 +39,27 @@ export function useUser() {
             if (savedUser) {
                 try {
                     const parsed = JSON.parse(savedUser);
+
+                    // 세션 ID 형식 검증 (보안 강화)
+                    if (parsed.sessionId && !isValidSessionId(parsed.sessionId)) {
+                        console.log('세션 ID 형식 유효성 검사 실패 -> 로그아웃 처리');
+                        localStorage.removeItem(STORAGE_KEY);
+                        setUser(null);
+                        setIsLoading(false);
+                        return;
+                    }
+
+                    // 세션 만료 체크 (24시간)
+                    if (parsed.registeredAt) {
+                        const sessionAge = Date.now() - parsed.registeredAt;
+                        if (sessionAge > SESSION_EXPIRY_MS) {
+                            console.log('세션 만료됨 (확인 24시간 경과) -> 로그아웃 처리');
+                            localStorage.removeItem(STORAGE_KEY);
+                            setUser(null);
+                            setIsLoading(false);
+                            return;
+                        }
+                    }
 
                     // Firebase 연결 상태일 때만 유효성 검사 수행
                     if (isFirebaseInitialized() && parsed.locked && parsed.sessionId && parsed.selectedRoom) {
