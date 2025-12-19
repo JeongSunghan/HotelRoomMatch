@@ -152,6 +152,25 @@ export default function App() {
         setSelectedFloor(floors[0]);
     }
 
+    // 페이지 로드 시 대기 중인 초대 확인 (기존 사용자용)
+    useEffect(() => {
+        const checkInvitations = async () => {
+            // 사용자가 로그인되어 있고, 아직 방이 배정되지 않았으며, 이미 확인하지 않은 경우
+            if (user?.name && !user.selectedRoom && !pendingInvitation) {
+                try {
+                    const invitations = await checkPendingInvitations(user.name);
+                    if (invitations.length > 0) {
+                        setPendingInvitation(invitations[0]);
+                    }
+                } catch (error) {
+                    console.error('초대 확인 실패:', error);
+                }
+            }
+        };
+
+        checkInvitations();
+    }, [user?.name, user?.selectedRoom, pendingInvitation]);
+
     // 내가 보낸 초대 상태 구독 (거절 알림용)
     useEffect(() => {
         if (!user?.sessionId) return;

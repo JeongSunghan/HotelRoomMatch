@@ -6,19 +6,25 @@ import AdminPage from './pages/AdminPage.jsx'
 import ContactPage from './pages/ContactPage.jsx'
 import { ToastProvider } from './components/ui/Toast.jsx'
 import OfflineBanner from './components/ui/OfflineBanner.jsx'
+import { QueryProvider, UIProvider } from './contexts'
 import './index.css'
 
 ReactDOM.createRoot(document.getElementById('root')).render(
     <React.StrictMode>
-        <BrowserRouter>
-            <ToastProvider>
-                <OfflineBanner />
-                <Routes>
-                    <Route path="/" element={<App />} />
-                    <Route path="/admin" element={<AdminPage />} />
-                    <Route path="/contact" element={<ContactPage />} />
-                </Routes>
-            </ToastProvider>
-        </BrowserRouter>
+        <QueryProvider>
+            <UIProvider>
+                <BrowserRouter>
+                    <ToastProvider>
+                        <OfflineBanner />
+                        <Routes>
+                            <Route path="/" element={<App />} />
+                            <Route path="/admin" element={<AdminPage />} />
+                            <Route path="/contact" element={<ContactPage />} />
+                        </Routes>
+                    </ToastProvider>
+                </BrowserRouter>
+            </UIProvider>
+        </QueryProvider>
     </React.StrictMode>,
 )
+

@@ -2,11 +2,11 @@
     "rules": {
         "rooms": {
             ".read": true,
-            ".write": true
+            ".write": "auth != null"
         },
         "users": {
-            ".read": true,
-            ".write": true,
+            ".read": "auth != null",
+            ".write": "auth != null",
             "$sessionId": {
                 ".indexOn": [
                     "email"
@@ -14,16 +14,16 @@
             }
         },
         "allowedUsers": {
-            ".read": true,
+            ".read": "auth != null",
             ".write": "auth != null"
         },
         "roommateInvitations": {
-            ".read": true,
-            ".write": true
+            ".read": "auth != null",
+            ".write": "auth != null"
         },
         "join_requests": {
-            ".read": true,
-            ".write": true,
+            ".read": "auth != null",
+            ".write": "auth != null",
             "$requestId": {
                 ".validate": "newData.hasChildren(['fromUserId', 'toRoomNumber'])"
             },
@@ -33,20 +33,28 @@
             ]
         },
         "roomChangeRequests": {
-            ".read": true,
-            ".write": true
+            ".read": "auth != null",
+            ".write": "auth != null"
         },
         "inquiries": {
-            ".read": true,
-            ".write": true
+            ".read": "auth != null",
+            ".write": "auth != null"
         },
         "history": {
-            ".read": true,
-            ".write": true
+            ".read": "auth != null",
+            ".write": "auth != null"
         },
         "settings": {
             ".read": true,
             ".write": "auth != null"
+        },
+        "otp_requests": {
+            ".read": false,
+            ".write": true,
+            "$emailKey": {
+                ".read": "auth != null",
+                ".write": "auth != null"
+            }
         }
     }
 }

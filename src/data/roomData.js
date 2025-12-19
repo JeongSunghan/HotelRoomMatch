@@ -143,10 +143,10 @@ export const floors = [12, 11, 10, 8, 7, 6];
 export const floorInfo = {
     12: { label: "12층", description: "여성 1인실 (더블)", gender: "F" },
     11: { label: "11층", description: "남성 1인실 (디럭스더블)", gender: "M" },
-    10: { label: "10층", description: "여성 1인실 & 2인실", gender: "F" },
+    10: { label: "10층", description: "여성 1인실 / 2인실", gender: "F" },
     8: { label: "8층", description: "남성 1인실 (더블트윈/패밀리)", gender: "M" },
     7: { label: "7층", description: "남성 2인실 (트윈)", gender: "M" },
-    6: { label: "6층", description: "남성 1인실 & 2인실", gender: "M" },
+    6: { label: "6층", description: "남성 1인실 / 2인실", gender: "M" },
 };
 
 /**
