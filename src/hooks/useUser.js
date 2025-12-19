@@ -141,6 +141,18 @@ export function useUser() {
 
                     // Firebase 연결 상태일 때만 유효성 검사 수행
                     if (isFirebaseInitialized() && parsed.sessionId) {
+                        // 0. Firebase Auth 복원 (페이지 새로고침 시 인증 상태 유지)
+                        const { getAuth, signInAnonymously } = await import('firebase/auth');
+                        const auth = getAuth();
+                        if (!auth.currentUser) {
+                            try {
+                                await signInAnonymously(auth);
+                                console.log('Firebase Auth 익명 인증 복원 완료');
+                            } catch (authError) {
+                                console.error('Firebase Auth 복원 실패:', authError);
+                            }
+                        }
+
                         // 1. 방에 유저가 존재하는지 확인 (users 조회)
                         const { getUser } = await import('../firebase/index');
                         const dbUser = await getUser(parsed.sessionId);
@@ -170,6 +182,12 @@ export function useUser() {
                                 setUser(null);
                                 setIsLoading(false);
                                 return;
+                            }
+
+                            // 3. 최신 데이터 동기화 (DB -> Local)
+                            if (dbUser) {
+                                Object.assign(parsed, dbUser);
+                                localStorage.setItem(STORAGE_KEY, JSON.stringify(parsed));
                             }
                         } else {
                             // 구버전 세션 호환성을 위해 PassKey 없어도 방에 있으면 일단 인정?
