@@ -28,9 +28,10 @@ export default function MatchingWarningModal({ warnings, onConfirm, onCancel }) 
                 {/* 안내 문구 (사용자 요청 강조 사항) */}
                 <div className="mb-6 p-3 bg-gray-50 rounded-lg border border-gray-200">
                     <p className="text-xs text-gray-500 leading-relaxed text-center font-medium">
-                        * 그래도 입장을 원하시면 아래 버튼을 눌러주세요.<br />
+                        * 조건이 맞지 않아 <b>상대방(룸메이트)의 승인</b>이 필요합니다.<br />
                         <span className="text-red-500 font-bold block mt-1">
-                            * 배정 후 해당 방의 룸메이트 및 관리자에 의해<br />방 배정이 변경될 수 있습니다.
+                            * 요청을 전송하면 상대방이 수락/거절을 결정합니다.<br />
+                            (거절 시 다시 방을 선택해야 합니다)
                         </span>
                     </p>
                 </div>
@@ -41,13 +42,13 @@ export default function MatchingWarningModal({ warnings, onConfirm, onCancel }) 
                         onClick={onCancel}
                         className="flex-1 py-3 btn-secondary rounded-lg font-medium"
                     >
-                        다시 선택하기
+                        취소
                     </button>
                     <button
                         onClick={onConfirm}
                         className="flex-1 py-3 bg-amber-500 hover:bg-amber-600 text-white rounded-lg font-bold shadow-md transition-colors"
                     >
-                        동의하고 입장
+                        승인 요청 보내기
                     </button>
                 </div>
             </div>

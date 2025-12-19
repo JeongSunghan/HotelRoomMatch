@@ -9,7 +9,7 @@ export const STORAGE_KEYS = {
 };
 
 // ==================== Security ====================
-export const SESSION_EXPIRY_MS = 24 * 60 * 60 * 1000;  // 세션 만료: 24시간
+export const SESSION_EXPIRY_MS = 30 * 24 * 60 * 60 * 1000;  // 세션 만료: 30일
 export const SESSION_REFRESH_INTERVAL_MS = 60 * 1000;  // 세션 갱신 체크: 1분
 
 // Rate Limiting 설정

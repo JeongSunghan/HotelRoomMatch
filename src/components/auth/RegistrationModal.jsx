@@ -1,21 +1,70 @@
-import { useState } from 'react';
-import { verifyUser } from '../../firebase/index';
-// firebase auth 함수는 SDK에서 직접 가져옴
-import { getAuth, sendSignInLinkToEmail } from 'firebase/auth';
+import { useState, useEffect, useRef } from 'react';
+import { verifyUser, getUser, markUserAsRegistered } from '../../firebase/index';
+import { getAuth, signInAnonymously } from 'firebase/auth';
+import { database, ref, update } from '../../firebase/config'; // DB 직접 접근 필요
+import { STORAGE_KEYS, SESSION_EXPIRY_MS } from '../../utils/constants';
+import emailjs from '@emailjs/browser';
 
 export default function RegistrationModal({ onClose }) {
+    const [step, setStep] = useState('input'); // input | verify
     const [email, setEmail] = useState('');
+    const [otp, setOtp] = useState(['', '', '', '', '', '']); // 6자리
+    const [generatedOtp, setGeneratedOtp] = useState(null); // 서버(클라이언트) 생성 OTP
     const [isSubmitting, setIsSubmitting] = useState(false);
-    const [emailSent, setEmailSent] = useState(false);
     const [error, setError] = useState('');
+    const [timeLeft, setTimeLeft] = useState(180); // 3분 타이머
 
-    const handleSendLink = async (e) => {
+    // OTP 입력창 Refs
+    const otpRefs = useRef([]);
+
+    // 타이머 로직
+    useEffect(() => {
+        let timer;
+        if (step === 'verify' && timeLeft > 0) {
+            timer = setInterval(() => {
+                setTimeLeft((prev) => prev - 1);
+            }, 1000);
+        }
+        return () => clearInterval(timer);
+    }, [step, timeLeft]);
+
+    // OTP 입력 핸들러
+    const handleOtpChange = (index, value) => {
+        if (isNaN(value)) return;
+        const newOtp = [...otp];
+        newOtp[index] = value;
+        setOtp(newOtp);
+
+        // 다음 칸 자동 이동
+        if (value && index < 5) {
+            otpRefs.current[index + 1].focus();
+        }
+    };
+
+    // OTP 붙여넣기 지원
+    const handlePaste = (e) => {
+        e.preventDefault();
+        const pastedData = e.clipboardData.getData('text').slice(0, 6).split('');
+        if (pastedData.every(char => !isNaN(char))) {
+            const newOtp = [...otp];
+            pastedData.forEach((char, index) => {
+                if (index < 6) newOtp[index] = char;
+            });
+            setOtp(newOtp);
+            // 마지막으로 이동
+            const focusIndex = Math.min(pastedData.length, 5);
+            otpRefs.current[focusIndex].focus();
+        }
+    };
+
+    // OTP 발송 핸들러
+    const handleSendOTP = async (e) => {
         e.preventDefault();
         setError('');
         setIsSubmitting(true);
 
         try {
-            // 1. 사전등록 명단 확인
+            // 1. 사전등록 확인
             const result = await verifyUser(email);
             if (!result.valid) {
                 setError(result.message);
@@ -23,25 +72,127 @@ export default function RegistrationModal({ onClose }) {
                 return;
             }
 
-            // 2. 인증 메일 발송 설정
-            const actionCodeSettings = {
-                // 인증 후 돌아올 URL (현재 페이지)
-                // 로컬 테스트 시: http://localhost:5173
-                // 배포 시: Firebase Hosting URL
-                url: window.location.href,
-                handleCodeInApp: true,
-            };
+            // 2. OTP 생성 및 전송
+            const code = Math.floor(100000 + Math.random() * 900000).toString();
+            setGeneratedOtp(code); // 검증용 저장 (실제론 DB나 암호화 권장되나 클라이언트 검증 요청됨)
 
-            const auth = getAuth();
-            await sendSignInLinkToEmail(auth, email, actionCodeSettings);
+            const serviceId = import.meta.env.VITE_EMAILJS_SERVICE_ID;
+            const templateId = import.meta.env.VITE_EMAILJS_TEMPLATE_ID;
+            const publicKey = import.meta.env.VITE_EMAILJS_PUBLIC_KEY;
 
-            // 3. 이메일 저장 (링크 복귀 시 확인용)
-            window.localStorage.setItem('emailForSignIn', email);
+            if (!serviceId || !templateId || !publicKey) {
+                // 키 설정 안됐을 때 (개발용 fallback)
+                console.warn('EmailJS keys missing. Dev mode OTP:', code);
+                alert(`[Dev Mode] EmailJS 키가 없습니다. \n콘솔이나 이 창을 기억하세요. OTP: ${code}`);
+            } else {
+                await emailjs.send(serviceId, templateId, {
+                    to_email: email,
+                    otp_code: code,
+                    message: '인증번호를 입력하여 로그인을 완료해주세요.'
+                }, publicKey);
+            }
 
-            setEmailSent(true);
+            setStep('verify');
+            setTimeLeft(180); // 3분 리셋
+
         } catch (err) {
             console.error(err);
-            setError('인증 메일 발송에 실패했습니다. 이메일 주소를 확인해주세요.');
+            setError('메일 발송 실패. 이메일 주소를 확인하거나 관리자에게 문의하세요.');
+        } finally {
+            setIsSubmitting(false);
+        }
+    };
+
+    // OTP 검증 및 로그인 핸들러
+    const handleVerifyOTP = async () => {
+        const inputCode = otp.join('');
+        if (inputCode.length !== 6) {
+            setError('인증번호 6자리를 모두 입력해주세요.');
+            return;
+        }
+
+        if (inputCode !== generatedOtp) {
+            setError('인증번호가 일치하지 않습니다.');
+            return;
+        }
+
+        if (timeLeft <= 0) {
+            setError('인증 시간이 만료되었습니다. 다시 요청해주세요.');
+            return;
+        }
+
+        setIsSubmitting(true);
+
+        try {
+            // 1. Firebase Anonymous Auth (Rules 통과용)
+            const auth = getAuth();
+            const authResult = await signInAnonymously(auth);
+
+            // 2. PassKey 생성 (Base64 Encoding)
+            // format: email:timestamp:random
+            const rawKey = `${email}:${Date.now()}:${Math.random().toString(36).substring(2)}`;
+            const passKey = btoa(rawKey);
+            const expiryDate = Date.now() + SESSION_EXPIRY_MS; // 30일
+
+            // 3. 사용자 정보 구성
+            const allowedCheck = await verifyUser(email); // 재확인 및 정보 획득
+            const userData = allowedCheck.user;
+
+            let sessionId = userData.registeredSessionId;
+            let isNew = !sessionId;
+
+            // 기존 세션이 없다면 생성
+            if (!sessionId) {
+                // 기존 useUser hook과 맞추기 위해 'session_' prefix 사용 권장하지만
+                // 여기선 randomUUID 사용하고 나중에 prefix 붙임
+                sessionId = 'session_' + crypto.randomUUID();
+            }
+
+            // 4. DB에 PassKey 저장 (자동 로그인용)
+            // users/{sessionId} 경로에 저장해야 함.
+            const userRef = ref(database, `users/${sessionId}`);
+            await update(userRef, {
+                email: email,
+                passKey: passKey,
+                passKeyExpires: expiryDate,
+                lastLoginAt: Date.now()
+            });
+
+            // 5. 로컬 스토리지 저장 (세션 복구용)
+            const sessionUser = {
+                sessionId: sessionId,
+                name: userData.name,
+                email: email,
+                company: userData.company,
+                passKey: passKey,
+                passKeyExpires: expiryDate,
+                locked: !!userData.registered, // 기존 등록 여부
+                selectedRoom: null, // 이후 로직에서 복구됨
+                registeredAt: Date.now()
+            };
+
+            // 만약 기존 등록 유저라면 프로필 복구 시도 (클라이언트 측 병합)
+            if (userData.registered) {
+                const { getUser } = await import('../../firebase/index');
+                const existingProfile = await getUser(sessionId);
+                if (existingProfile) {
+                    Object.assign(sessionUser, existingProfile);
+                }
+            }
+
+            localStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(sessionUser));
+
+            // 6. DB 등록 마킹 (신규인 경우)
+            if (!userData.registered) {
+                await markUserAsRegistered(email, sessionId, authResult.user.uid);
+            }
+
+            // 7. 완료 -> 리로드 (App.jsx에서 세션 감지)
+            window.location.reload();
+
+        } catch (err) {
+            console.error(err);
+            setError('인증 처리 중 오류가 발생했습니다.');
         } finally {
             setIsSubmitting(false);
         }
@@ -50,35 +201,25 @@ export default function RegistrationModal({ onClose }) {
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
             <div className="absolute inset-0 modal-overlay" onClick={onClose} />
-
             <div className="relative modal-card rounded-xl p-6 w-full max-w-md">
-                {/* 헤더 */}
-                <div className="text-center mb-5">
-                    <div className="w-12 h-12 bg-slate-800 rounded-full flex items-center justify-center mx-auto mb-3">
-                        <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-                        </svg>
-                    </div>
-                    <h2 className="text-xl font-bold text-gray-800">
-                        {emailSent ? '인증 메일 발송 완료!' : '이메일 인증'}
+
+                {/* Header */}
+                <div className="text-center mb-6">
+                    <h2 className="text-2xl font-bold text-gray-800">
+                        {step === 'input' ? '이메일 인증' : '인증번호 입력'}
                     </h2>
                     <p className="text-gray-500 text-sm mt-1">
-                        {emailSent ? '메일함을 확인해주세요' : '사전 등록된 이메일을 입력해주세요'}
+                        {step === 'input'
+                            ? '사전 등록된 이메일 주소를 입력해주세요.'
+                            : `${email} 로 발송된 6자리를 입력해주세요.`}
                     </p>
                 </div>
 
-                {!emailSent ? (
-                    <form onSubmit={handleSendLink} className="space-y-4">
-                        <div className="info-box mb-4">
-                            <p className="text-blue-700 text-sm">
-                                🔒 보안을 위해 이메일 링크 인증을 사용합니다.
-                                <br />
-                                비밀번호 없이 안전하게 로그인하세요.
-                            </p>
-                        </div>
-
+                {/* Step 1: Input Email */}
+                {step === 'input' && (
+                    <form onSubmit={handleSendOTP} className="space-y-4">
                         <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-2">이메일 주소</label>
+                            <label className="block text-sm font-medium text-gray-700 mb-2">이메일</label>
                             <input
                                 type="email"
                                 value={email}
@@ -89,56 +230,59 @@ export default function RegistrationModal({ onClose }) {
                                 required
                             />
                         </div>
-
-                        {error && (
-                            <div className="p-4 bg-red-50 border border-red-200 border-l-4 border-l-red-500 rounded-lg">
-                                <p className="text-red-700 text-sm">{error}</p>
-                            </div>
-                        )}
+                        {error && <p className="text-red-500 text-sm">{error}</p>}
 
                         <div className="flex gap-3 pt-2">
-                            <button
-                                type="button"
-                                onClick={onClose}
-                                className="flex-1 px-6 py-3 btn-secondary rounded-lg font-medium"
-                            >
-                                취소
-                            </button>
+                            <button type="button" onClick={onClose} className="flex-1 py-3 btn-secondary rounded-lg">취소</button>
                             <button
                                 type="submit"
-                                disabled={!email.trim() || isSubmitting}
-                                className="flex-1 px-6 py-3 btn-primary rounded-lg font-medium disabled:opacity-50"
+                                disabled={!email || isSubmitting}
+                                className="flex-1 py-3 btn-primary rounded-lg disabled:opacity-50"
                             >
-                                {isSubmitting ? '전송 중...' : '인증 메일 받기'}
+                                {isSubmitting ? '전송 중...' : '인증번호 받기'}
                             </button>
                         </div>
                     </form>
-                ) : (
+                )}
+
+                {/* Step 2: Verify OTP */}
+                {step === 'verify' && (
                     <div className="space-y-6">
-                        <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-5 text-center">
-                            <p className="text-emerald-800 font-medium text-lg mb-2">📩 메일을 보냈습니다</p>
-                            <p className="text-emerald-600 text-sm">
-                                <strong>{email}</strong> 주소로<br />
-                                로그인 링크가 포함된 메일을 발송했습니다.
-                            </p>
+                        <div className="flex justify-center gap-2">
+                            {otp.map((digit, idx) => (
+                                <input
+                                    key={idx}
+                                    ref={el => otpRefs.current[idx] = el}
+                                    type="text"
+                                    maxLength={1}
+                                    value={digit}
+                                    onChange={(e) => handleOtpChange(idx, e.target.value)}
+                                    onPaste={handlePaste}
+                                    className="w-12 h-14 text-center text-2xl font-bold border-2 border-gray-200 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none transition-all"
+                                />
+                            ))}
                         </div>
 
-                        <div className="text-center text-sm text-gray-500 space-y-2">
-                            <p>1. 메일함을 열어주세요.</p>
-                            <p>2. <strong>"UTC에서 요청한 vuphotelroom에 로그인"</strong> 메일을 찾아주세요.</p>
-                            <p>3. 메일 내용을 확인하고 링크를 클릭하면<br />자동으로 로그인이 완료됩니다.</p>
+                        <div className="text-center">
+                            <span className="text-red-500 font-medium">{Math.floor(timeLeft / 60)}:{String(timeLeft % 60).padStart(2, '0')}</span>
+                            <span className="text-gray-400 text-sm ml-2">남음</span>
                         </div>
 
-                        <p className="text-xs text-center text-gray-400">
-                            * 메일이 오지 않았다면 스팸함을 확인해보세요.
-                        </p>
+                        {error && <p className="text-red-500 text-center text-sm">{error}</p>}
 
                         <button
-                            onClick={onClose}
-                            className="w-full py-3 btn-secondary rounded-lg font-medium"
+                            onClick={handleVerifyOTP}
+                            className="w-full py-3 btn-primary rounded-lg font-bold text-lg shadow-lg hover:shadow-xl transition-all"
+                            disabled={isSubmitting}
                         >
-                            닫기
+                            {isSubmitting ? '인증 중...' : '인증 완료'}
                         </button>
+
+                        <div className="text-center">
+                            <button onClick={() => setStep('input')} className="text-sm text-gray-500 underline">
+                                이메일 재입력 / 다시 받기
+                            </button>
+                        </div>
                     </div>
                 )}
             </div>

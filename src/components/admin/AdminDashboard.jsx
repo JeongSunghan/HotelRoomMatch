@@ -7,6 +7,7 @@ import {
     resolveRoomChangeRequest,
     deleteRoomChangeRequest,
     clearUserSession,
+    updateUser,
     checkGuestInRoom,
     subscribeToInquiries,
     replyToInquiry,
@@ -103,7 +104,9 @@ export default function AdminDashboard({
     const confirmRemoveGuest = async () => {
         if (confirmDelete) {
             await onRemoveGuest(confirmDelete.roomNumber, confirmDelete.sessionId);
-            await clearUserSession(confirmDelete.sessionId);
+            // await clearUserSession(confirmDelete.sessionId);
+            // 유저 세션은 유지하고(PassKey 보존) 방 정보만 초기화
+            await updateUser(confirmDelete.sessionId, { selectedRoom: null, locked: false });
 
             // 히스토리 로깅
             await logGuestRemove(confirmDelete.roomNumber, confirmDelete.guestName, confirmDelete.sessionId, 'admin');
@@ -116,7 +119,8 @@ export default function AdminDashboard({
         try {
             if (request.type === 'cancel' && request.currentRoom && request.sessionId) {
                 await onRemoveGuest(request.currentRoom, request.sessionId);
-                await clearUserSession(request.sessionId);
+                // await clearUserSession(request.sessionId);
+                await updateUser(request.sessionId, { selectedRoom: null, locked: false });
             }
             else if (request.type === 'change' && request.currentRoom && request.targetRoom && request.sessionId) {
                 const exists = await checkGuestInRoom(request.currentRoom, request.sessionId);

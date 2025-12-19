@@ -13,7 +13,7 @@ export { adminSignIn, adminSignOut, subscribeToAuthState } from './auth';
 export { subscribeToRooms, selectRoom, removeGuestFromRoom, checkGuestInRoom, updateGuestInfo, checkDuplicateName } from './rooms';
 
 // Users
-export { saveUser, getUser, subscribeToUserSession, clearUserSession } from './users';
+export { saveUser, updateUser, getUser, subscribeToUserSession, clearUserSession } from './users';
 
 // Invitations
 export {
@@ -75,3 +75,14 @@ export {
     bulkAddAllowedUsers,
     clearAllAllowedUsers
 } from './allowedUsers';
+
+// Join Requests (입실 요청)
+export {
+    createJoinRequest,
+    subscribeToJoinRequests,
+    acceptJoinRequest,
+    rejectJoinRequest,
+    cancelJoinRequest,
+    cleanupRequest,
+    REQUEST_STATUS
+} from './joinRequests';

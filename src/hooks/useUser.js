@@ -59,40 +59,49 @@ export function useUser() {
                         // DB에서 유저 정보 가져오기 -> 세션 생성
                         const allowedCheck = await verifyUser(email);
                         if (allowedCheck.valid && allowedCheck.user) {
-                            // 기존 세션 복구 또는 새 세션 생성
                             const userData = allowedCheck.user;
+                            let sessionUser = null;
 
-                            // 필수 정보 확인 (이름, 회사 등)
-                            // 여기서 sessionId를 새로 생성하거나 기존 것을 쓸지 결정해야 함.
-                            // 기존 registeredSessionId가 유효하다면 재활용? 
-                            // -> 보안상 새로 발급하는 것이 좋으나, 방 배정 상태 유지하려면...
-                            // -> 일단은 새 세션 ID 발급하고, 만약 이미 방에 배정된 상태라면(userData.registered) 그 정보를 유지해야 함.
+                            // 이미 등록된 유저라면 기존 프로필 복구 시도
+                            if (allowedCheck.alreadyRegistered && userData.registeredSessionId) {
+                                const { getUser } = await import('../firebase/index');
+                                const existingProfile = await getUser(userData.registeredSessionId);
 
-                            const newUser = {
-                                sessionId: userData.registeredSessionId || generateSessionId(), // 기존 세션 유지 시도
-                                name: userData.name,
-                                email: userData.email, // 이메일 저장
-                                company: userData.company,
-                                locked: !!userData.registered, // 이미 등록된 경우 잠금 상태일 수 있음 (확인 필요)
-                                selectedRoom: null, // 일단 null, 방 상태 복구 로직 필요
-                                registeredAt: Date.now()
-                            };
+                                if (existingProfile) {
+                                    console.log('기존 사용자 프로필 복구 완료');
+                                    sessionUser = {
+                                        ...existingProfile,
+                                        sessionId: userData.registeredSessionId
+                                    };
+                                }
+                            }
 
-                            // 이미 등록된 유저라면 추가 정보(성별, 나이 등)도 가져와야 함.
-                            // 하지만 allowedUsers DB에는 민감정보(주민뒷자리 등)가 없을 수 있음.
-                            // -> 하이브리드 방식에서는 로그인 시점에 다시 DB 동기화가 필요함.
-                            // 일단 기본 정보만 세션에 저장.
+                            // 신규이거나 복구 실패 시 새로 생성
+                            if (!sessionUser) {
+                                sessionUser = {
+                                    sessionId: userData.registeredSessionId || generateSessionId(),
+                                    name: userData.name,
+                                    email: userData.email, // 이메일 저장
+                                    company: userData.company,
+                                    // 이미 등록된 상태였는데 복구 실패했다면 일단 locked 풀어줌 (재입력 유도)
+                                    locked: false,
+                                    selectedRoom: null,
+                                    registeredAt: Date.now()
+                                };
+                            }
 
-                            localStorage.setItem(STORAGE_KEY, JSON.stringify(newUser));
-                            setUser(newUser);
+                            localStorage.setItem(STORAGE_KEY, JSON.stringify(sessionUser));
+                            setUser(sessionUser);
 
-                            // 인증 완료 표시
-                            await markUserAsRegistered(email, newUser.sessionId, result.user.uid);
+                            // 인증 완료 표시 (신규일 때만)
+                            if (!allowedCheck.alreadyRegistered) {
+                                await markUserAsRegistered(email, sessionUser.sessionId, result.user.uid);
+                            }
 
                             // URL 정리 (인증 코드 제거)
                             window.history.replaceState({}, document.title, window.location.pathname);
                         } else {
-                            alert('사전 등록된 사용자 정보가 없습니다. 관리자에게 문의하세요.');
+                            alert(allowedCheck.message || '로그인 불가');
                         }
                     } catch (error) {
                         console.error('이메일 링크 로그인 실패:', error);
@@ -131,19 +140,48 @@ export function useUser() {
                     }
 
                     // Firebase 연결 상태일 때만 유효성 검사 수행
-                    if (isFirebaseInitialized() && parsed.locked && parsed.sessionId && parsed.selectedRoom) {
-                        // 실제 방에 유저가 존재하는지 확인 (users 컬렉션 대신 rooms 조회)
-                        const exists = await checkGuestInRoom(parsed.selectedRoom, parsed.sessionId);
+                    if (isFirebaseInitialized() && parsed.sessionId) {
+                        // 1. 방에 유저가 존재하는지 확인 (users 조회)
+                        const { getUser } = await import('../firebase/index');
+                        const dbUser = await getUser(parsed.sessionId);
 
-                        if (!exists) {
-                            // 방에서 삭제된 경우 (관리자 취소 등)
-                            // 단, 일시적 네트워크 오류일 수 있으므로 신중해야 함.
-                            // 하지만 checkGuestInRoom은 DB를 직접 조회하므로 데이터가 확실함.
-                            console.log('세션 유효성 검사 실패: 방에 유저 없음 -> 로그아웃 처리');
+                        if (!dbUser) {
+                            console.log('세션 유효성 검사 실패: 유저 없음 -> 로그아웃 처리');
                             localStorage.removeItem(STORAGE_KEY);
                             setUser(null);
                             setIsLoading(false);
                             return;
+                        }
+
+                        // 2. PassKey 검증 (보안 강화)
+                        if (parsed.passKey) {
+                            if (dbUser.passKey !== parsed.passKey) {
+                                console.log('PassKey 불일치 -> 로그아웃 처리');
+                                localStorage.removeItem(STORAGE_KEY);
+                                setUser(null);
+                                setIsLoading(false);
+                                return;
+                            }
+
+                            // PassKey 만료 체크 (30일)
+                            if (parsed.passKeyExpires && Date.now() > parsed.passKeyExpires) {
+                                console.log('PassKey 만료됨 -> 로그아웃 처리');
+                                localStorage.removeItem(STORAGE_KEY);
+                                setUser(null);
+                                setIsLoading(false);
+                                return;
+                            }
+                        } else {
+                            // 구버전 세션 호환성을 위해 PassKey 없어도 방에 있으면 일단 인정?
+                            // -> 아니요, 보안 정책 변경으로 재인증 유도 권장. 
+                            // -> 일단 유지하되, 추후 강제 로그아웃 고려.
+                            // 여기선 'checkGuestInRoom' 로직을 user 조회로 대체했으므로 OK.
+                            // 3. 최신 데이터 동기화 (DB -> Local)
+                            // 배정 취소 등으로 DB 상태가 변경되었을 수 있으므로 동기화 필수
+                            if (dbUser) {
+                                Object.assign(parsed, dbUser);
+                                localStorage.setItem(STORAGE_KEY, JSON.stringify(parsed));
+                            }
                         }
                     }
 
@@ -196,8 +234,11 @@ export function useUser() {
         return newUser;
     }, []);
 
-    const selectRoom = useCallback((roomNumber) => {
+    const selectRoom = useCallback(async (roomNumber) => {
         if (!user) return;
+
+        // Async import check
+        const { updateUser: dbUpdateUser } = await import('../firebase/index');
 
         const updatedUser = {
             ...user,
@@ -209,11 +250,23 @@ export function useUser() {
         localStorage.setItem(STORAGE_KEY, JSON.stringify(updatedUser));
         setUser(updatedUser);
 
+        // DB 동기화
+        if (user.sessionId) {
+            await dbUpdateUser(user.sessionId, {
+                selectedRoom: roomNumber,
+                selectedAt: Date.now(),
+                locked: true
+            });
+        }
+
         return updatedUser;
     }, [user]);
 
-    const updateUser = useCallback((newData) => {
+    const updateUser = useCallback(async (newData) => {
         if (!user) return;
+
+        // Async import check
+        const { updateUser: dbUpdateUser } = await import('../firebase/index');
 
         const updatedUser = {
             ...user,
@@ -222,6 +275,12 @@ export function useUser() {
 
         localStorage.setItem(STORAGE_KEY, JSON.stringify(updatedUser));
         setUser(updatedUser);
+
+        // DB 동기화
+        if (user.sessionId) {
+            await dbUpdateUser(user.sessionId, newData);
+        }
+
         return updatedUser;
     }, [user]);
 

@@ -14,6 +14,9 @@ import { floors, floorInfo, roomData } from './data/roomData';
 import { sanitizeName } from './utils/sanitize';
 import { checkCompatibility } from './utils/matchingUtils';
 import MatchingWarningModal from './components/room/MatchingWarningModal';
+import JoinRequestModal from './components/room/JoinRequestModal';
+import WaitingApprovalModal from './components/room/WaitingApprovalModal';
+import { useJoinRequests } from './hooks/useJoinRequests';
 import {
     checkPendingInvitations,
     acceptInvitation,
@@ -65,6 +68,38 @@ export default function App() {
     const [showWarningModal, setShowWarningModal] = useState(false);
     const [warningContent, setWarningContent] = useState([]);
     const [pendingSelection, setPendingSelection] = useState(null);
+
+    // 입실 요청 Hook
+    const {
+        requests,
+        sendRequest,
+        acceptRequest,
+        rejectRequest,
+        cancelRequest,
+        cleanup,
+        REQUEST_STATUS
+    } = useJoinRequests(user?.sessionId);
+
+    // 내 요청 상태 감지 (Guest)
+    const mySentRequest = requests.sent.find(r => r.status === REQUEST_STATUS.PENDING);
+
+    // 요청 처리 결과 감지 Effect
+    useEffect(() => {
+        if (!user) return;
+
+        const rejectedReq = requests.sent.find(r => r.status === REQUEST_STATUS.REJECTED);
+        if (rejectedReq) {
+            alert('룸메이트가 요청을 거절했습니다.');
+            cleanup(rejectedReq.id);
+        }
+
+        const acceptedReq = requests.sent.find(r => r.status === REQUEST_STATUS.ACCEPTED);
+        if (acceptedReq) {
+            alert('입장이 승인되었습니다!');
+            cleanup(acceptedReq.id);
+            // 승인되면 useRooms가 업데이트되어 자동으로 반영됨
+        }
+    }, [requests.sent, user, cleanup]);
 
     // 초대 시스템 상태
     const [pendingInvitation, setPendingInvitation] = useState(null);
@@ -341,11 +376,40 @@ export default function App() {
         performSelection(roomNumber, roommateInfo);
     };
 
-    const handleWarningConfirmed = () => {
+    const handleWarningConfirmed = async () => {
         if (pendingSelection) {
-            // warningContent를 히스토리에 저장하기 위해 detail로 넘김
-            performSelection(pendingSelection.roomNumber, pendingSelection.roommateInfo, warningContent);
+            // "동의하고 승인 요청" 클릭 시 -> 요청 생성
+            const { roomNumber, roommateInfo } = pendingSelection;
+
+            // 기존 룸메이트 찾기
+            const currentGuests = roomGuests[roomNumber] || [];
+            const roommate = Array.isArray(currentGuests) ? currentGuests[0] : Object.values(currentGuests)[0];
+
+            if (!roommate) {
+                // 룸메이트가 없는데 경고가 떴다? (이상 상황)
+                performSelection(roomNumber, roommateInfo);
+                return;
+            }
+
+            await sendRequest({
+                fromUserId: user.sessionId,
+                fromUserName: user.name,
+                toRoomNumber: roomNumber,
+                toUserId: roommate.sessionId,
+                warnings: warningContent,
+                guestInfo: {
+                    name: user.name,
+                    company: user.company || '',
+                    gender: user.gender,
+                    age: user.age,
+                    sessionId: user.sessionId,
+                    registeredAt: Date.now(),
+                    snoring: user.snoring || 'no'
+                }
+            });
+
             setShowWarningModal(false);
+            setPendingSelection(null);
         }
     };
 
@@ -519,6 +583,22 @@ export default function App() {
                     />
                 )}
 
+                {/* 대기 모달 (Guest) */}
+                {mySentRequest && (
+                    <WaitingApprovalModal
+                        onCancel={() => cancelRequest(mySentRequest.id)}
+                    />
+                )}
+
+                {/* 요청 수신 모달 (Host) */}
+                {requests.received.length > 0 && (
+                    <JoinRequestModal
+                        request={requests.received[0]}
+                        onAccept={() => acceptRequest(requests.received[0].id, requests.received[0])}
+                        onReject={() => rejectRequest(requests.received[0].id)}
+                    />
+                )}
+
                 {/* 방 배정 취소 알림 모달 */}
                 {showCancelledModal && (
                     <div className="fixed inset-0 z-[200] flex items-center justify-center p-4">
@@ -535,10 +615,16 @@ export default function App() {
                                 사이트를 새로고침해주세요.
                             </p>
                             <button
-                                onClick={() => window.location.reload()}
+                                onClick={async () => {
+                                    // DB 및 로컬 상태를 '미배정'으로 강제 복구 (무한 루프 방지)
+                                    if (updateUser) {
+                                        await updateUser({ selectedRoom: null, locked: false });
+                                    }
+                                    window.location.reload();
+                                }}
                                 className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-semibold transition-colors"
                             >
-                                🔄 새로고침
+                                🔄 상태 복구 및 새로고침
                             </button>
                         </div>
                     </div>

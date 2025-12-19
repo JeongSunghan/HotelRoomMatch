@@ -154,9 +154,9 @@ export default function HistoryTab() {
                                                     {formatDate(item.timestamp)}
                                                 </span>
                                             </div>
-                                            <p className="text-sm text-gray-700">
+                                            <div className="text-sm text-gray-700">
                                                 {renderHistoryContent(item)}
-                                            </p>
+                                            </div>
                                         </div>
                                     </div>
                                 </div>

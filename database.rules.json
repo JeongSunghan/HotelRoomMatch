@@ -1,0 +1,52 @@
+{
+    "rules": {
+        "rooms": {
+            ".read": true,
+            ".write": true
+        },
+        "users": {
+            ".read": true,
+            ".write": true,
+            "$sessionId": {
+                ".indexOn": [
+                    "email"
+                ]
+            }
+        },
+        "allowedUsers": {
+            ".read": true,
+            ".write": "auth != null"
+        },
+        "roommateInvitations": {
+            ".read": true,
+            ".write": true
+        },
+        "join_requests": {
+            ".read": true,
+            ".write": true,
+            "$requestId": {
+                ".validate": "newData.hasChildren(['fromUserId', 'toRoomNumber'])"
+            },
+            ".indexOn": [
+                "toUserId",
+                "fromUserId"
+            ]
+        },
+        "roomChangeRequests": {
+            ".read": true,
+            ".write": true
+        },
+        "inquiries": {
+            ".read": true,
+            ".write": true
+        },
+        "history": {
+            ".read": true,
+            ".write": true
+        },
+        "settings": {
+            ".read": true,
+            ".write": "auth != null"
+        }
+    }
+}

@@ -70,11 +70,13 @@ export async function verifyUser(email) {
 
     if (userData) {
         // 이미 등록 완료된 유저인지 확인
+        // 이미 등록 완료된 유저인지 확인
         if (userData.registered) {
             return {
-                valid: false,
+                valid: true,
                 user: { id: userKey, ...userData },
-                message: '이미 등록이 완료된 사용자입니다.'
+                alreadyRegistered: true,
+                message: '기존 계정으로 로그인합니다.'
             };
         }
 

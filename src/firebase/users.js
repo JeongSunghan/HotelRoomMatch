@@ -1,7 +1,7 @@
 /**
  * Firebase 사용자 관련 모듈
  */
-import { database, ref, onValue, set, get } from './config';
+import { database, ref, onValue, set, update, get } from './config';
 
 export async function saveUser(sessionId, userData) {
     if (!database) return false;
@@ -13,6 +13,14 @@ export async function saveUser(sessionId, userData) {
         locked: true
     });
 
+    return true;
+}
+
+export async function updateUser(sessionId, updates) {
+    if (!database) return false;
+
+    const userRef = ref(database, `users/${sessionId}`);
+    await update(userRef, updates);
     return true;
 }
 
