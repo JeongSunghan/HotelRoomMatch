@@ -13,7 +13,16 @@ export { adminSignIn, adminSignOut, subscribeToAuthState } from './auth';
 export { subscribeToRooms, selectRoom, removeGuestFromRoom, checkGuestInRoom, updateGuestInfo, checkDuplicateName } from './rooms';
 
 // Users
-export { saveUser, updateUser, getUser, subscribeToUserSession, clearUserSession } from './users';
+export {
+    saveUser,
+    updateUser,
+    getUser,
+    subscribeToUserSession,
+    clearUserSession,
+    createOtpRequest,
+    verifyOtpRequest,
+    generateSecurePassKey
+} from './users';
 
 // Invitations
 export {

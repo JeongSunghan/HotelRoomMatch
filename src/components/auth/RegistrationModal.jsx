@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
-import { verifyUser, getUser, markUserAsRegistered } from '../../firebase/index';
+import { verifyUser, getUser, markUserAsRegistered, createOtpRequest, verifyOtpRequest, generateSecurePassKey } from '../../firebase/index';
 import { getAuth, signInAnonymously } from 'firebase/auth';
-import { database, ref, update } from '../../firebase/config'; // DB 직접 접근 필요
+import { database, ref, update } from '../../firebase/config';
 import { STORAGE_KEYS, SESSION_EXPIRY_MS } from '../../utils/constants';
 import emailjs from '@emailjs/browser';
 
@@ -9,7 +9,7 @@ export default function RegistrationModal({ onClose }) {
     const [step, setStep] = useState('input'); // input | verify
     const [email, setEmail] = useState('');
     const [otp, setOtp] = useState(['', '', '', '', '', '']); // 6자리
-    const [generatedOtp, setGeneratedOtp] = useState(null); // 서버(클라이언트) 생성 OTP
+    // OTP는 서버(Firebase DB)에 해시로 저장되므로 클라이언트 상태 불필요
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [error, setError] = useState('');
     const [timeLeft, setTimeLeft] = useState(180); // 3분 타이머
@@ -64,17 +64,30 @@ export default function RegistrationModal({ onClose }) {
         setIsSubmitting(true);
 
         try {
+            // 0. Firebase Rules 통과를 위한 익명 인증 (아직 미인증 상태일 수 있음)
+            console.log('[DEBUG] Step 0: Starting anonymous auth...');
+            const auth = getAuth();
+            if (!auth.currentUser) {
+                await signInAnonymously(auth);
+                console.log('[DEBUG] Step 0: Anonymous auth SUCCESS');
+            } else {
+                console.log('[DEBUG] Step 0: Already authenticated');
+            }
+
             // 1. 사전등록 확인
+            console.log('[DEBUG] Step 1: Verifying user...');
             const result = await verifyUser(email);
+            console.log('[DEBUG] Step 1: verifyUser result:', result);
             if (!result.valid) {
                 setError(result.message);
                 setIsSubmitting(false);
                 return;
             }
 
-            // 2. OTP 생성 및 전송
-            const code = Math.floor(100000 + Math.random() * 900000).toString();
-            setGeneratedOtp(code); // 검증용 저장 (실제론 DB나 암호화 권장되나 클라이언트 검증 요청됨)
+            // 2. OTP 생성 (서버에 해시로 저장됨) 및 이메일 전송
+            console.log('[DEBUG] Step 2: Creating OTP request...');
+            const code = await createOtpRequest(email);
+            console.log('[DEBUG] Step 2: OTP created successfully');
 
             const serviceId = import.meta.env.VITE_EMAILJS_SERVICE_ID;
             const templateId = import.meta.env.VITE_EMAILJS_TEMPLATE_ID;
@@ -83,27 +96,31 @@ export default function RegistrationModal({ onClose }) {
             if (!serviceId || !templateId || !publicKey) {
                 // 키 설정 안됐을 때 (개발용 fallback)
                 console.warn('EmailJS keys missing. Dev mode OTP:', code);
-                alert(`[Dev Mode] EmailJS 키가 없습니다. \n콘솔이나 이 창을 기억하세요. OTP: ${code}`);
+                alert(`[Dev Mode] EmailJS 키가 없습니다. \nOTP: ${code}`);
             } else {
+                console.log('[DEBUG] Step 3: Sending email...');
                 await emailjs.send(serviceId, templateId, {
                     to_email: email,
                     otp_code: code,
                     message: '인증번호를 입력하여 로그인을 완료해주세요.'
                 }, publicKey);
+                console.log('[DEBUG] Step 3: Email sent successfully');
             }
 
             setStep('verify');
             setTimeLeft(180); // 3분 리셋
 
         } catch (err) {
-            console.error(err);
+            console.error('[DEBUG] Error occurred:', err);
+            console.error('[DEBUG] Error message:', err.message);
+            console.error('[DEBUG] Error code:', err.code);
             setError('메일 발송 실패. 이메일 주소를 확인하거나 관리자에게 문의하세요.');
         } finally {
             setIsSubmitting(false);
         }
     };
 
-    // OTP 검증 및 로그인 핸들러
+    // OTP 검증 및 로그인 핸들러 (서버사이드 검증)
     const handleVerifyOTP = async () => {
         const inputCode = otp.join('');
         if (inputCode.length !== 6) {
@@ -111,27 +128,24 @@ export default function RegistrationModal({ onClose }) {
             return;
         }
 
-        if (inputCode !== generatedOtp) {
-            setError('인증번호가 일치하지 않습니다.');
-            return;
-        }
-
-        if (timeLeft <= 0) {
-            setError('인증 시간이 만료되었습니다. 다시 요청해주세요.');
-            return;
-        }
-
         setIsSubmitting(true);
+        setError('');
 
         try {
-            // 1. Firebase Anonymous Auth (Rules 통과용)
+            // 1. 서버사이드 OTP 검증 (Firebase DB에서 해시 비교)
+            const otpResult = await verifyOtpRequest(email, inputCode);
+            if (!otpResult.valid) {
+                setError(otpResult.message);
+                setIsSubmitting(false);
+                return;
+            }
+
+            // 2. Firebase Anonymous Auth (Rules 통과용)
             const auth = getAuth();
             const authResult = await signInAnonymously(auth);
 
-            // 2. PassKey 생성 (Base64 Encoding)
-            // format: email:timestamp:random
-            const rawKey = `${email}:${Date.now()}:${Math.random().toString(36).substring(2)}`;
-            const passKey = btoa(rawKey);
+            // 3. 안전한 PassKey 생성 (완전 랜덤)
+            const passKey = generateSecurePassKey();
             const expiryDate = Date.now() + SESSION_EXPIRY_MS; // 30일
 
             // 3. 사용자 정보 구성
