@@ -7,5 +7,15 @@ export default defineConfig({
     server: {
         port: 5173,
         open: true
+    },
+    build: {
+        chunkSizeWarningLimit: 1024,
+        rollupOptions: {
+            output: {
+                manualChunks: {
+                    firebase: ['firebase/app', 'firebase/auth', 'firebase/firestore']
+                }
+            }
+        }
     }
 })
