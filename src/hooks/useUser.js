@@ -33,6 +33,75 @@ export function useUser() {
             }
         });
 
+        // 이메일 링크 로그인 처리
+        const handleEmailLinkSignIn = async () => {
+            // 동적 import로 순환 참조 방지 및 필요한 시점에 로드
+            const { isSignInWithEmailLink, signInWithEmailLink, getAuth } = await import('firebase/auth');
+            const { verifyUser, markUserAsRegistered } = await import('../firebase/index');
+
+            const auth = getAuth();
+
+            if (isSignInWithEmailLink(auth, window.location.href)) {
+                let email = localStorage.getItem('emailForSignIn');
+
+                // 이메일이 없으면 (다른 기기에서 연 경우) 사용자에게 물어봄
+                if (!email) {
+                    email = window.prompt('보안을 위해 이메일 확인이 필요합니다.\n링크를 전송받은 이메일 주소를 입력해주세요:');
+                }
+
+                if (email) {
+                    try {
+                        const result = await signInWithEmailLink(auth, email, window.location.href);
+
+                        // 인증 성공 후 로컬 스토리지 정리
+                        localStorage.removeItem('emailForSignIn');
+
+                        // DB에서 유저 정보 가져오기 -> 세션 생성
+                        const allowedCheck = await verifyUser(email);
+                        if (allowedCheck.valid && allowedCheck.user) {
+                            // 기존 세션 복구 또는 새 세션 생성
+                            const userData = allowedCheck.user;
+
+                            // 필수 정보 확인 (이름, 회사 등)
+                            // 여기서 sessionId를 새로 생성하거나 기존 것을 쓸지 결정해야 함.
+                            // 기존 registeredSessionId가 유효하다면 재활용? 
+                            // -> 보안상 새로 발급하는 것이 좋으나, 방 배정 상태 유지하려면...
+                            // -> 일단은 새 세션 ID 발급하고, 만약 이미 방에 배정된 상태라면(userData.registered) 그 정보를 유지해야 함.
+
+                            const newUser = {
+                                sessionId: userData.registeredSessionId || generateSessionId(), // 기존 세션 유지 시도
+                                name: userData.name,
+                                email: userData.email, // 이메일 저장
+                                company: userData.company,
+                                locked: !!userData.registered, // 이미 등록된 경우 잠금 상태일 수 있음 (확인 필요)
+                                selectedRoom: null, // 일단 null, 방 상태 복구 로직 필요
+                                registeredAt: Date.now()
+                            };
+
+                            // 이미 등록된 유저라면 추가 정보(성별, 나이 등)도 가져와야 함.
+                            // 하지만 allowedUsers DB에는 민감정보(주민뒷자리 등)가 없을 수 있음.
+                            // -> 하이브리드 방식에서는 로그인 시점에 다시 DB 동기화가 필요함.
+                            // 일단 기본 정보만 세션에 저장.
+
+                            localStorage.setItem(STORAGE_KEY, JSON.stringify(newUser));
+                            setUser(newUser);
+
+                            // 인증 완료 표시
+                            await markUserAsRegistered(email, newUser.sessionId, result.user.uid);
+
+                            // URL 정리 (인증 코드 제거)
+                            window.history.replaceState({}, document.title, window.location.pathname);
+                        } else {
+                            alert('사전 등록된 사용자 정보가 없습니다. 관리자에게 문의하세요.');
+                        }
+                    } catch (error) {
+                        console.error('이메일 링크 로그인 실패:', error);
+                        alert('로그인에 실패했습니다. 링크가 만료되었거나 이미 사용되었습니다.');
+                    }
+                }
+            }
+        };
+
         // 저장된 사용자 정보 로드 및 세션 유효성 확인
         const loadAndValidateUser = async () => {
             const savedUser = localStorage.getItem(STORAGE_KEY);
@@ -84,6 +153,10 @@ export function useUser() {
                     localStorage.removeItem(STORAGE_KEY);
                 }
             }
+
+            // 이메일 링크 로그인 체크 실행
+            await handleEmailLinkSignIn();
+
             setIsLoading(false);
         };
 
@@ -139,6 +212,19 @@ export function useUser() {
         return updatedUser;
     }, [user]);
 
+    const updateUser = useCallback((newData) => {
+        if (!user) return;
+
+        const updatedUser = {
+            ...user,
+            ...newData
+        };
+
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(updatedUser));
+        setUser(updatedUser);
+        return updatedUser;
+    }, [user]);
+
     const loginAdmin = useCallback(async (email, password) => {
         const firebaseUser = await adminSignIn(email, password);
         setIsAdmin(true);
@@ -171,6 +257,7 @@ export function useUser() {
         isRegistered: !!user,
         canSelect,
         registerUser,
+        updateUser,
         selectRoom,
         loginAdmin,
         logoutAdmin,

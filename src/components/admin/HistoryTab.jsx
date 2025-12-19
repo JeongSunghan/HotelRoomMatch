@@ -70,7 +70,17 @@ export default function HistoryTab() {
             case HISTORY_ACTIONS.ADMIN_ADD:
             case HISTORY_ACTIONS.CSV_UPLOAD:
                 return (
-                    <span><strong>{guestName}</strong>님이 <strong>{roomNumber}호</strong>에 등록됨</span>
+                    <div>
+                        <span><strong>{guestName}</strong>님이 <strong>{roomNumber}호</strong>에 등록됨</span>
+                        {item.warningDetails && item.warningDetails.length > 0 && (
+                            <div className="mt-1 bg-red-50 border border-red-100 rounded p-2">
+                                <span className="text-xs font-bold text-red-600">⚠️ [사용자 경고 무시 입장]</span>
+                                <ul className="text-xs text-red-500 mt-1 list-disc list-inside">
+                                    {item.warningDetails.map((msg, i) => <li key={i}>{msg}</li>)}
+                                </ul>
+                            </div>
+                        )}
+                    </div>
                 );
             case HISTORY_ACTIONS.ADMIN_REMOVE:
                 return (

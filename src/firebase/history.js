@@ -37,7 +37,7 @@ export async function addHistory(data) {
 /**
  * 게스트 추가 히스토리 기록
  */
-export async function logGuestAdd(roomNumber, guestData, source = 'user') {
+export async function logGuestAdd(roomNumber, guestData, source = 'user', warningDetails = null) {
     return addHistory({
         action: source === 'csv' ? HISTORY_ACTIONS.CSV_UPLOAD
             : source === 'admin' ? HISTORY_ACTIONS.ADMIN_ADD
@@ -46,7 +46,8 @@ export async function logGuestAdd(roomNumber, guestData, source = 'user') {
         guestName: guestData.name,
         guestCompany: guestData.company || '',
         guestSessionId: guestData.sessionId,
-        source
+        source,
+        warningDetails // 경고 무시 내용 (없으면 null)
     });
 }
 

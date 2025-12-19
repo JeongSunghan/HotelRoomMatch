@@ -41,10 +41,13 @@ export function parseCSV(csvText) {
 
         // 필수 필드 매핑
         const name = row['이름'] || row['name'] || '';
+        const email = row['이메일'] || row['email'] || ''; // 이메일 필드 추가
+
         if (!name) continue;
 
         data.push({
             name,
+            email: email, // 이메일
             company: row['소속'] || row['회사'] || row['company'] || '',
             gender: normalizeGender(row['성별'] || row['gender'] || ''),
             age: parseInt(row['출생연도'] || row['나이'] || row['age'] || row['birthyear']) || null,
@@ -109,11 +112,16 @@ export function validateUploadData(data, roomData) {
             rowErrors.push('이름이 없습니다.');
         }
 
-        // 방번호 필수
-        if (!row.roomNumber) {
-            rowErrors.push('방번호가 없습니다.');
-        } else if (!roomData[row.roomNumber]) {
-            rowErrors.push(`${row.roomNumber}호는 존재하지 않는 방입니다.`);
+        // 방번호 필수 (만약 방 배정 CSV라면)
+        if (row.roomNumber) {
+            if (!roomData[row.roomNumber]) {
+                rowErrors.push(`${row.roomNumber}호는 존재하지 않는 방입니다.`);
+            }
+        }
+
+        // 이메일 유효성 (Optional일 수도 있지만 Admin 등록용이라면 필수)
+        if (row.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(row.email)) {
+            rowErrors.push('이메일 형식이 올바르지 않습니다.');
         }
 
         // 성별 체크 (방과 매칭)
@@ -142,7 +150,7 @@ export function validateUploadData(data, roomData) {
  * 샘플 CSV 템플릿 생성
  */
 export function generateCSVTemplate() {
-    const header = '이름,소속,성별,출생연도,방번호';
-    const sample = '홍길동,ABC회사,M,1990,701';
+    const header = '이름,이메일,소속';
+    const sample = '홍길동,user@example.com,ABC회사';
     return `${header}\n${sample}`;
 }

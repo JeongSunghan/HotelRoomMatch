@@ -104,9 +104,16 @@ export default function RoomCard({
                                     {guest.name}
                                     {guest.company && <span className="text-xs ml-1 opacity-70">({guest.company})</span>}
                                 </span>
-                                {guest.age && (
-                                    <span className="text-xs bg-white/50 px-1.5 py-0.5 rounded">{guest.age}세</span>
-                                )}
+                                <div className="flex items-center gap-1">
+                                    {/* 코골이 상태 표시 */}
+                                    {guest.snoring === 'yes' && <span title="코골이 심함">😫</span>}
+                                    {guest.snoring === 'sometimes' && <span title="코골이 가끔">😪</span>}
+                                    {guest.snoring === 'no' && <span title="코골이 없음">😴</span>}
+
+                                    {guest.age && (
+                                        <span className="text-xs bg-white/50 px-1.5 py-0.5 rounded">{guest.age}세</span>
+                                    )}
+                                </div>
                             </div>
                         ))}
                     </div>

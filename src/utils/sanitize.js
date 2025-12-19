@@ -113,6 +113,37 @@ export function sanitizeUserData(userData) {
     };
 }
 
+/**
+ * 이메일 정제
+ * @param {string} email - 이메일
+ * @returns {string} 소문자로 변환되고 공백 제거된 이메일
+ */
+export function sanitizeEmail(email) {
+    if (typeof email !== 'string') return '';
+    return email.trim().toLowerCase();
+}
+
+/**
+ * 이메일 형식 검증
+ * @param {string} email - 이메일
+ * @returns {boolean} 유효 여부
+ */
+export function isValidEmail(email) {
+    if (!email) return false;
+    const re = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+    return re.test(email);
+}
+
+/**
+ * 이메일을 Firebase Key로 변환 (Base64 인코딩)
+ * @param {string} email - 이메일
+ * @returns {string} Firebase Key로 사용 가능한 문자열
+ */
+export function emailToKey(email) {
+    if (!isValidEmail(email)) return null;
+    return btoa(sanitizeEmail(email)).replace(/=/g, ''); // Base64 인코딩 및 padding 제거
+}
+
 // ==================== Security Validation ====================
 
 /**

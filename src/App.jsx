@@ -3,6 +3,7 @@ import Header from './components/ui/Header';
 import FloorSelector from './components/ui/FloorSelector';
 import RoomGrid from './components/room/RoomGrid';
 import RegistrationModal from './components/auth/RegistrationModal';
+import AdditionalInfoModal from './components/auth/AdditionalInfoModal';
 import SelectionModal from './components/room/SelectionModal';
 import InvitationModal from './components/room/InvitationModal';
 import MyRoomModal from './components/room/MyRoomModal';
@@ -11,13 +12,16 @@ import { useUser } from './hooks/useUser';
 import { useRooms } from './hooks/useRooms';
 import { floors, floorInfo, roomData } from './data/roomData';
 import { sanitizeName } from './utils/sanitize';
+import { checkCompatibility } from './utils/matchingUtils';
+import MatchingWarningModal from './components/room/MatchingWarningModal';
 import {
     checkPendingInvitations,
     acceptInvitation,
     rejectInvitation,
     createRoommateInvitation,
     subscribeToMyInvitations,
-    createRoomChangeRequest
+    createRoomChangeRequest,
+    logGuestAdd
 } from './firebase/index';
 
 /**
@@ -31,6 +35,7 @@ export default function App() {
         isRegistered,
         canSelect,
         registerUser,
+        updateUser,
         selectRoom: selectUserRoom,
         isMyRoom
     } = useUser();
@@ -49,11 +54,17 @@ export default function App() {
     // UI 상태
     const [selectedFloor, setSelectedFloor] = useState(null);
     const [showRegistrationModal, setShowRegistrationModal] = useState(false);
+    const [showAdditionalInfoModal, setShowAdditionalInfoModal] = useState(false);
     const [selectedRoomForConfirm, setSelectedRoomForConfirm] = useState(null);
     const [showMyRoomModal, setShowMyRoomModal] = useState(false);
     const [showSingleRoomModal, setShowSingleRoomModal] = useState(false);  // 1인실 안내 모달
     const [showSearchModal, setShowSearchModal] = useState(false);  // 검색 모달
     const [roomTypeFilter, setRoomTypeFilter] = useState('twin');  // 기본: 2인실만 표시
+
+    // 매칭 경고 상태
+    const [showWarningModal, setShowWarningModal] = useState(false);
+    const [warningContent, setWarningContent] = useState([]);
+    const [pendingSelection, setPendingSelection] = useState(null);
 
     // 초대 시스템 상태
     const [pendingInvitation, setPendingInvitation] = useState(null);
@@ -74,6 +85,15 @@ export default function App() {
             }
         }
     }, [user?.gender, selectedFloor]);
+
+    // 로그인 후 추가 정보(성별 등) 누락 시 모달 표시
+    useEffect(() => {
+        if (user && !user.gender) {
+            setShowAdditionalInfoModal(true);
+        } else {
+            setShowAdditionalInfoModal(false);
+        }
+    }, [user]);
 
     // 방 삭제 실시간 동기화: 관리자가 유저를 삭제하면 rooms 구독으로 감지
     useEffect(() => {
@@ -239,12 +259,53 @@ export default function App() {
         setSelectedRoomForConfirm(roomNumber);
     };
 
-    // 객실 선택 확정 (클라이언트 보안 강화)
+    // 실제 객실 배정 실행 (경고 승인 후)
+    const performSelection = async (roomNumber, roommateInfo = {}, warningDetails = null) => {
+        try {
+            // Firebase에 저장 (서버에서 추가 검증)
+            await addGuestToRoom(roomNumber, {
+                name: user.name,
+                company: user.company || '',
+                gender: user.gender,
+                age: user.age,
+                sessionId: user.sessionId,
+                registeredAt: Date.now(),
+                snoring: user.snoring || 'no' // 코골이 정보 추가
+            });
+
+            // 히스토리 로깅 (경고 내용 포함)
+            await logGuestAdd(roomNumber, {
+                name: user.name,
+                company: user.company,
+                sessionId: user.sessionId
+            }, 'user', warningDetails);
+
+            // 룸메이트 초대 생성 (이름 sanitize 적용)
+            if (roommateInfo.hasRoommate && roommateInfo.roommateName) {
+                await createRoommateInvitation(
+                    { ...user, roomNumber },
+                    sanitizeName(roommateInfo.roommateName)
+                );
+            }
+
+            // 사용자 상태 업데이트
+            selectUserRoom(roomNumber);
+            setSelectedRoomForConfirm(null);
+            setPendingSelection(null);
+        } catch (error) {
+            // 서버 측 검증 실패 시 사용자에게 알림
+            alert(error.message || '객실 선택에 실패했습니다.');
+            setSelectedRoomForConfirm(null);
+            setPendingSelection(null);
+        }
+    };
+
+    // 객실 선택 확정 (클라이언트 보안 강화 + 매칭 검증)
     const handleConfirmSelection = async (roomNumber, roommateInfo = {}) => {
         // 1. 유저 검증
         if (!user) return;
 
-        // 2. 이미 배정됨 재검증 (개발자도구 우회 방지)
+        // 2. 이미 배정됨 재검증
         if (user.locked || user.selectedRoom) {
             console.warn('보안: 이미 배정된 유저가 확정 시도');
             alert('이미 객실이 배정되어 있습니다.');
@@ -261,32 +322,30 @@ export default function App() {
             return;
         }
 
-        try {
-            // Firebase에 저장 (서버에서 추가 검증)
-            await addGuestToRoom(roomNumber, {
-                name: user.name,
-                company: user.company || '',
-                gender: user.gender,
-                age: user.age,
-                sessionId: user.sessionId,
-                registeredAt: Date.now()
-            });
+        // 4. 매칭 적합성 검사 (Check Compatibility)
+        const currentGuests = roomGuests[roomNumber] || [];
+        const roommate = Array.isArray(currentGuests) ? currentGuests[0] : Object.values(currentGuests)[0];
 
-            // 룸메이트 초대 생성 (이름 sanitize 적용)
-            if (roommateInfo.hasRoommate && roommateInfo.roommateName) {
-                await createRoommateInvitation(
-                    { ...user, roomNumber },
-                    sanitizeName(roommateInfo.roommateName)
-                );
+        if (roommate) {
+            const warnings = checkCompatibility(user, roommate);
+            if (warnings.length > 0) {
+                setWarningContent(warnings);
+                setPendingSelection({ roomNumber, roommateInfo });
+                setShowWarningModal(true);
+                // 모달에서 '동의' 시 handleWarningConfirmed 호출
+                return;
             }
+        }
 
-            // 사용자 상태 업데이트
-            selectUserRoom(roomNumber);
-            setSelectedRoomForConfirm(null);
-        } catch (error) {
-            // 서버 측 검증 실패 시 사용자에게 알림
-            alert(error.message || '객실 선택에 실패했습니다.');
-            setSelectedRoomForConfirm(null);
+        // 5. 경고 사항 없으면 바로 실행
+        performSelection(roomNumber, roommateInfo);
+    };
+
+    const handleWarningConfirmed = () => {
+        if (pendingSelection) {
+            // warningContent를 히스토리에 저장하기 위해 detail로 넘김
+            performSelection(pendingSelection.roomNumber, pendingSelection.roommateInfo, warningContent);
+            setShowWarningModal(false);
         }
     };
 
@@ -392,8 +451,26 @@ export default function App() {
                 {/* 등록 모달 */}
                 {showRegistrationModal && (
                     <RegistrationModal
-                        onRegister={handleRegister}
                         onClose={() => setShowRegistrationModal(false)}
+                    />
+                )}
+
+                {/* 추가 정보 입력 모달 */}
+                {showAdditionalInfoModal && user && (
+                    <AdditionalInfoModal
+                        user={user}
+                        onUpdate={(updatedData) => {
+                            updateUser(updatedData);
+                            setShowAdditionalInfoModal(false);
+
+                            // 성별에 맞는 층으로 자동 이동
+                            if (updatedData.gender) {
+                                const defaultFloor = floors.find(f => floorInfo[f].gender === updatedData.gender);
+                                if (defaultFloor) {
+                                    setSelectedFloor(defaultFloor);
+                                }
+                            }
+                        }}
                     />
                 )}
 
@@ -430,7 +507,17 @@ export default function App() {
                     />
                 )}
 
-
+                {/* 매칭 경고 모달 */}
+                {showWarningModal && (
+                    <MatchingWarningModal
+                        warnings={warningContent}
+                        onConfirm={handleWarningConfirmed}
+                        onCancel={() => {
+                            setShowWarningModal(false);
+                            setPendingSelection(null);
+                        }}
+                    />
+                )}
 
                 {/* 방 배정 취소 알림 모달 */}
                 {showCancelledModal && (

@@ -1,100 +1,49 @@
 import { useState } from 'react';
-import { validateResidentId, getGenderLabel, getAgeFromResidentId } from '../../utils/genderUtils';
 import { verifyUser } from '../../firebase/index';
+// firebase auth 함수는 SDK에서 직접 가져옴
+import { getAuth, sendSignInLinkToEmail } from 'firebase/auth';
 
-export default function RegistrationModal({ onRegister, onClose }) {
-    const [name, setName] = useState('');
-    const [phone, setPhone] = useState('');
-    const [company, setCompany] = useState('');
-    const [residentIdFront, setResidentIdFront] = useState('');
-    const [residentIdBack, setResidentIdBack] = useState('');
-    const [snoring, setSnoring] = useState(null); // null, 'yes', 'no', 'sometimes'
-    const [ageTolerance, setAgeTolerance] = useState(5); // 나이차 허용 (기본 ±5세)
+export default function RegistrationModal({ onClose }) {
+    const [email, setEmail] = useState('');
+    const [isSubmitting, setIsSubmitting] = useState(false);
+    const [emailSent, setEmailSent] = useState(false);
     const [error, setError] = useState('');
-    const [detectedGender, setDetectedGender] = useState(null);
-    const [detectedAge, setDetectedAge] = useState(null);
-    const [isVerifying, setIsVerifying] = useState(false);
-    const [isVerified, setIsVerified] = useState(false);
-    const [verifiedUser, setVerifiedUser] = useState(null);
 
-    // 주민번호 뒷자리 입력 시 성별/나이 감지
-    const handleBackDigitChange = (value) => {
-        const digit = value.slice(0, 1);
-        setResidentIdBack(digit);
-
-        if (digit && residentIdFront.length === 6) {
-            const result = validateResidentId(residentIdFront, digit);
-            if (result.valid) {
-                setDetectedGender(result.gender);
-                setDetectedAge(getAgeFromResidentId(residentIdFront, digit));
-                setError('');
-            } else {
-                setDetectedGender(null);
-                setDetectedAge(null);
-            }
-        } else {
-            setDetectedGender(null);
-            setDetectedAge(null);
-        }
-    };
-
-    // 앞자리 입력 시에도 나이 재계산
-    const handleFrontChange = (value) => {
-        const cleaned = value.replace(/\D/g, '').slice(0, 6);
-        setResidentIdFront(cleaned);
-
-        if (cleaned.length === 6 && residentIdBack) {
-            const result = validateResidentId(cleaned, residentIdBack);
-            if (result.valid) {
-                setDetectedGender(result.gender);
-                setDetectedAge(getAgeFromResidentId(cleaned, residentIdBack));
-            }
-        }
-    };
-
-    // 등록 처리
-    const handleSubmit = (e) => {
+    const handleSendLink = async (e) => {
         e.preventDefault();
         setError('');
-
-        if (!name.trim()) {
-            setError('이름을 입력해주세요.');
-            return;
-        }
-
-        if (name.trim().length < 2) {
-            setError('이름은 2자 이상 입력해주세요.');
-            return;
-        }
-
-        if (!company.trim()) {
-            setError('소속(회사명)을 입력해주세요.');
-            return;
-        }
-
-        const result = validateResidentId(residentIdFront, residentIdBack);
-        if (!result.valid) {
-            setError(result.error || '주민번호가 올바르지 않습니다.');
-            return;
-        }
-
-        if (!snoring) {
-            setError('코골이 여부를 선택해주세요.');
-            return;
-        }
+        setIsSubmitting(true);
 
         try {
-            onRegister({
-                name: name.trim(),
-                company: company.trim(),
-                residentIdFront,
-                residentIdBack,
-                age: detectedAge,
-                snoring, // 'yes', 'no', 'sometimes'
-                ageTolerance // 나이차 허용 범위
-            });
+            // 1. 사전등록 명단 확인
+            const result = await verifyUser(email);
+            if (!result.valid) {
+                setError(result.message);
+                setIsSubmitting(false);
+                return;
+            }
+
+            // 2. 인증 메일 발송 설정
+            const actionCodeSettings = {
+                // 인증 후 돌아올 URL (현재 페이지)
+                // 로컬 테스트 시: http://localhost:5173
+                // 배포 시: Firebase Hosting URL
+                url: window.location.href,
+                handleCodeInApp: true,
+            };
+
+            const auth = getAuth();
+            await sendSignInLinkToEmail(auth, email, actionCodeSettings);
+
+            // 3. 이메일 저장 (링크 복귀 시 확인용)
+            window.localStorage.setItem('emailForSignIn', email);
+
+            setEmailSent(true);
         } catch (err) {
-            setError(err.message);
+            console.error(err);
+            setError('인증 메일 발송에 실패했습니다. 이메일 주소를 확인해주세요.');
+        } finally {
+            setIsSubmitting(false);
         }
     };
 
@@ -102,296 +51,96 @@ export default function RegistrationModal({ onRegister, onClose }) {
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
             <div className="absolute inset-0 modal-overlay" onClick={onClose} />
 
-            <div className="relative modal-card rounded-xl p-6 w-full max-w-md max-h-[90vh] overflow-y-auto">
+            <div className="relative modal-card rounded-xl p-6 w-full max-w-md">
                 {/* 헤더 */}
                 <div className="text-center mb-5">
                     <div className="w-12 h-12 bg-slate-800 rounded-full flex items-center justify-center mx-auto mb-3">
                         <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
                         </svg>
                     </div>
-                    <h2 className="text-xl font-bold text-gray-800">객실 배정 등록</h2>
-                    <p className="text-gray-500 text-sm mt-1">정보를 입력해주세요</p>
+                    <h2 className="text-xl font-bold text-gray-800">
+                        {emailSent ? '인증 메일 발송 완료!' : '이메일 인증'}
+                    </h2>
+                    <p className="text-gray-500 text-sm mt-1">
+                        {emailSent ? '메일함을 확인해주세요' : '사전 등록된 이메일을 입력해주세요'}
+                    </p>
                 </div>
 
-                <form onSubmit={handleSubmit} className="space-y-4">
-                    {/* 1단계: 이름 + 휴대폰 번호 입력 (사전등록 검증) */}
-                    {!isVerified ? (
-                        <>
-                            <div className="info-box mb-4">
-                                <p className="text-blue-700 text-sm">
-                                    📌 사전등록된 정보로 본인 확인을 진행합니다.
-                                </p>
+                {!emailSent ? (
+                    <form onSubmit={handleSendLink} className="space-y-4">
+                        <div className="info-box mb-4">
+                            <p className="text-blue-700 text-sm">
+                                🔒 보안을 위해 이메일 링크 인증을 사용합니다.
+                                <br />
+                                비밀번호 없이 안전하게 로그인하세요.
+                            </p>
+                        </div>
+
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-2">이메일 주소</label>
+                            <input
+                                type="email"
+                                value={email}
+                                onChange={(e) => setEmail(e.target.value)}
+                                placeholder="name@company.com"
+                                className="input-field"
+                                autoFocus
+                                required
+                            />
+                        </div>
+
+                        {error && (
+                            <div className="p-4 bg-red-50 border border-red-200 border-l-4 border-l-red-500 rounded-lg">
+                                <p className="text-red-700 text-sm">{error}</p>
                             </div>
+                        )}
 
-                            {/* 이름 입력 */}
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-2">이름</label>
-                                <input
-                                    type="text"
-                                    value={name}
-                                    onChange={(e) => setName(e.target.value)}
-                                    placeholder="홍길동"
-                                    className="input-field"
-                                    autoFocus
-                                />
-                            </div>
+                        <div className="flex gap-3 pt-2">
+                            <button
+                                type="button"
+                                onClick={onClose}
+                                className="flex-1 px-6 py-3 btn-secondary rounded-lg font-medium"
+                            >
+                                취소
+                            </button>
+                            <button
+                                type="submit"
+                                disabled={!email.trim() || isSubmitting}
+                                className="flex-1 px-6 py-3 btn-primary rounded-lg font-medium disabled:opacity-50"
+                            >
+                                {isSubmitting ? '전송 중...' : '인증 메일 받기'}
+                            </button>
+                        </div>
+                    </form>
+                ) : (
+                    <div className="space-y-6">
+                        <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-5 text-center">
+                            <p className="text-emerald-800 font-medium text-lg mb-2">📩 메일을 보냈습니다</p>
+                            <p className="text-emerald-600 text-sm">
+                                <strong>{email}</strong> 주소로<br />
+                                로그인 링크가 포함된 메일을 발송했습니다.
+                            </p>
+                        </div>
 
-                            {/* 휴대폰 번호 입력 */}
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-2">휴대폰 번호</label>
-                                <input
-                                    type="tel"
-                                    value={phone}
-                                    onChange={(e) => setPhone(e.target.value.replace(/[^0-9-]/g, ''))}
-                                    placeholder="010-1234-5678"
-                                    className="input-field"
-                                />
-                            </div>
+                        <div className="text-center text-sm text-gray-500 space-y-2">
+                            <p>1. 메일함을 열어주세요.</p>
+                            <p>2. <strong>"UTC에서 요청한 vuphotelroom에 로그인"</strong> 메일을 찾아주세요.</p>
+                            <p>3. 메일 내용을 확인하고 링크를 클릭하면<br />자동으로 로그인이 완료됩니다.</p>
+                        </div>
 
-                            {/* 에러 메시지 */}
-                            {error && (
-                                <div className="p-4 bg-red-50 border border-red-200 border-l-4 border-l-red-500 rounded-lg">
-                                    <p className="text-red-700 text-sm">{error}</p>
-                                </div>
-                            )}
+                        <p className="text-xs text-center text-gray-400">
+                            * 메일이 오지 않았다면 스팸함을 확인해보세요.
+                        </p>
 
-                            {/* 본인확인 버튼 */}
-                            <div className="flex gap-3 pt-2">
-                                <button
-                                    type="button"
-                                    onClick={onClose}
-                                    className="flex-1 px-6 py-3 btn-secondary rounded-lg font-medium"
-                                >
-                                    취소
-                                </button>
-                                <button
-                                    type="button"
-                                    onClick={async () => {
-                                        setError('');
-                                        setIsVerifying(true);
-                                        try {
-                                            const result = await verifyUser(name, phone);
-                                            if (result.valid) {
-                                                setIsVerified(true);
-                                                setVerifiedUser(result.user);
-                                                // 사전등록된 소속을 기본값으로 설정
-                                                if (result.user?.company) {
-                                                    setCompany(result.user.company);
-                                                }
-                                            } else {
-                                                setError(result.message);
-                                            }
-                                        } catch (err) {
-                                            setError('검증 중 오류가 발생했습니다.');
-                                        } finally {
-                                            setIsVerifying(false);
-                                        }
-                                    }}
-                                    disabled={!name.trim() || !phone.trim() || isVerifying}
-                                    className="flex-1 px-6 py-3 btn-primary rounded-lg font-medium disabled:opacity-50 disabled:cursor-not-allowed"
-                                >
-                                    {isVerifying ? '확인 중...' : '본인확인'}
-                                </button>
-                            </div>
-                        </>
-                    ) : (
-                        <>
-                            {/* 본인확인 완료 안내 */}
-                            <div className="success-box mb-4">
-                                <p className="text-emerald-700 font-medium">✅ 본인확인 완료</p>
-                                <p className="text-emerald-600 text-sm">{name}님 환영합니다!</p>
-                            </div>
-
-                            {/* 이름 (수정 불가) */}
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-2">이름</label>
-                                <input
-                                    type="text"
-                                    value={name}
-                                    disabled
-                                    className="input-field bg-gray-100"
-                                />
-                            </div>
-
-                            {/* 소속(회사명) 입력 */}
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-2">소속 (회사명)</label>
-                                <input
-                                    type="text"
-                                    value={company}
-                                    onChange={(e) => setCompany(e.target.value)}
-                                    placeholder="회사명을 입력하세요"
-                                    className="input-field"
-                                />
-                            </div>
-
-                            {/* 주민번호 입력 */}
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-2">주민등록번호</label>
-                                <div className="flex items-center">
-                                    {/* 앞자리 6자리 */}
-                                    <input
-                                        type="text"
-                                        value={residentIdFront}
-                                        onChange={(e) => handleFrontChange(e.target.value)}
-                                        placeholder="생년월일"
-                                        maxLength={6}
-                                        className="input-field flex-1 text-center"
-                                    />
-                                    <span className="px-3 text-gray-400 font-bold">-</span>
-                                    {/* 뒷자리 (첫 번째 숫자 + 마스킹) */}
-                                    <div className="flex items-center flex-1 input-field px-0 overflow-hidden">
-                                        <input
-                                            type="text"
-                                            value={residentIdBack}
-                                            onChange={(e) => handleBackDigitChange(e.target.value.replace(/\D/g, ''))}
-                                            placeholder="●"
-                                            maxLength={1}
-                                            className="w-10 text-center bg-transparent border-none focus:outline-none focus:ring-0"
-                                        />
-                                        <span className="text-gray-300 tracking-widest pr-3">●●●●●●</span>
-                                    </div>
-                                </div>
-                                <p className="text-xs text-gray-400 mt-2">* 생년월일 6자리 + 뒷자리 첫 번째 숫자만 입력</p>
-                            </div>
-
-                            {/* 감지된 성별/나이 표시 */}
-                            {detectedGender && (
-                                <div className={`
-                            flex items-center gap-3 p-4 rounded-lg border-l-4
-                            ${detectedGender === 'M' ? 'bg-blue-50 border-blue-500' : 'bg-pink-50 border-pink-500'}
-                        `}>
-                                    <div className={`
-                                w-12 h-12 rounded-full flex items-center justify-center text-xl text-white font-bold
-                                ${detectedGender === 'M' ? 'bg-blue-500' : 'bg-pink-500'}
-                            `}>
-                                        {detectedGender === 'M' ? '♂' : '♀'}
-                                    </div>
-                                    <div>
-                                        <p className="font-semibold text-gray-800">
-                                            {getGenderLabel(detectedGender)}
-                                            {detectedAge && <span className="ml-2 text-gray-500">({detectedAge}세)</span>}
-                                        </p>
-                                        <p className="text-xs text-gray-500">
-                                            {detectedGender === 'M' ? '남성 전용 객실' : '여성 전용 객실'}을 선택할 수 있습니다.
-                                        </p>
-                                    </div>
-                                </div>
-                            )}
-
-                            {/* 코골이 여부 선택 */}
-                            {detectedGender && (
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                                        코골이 여부 <span className="text-red-500">*</span>
-                                    </label>
-                                    <div className="grid grid-cols-3 gap-2">
-                                        <button
-                                            type="button"
-                                            onClick={() => setSnoring('no')}
-                                            className={`py-3 px-4 rounded-lg border-2 font-medium text-sm transition-all ${snoring === 'no'
-                                                ? 'border-emerald-500 bg-emerald-50 text-emerald-700'
-                                                : 'border-gray-200 hover:border-gray-300'
-                                                }`}
-                                        >
-                                            😴 없음
-                                        </button>
-                                        <button
-                                            type="button"
-                                            onClick={() => setSnoring('sometimes')}
-                                            className={`py-3 px-4 rounded-lg border-2 font-medium text-sm transition-all ${snoring === 'sometimes'
-                                                ? 'border-amber-500 bg-amber-50 text-amber-700'
-                                                : 'border-gray-200 hover:border-gray-300'
-                                                }`}
-                                        >
-                                            😪 가끔
-                                        </button>
-                                        <button
-                                            type="button"
-                                            onClick={() => setSnoring('yes')}
-                                            className={`py-3 px-4 rounded-lg border-2 font-medium text-sm transition-all ${snoring === 'yes'
-                                                ? 'border-red-500 bg-red-50 text-red-700'
-                                                : 'border-gray-200 hover:border-gray-300'
-                                                }`}
-                                        >
-                                            😤 자주
-                                        </button>
-                                    </div>
-                                    <p className="text-xs text-gray-400 mt-1">룸메이트 매칭 시 참고됩니다.</p>
-                                </div>
-                            )}
-
-                            {/* 나이차 허용 설정 */}
-                            {detectedGender && snoring && (
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                                        룸메이트 나이차 허용 범위
-                                    </label>
-                                    <div className="bg-gray-50 p-4 rounded-lg border">
-                                        <div className="flex items-center justify-between mb-2">
-                                            <span className="text-sm text-gray-600">
-                                                내 나이 {detectedAge}세 기준
-                                            </span>
-                                            <span className="text-lg font-bold text-blue-600">
-                                                ±{ageTolerance}세
-                                            </span>
-                                        </div>
-                                        <input
-                                            type="range"
-                                            min="0"
-                                            max="10"
-                                            value={ageTolerance}
-                                            onChange={(e) => setAgeTolerance(parseInt(e.target.value))}
-                                            className="w-full h-2 bg-blue-200 rounded-lg appearance-none cursor-pointer"
-                                        />
-                                        <div className="flex justify-between text-xs text-gray-400 mt-1">
-                                            <span>동갑만</span>
-                                            <span>±5세</span>
-                                            <span>±10세</span>
-                                        </div>
-                                        <p className="text-xs text-blue-600 mt-2 bg-blue-50 p-2 rounded">
-                                            📌 {detectedAge - ageTolerance}세 ~ {detectedAge + ageTolerance}세 룸메이트와 매칭 가능
-                                        </p>
-                                    </div>
-                                </div>
-                            )}
-                            {error && (
-                                <div className="p-4 bg-red-50 border border-red-200 border-l-4 border-l-red-500 rounded-lg">
-                                    <p className="text-red-700 text-sm">{error}</p>
-                                </div>
-                            )}
-
-                            {/* 안내 메시지 */}
-                            <div className="warning-box">
-                                <p className="text-amber-700 text-sm font-medium mb-1">⚠️ 주의사항</p>
-                                <ul className="text-xs text-amber-600 space-y-1">
-                                    <li>• 등록 후 정보 수정이 <strong>불가능</strong>합니다.</li>
-                                    <li>• 객실 선택은 <strong>1회만</strong> 가능합니다.</li>
-                                    <li>• 신중하게 선택해주세요.</li>
-                                </ul>
-                            </div>
-
-                            {/* 버튼 */}
-                            <div className="flex gap-3 pt-2">
-                                <button
-                                    type="button"
-                                    onClick={onClose}
-                                    className="flex-1 px-6 py-3 btn-secondary rounded-lg font-medium"
-                                >
-                                    취소
-                                </button>
-                                <button
-                                    type="submit"
-                                    disabled={!detectedGender}
-                                    className="flex-1 px-6 py-3 btn-primary rounded-lg font-medium disabled:opacity-50 disabled:cursor-not-allowed"
-                                >
-                                    등록하기
-                                </button>
-                            </div>
-                        </>
-                    )}
-                </form>
+                        <button
+                            onClick={onClose}
+                            className="w-full py-3 btn-secondary rounded-lg font-medium"
+                        >
+                            닫기
+                        </button>
+                    </div>
+                )}
             </div>
         </div>
     );

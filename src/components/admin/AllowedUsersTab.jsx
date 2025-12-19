@@ -15,7 +15,7 @@ export default function AllowedUsersTab() {
     const [searchQuery, setSearchQuery] = useState('');
     const [showAddModal, setShowAddModal] = useState(false);
     const [showCsvModal, setShowCsvModal] = useState(false);
-    const [newUser, setNewUser] = useState({ name: '', phone: '', company: '' });
+    const [newUser, setNewUser] = useState({ name: '', email: '', company: '' });
     const [isAdding, setIsAdding] = useState(false);
     const [csvData, setCsvData] = useState('');
     const [csvResult, setCsvResult] = useState(null);
@@ -31,7 +31,7 @@ export default function AllowedUsersTab() {
         const query = searchQuery.toLowerCase();
         return (
             user.name?.toLowerCase().includes(query) ||
-            user.phone?.includes(query) ||
+            user.email?.toLowerCase().includes(query) ||
             user.company?.toLowerCase().includes(query)
         );
     });
@@ -43,24 +43,23 @@ export default function AllowedUsersTab() {
         pending: users.filter(u => !u.registered).length
     };
 
-    // 전화번호 포맷
-    const formatPhone = (phone) => {
-        if (!phone) return '-';
-        const cleaned = phone.replace(/\D/g, '');
-        if (cleaned.length === 11) {
-            return `${cleaned.slice(0, 3)}-${cleaned.slice(3, 7)}-${cleaned.slice(7)}`;
-        }
-        return phone;
+    // 이메일 유효성 검사
+    const isValidEmail = (email) => {
+        return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
     };
 
     // 유저 추가
     const handleAddUser = async () => {
-        if (!newUser.name.trim() || !newUser.phone.trim()) return;
+        if (!newUser.name.trim() || !newUser.email.trim()) return;
+        if (!isValidEmail(newUser.email)) {
+            alert('유효한 이메일 형식이 아닙니다.');
+            return;
+        }
 
         setIsAdding(true);
         try {
             await addAllowedUser(newUser);
-            setNewUser({ name: '', phone: '', company: '' });
+            setNewUser({ name: '', email: '', company: '' });
             setShowAddModal(false);
         } catch (error) {
             alert('추가 실패: ' + error.message);
@@ -98,7 +97,7 @@ export default function AllowedUsersTab() {
             if (parts.length >= 2) {
                 users.push({
                     name: parts[0],
-                    phone: parts[1],
+                    email: parts[1],
                     company: parts[2] || ''
                 });
             }
@@ -178,7 +177,7 @@ export default function AllowedUsersTab() {
                     type="text"
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
-                    placeholder="이름, 휴대폰, 회사로 검색..."
+                    placeholder="이름, 이메일, 회사로 검색..."
                     className="w-full px-4 py-2 pl-10 border border-gray-300 rounded-lg"
                 />
                 <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">🔍</span>
@@ -190,7 +189,7 @@ export default function AllowedUsersTab() {
                     <thead className="bg-slate-50 border-b">
                         <tr>
                             <th className="px-4 py-3 text-left font-medium text-gray-700">이름</th>
-                            <th className="px-4 py-3 text-left font-medium text-gray-700">휴대폰</th>
+                            <th className="px-4 py-3 text-left font-medium text-gray-700">이메일</th>
                             <th className="px-4 py-3 text-left font-medium text-gray-700">소속</th>
                             <th className="px-4 py-3 text-center font-medium text-gray-700">상태</th>
                             <th className="px-4 py-3 text-center font-medium text-gray-700">관리</th>
@@ -207,7 +206,7 @@ export default function AllowedUsersTab() {
                             filteredUsers.map(user => (
                                 <tr key={user.id} className="hover:bg-gray-50">
                                     <td className="px-4 py-3 font-medium">{user.name}</td>
-                                    <td className="px-4 py-3 text-gray-600">{formatPhone(user.phone)}</td>
+                                    <td className="px-4 py-3 text-gray-600">{user.email}</td>
                                     <td className="px-4 py-3 text-gray-600">{user.company || '-'}</td>
                                     <td className="px-4 py-3 text-center">
                                         {user.registered ? (
@@ -253,13 +252,13 @@ export default function AllowedUsersTab() {
                                 />
                             </div>
                             <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">휴대폰 번호 *</label>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">이메일 *</label>
                                 <input
-                                    type="tel"
-                                    value={newUser.phone}
-                                    onChange={(e) => setNewUser({ ...newUser, phone: e.target.value })}
+                                    type="email"
+                                    value={newUser.email}
+                                    onChange={(e) => setNewUser({ ...newUser, email: e.target.value })}
                                     className="w-full px-3 py-2 border rounded-lg"
-                                    placeholder="010-1234-5678"
+                                    placeholder="user@example.com"
                                 />
                             </div>
                             <div>
@@ -283,7 +282,7 @@ export default function AllowedUsersTab() {
                             </button>
                             <button
                                 onClick={handleAddUser}
-                                disabled={!newUser.name.trim() || !newUser.phone.trim() || isAdding}
+                                disabled={!newUser.name.trim() || !newUser.email.trim() || isAdding}
                                 className="flex-1 py-2 bg-blue-600 text-white rounded-lg disabled:opacity-50"
                             >
                                 {isAdding ? '추가 중...' : '추가'}
@@ -301,14 +300,14 @@ export default function AllowedUsersTab() {
 
                         <div className="info-box mb-4">
                             <p className="text-blue-700 text-sm font-medium">📋 CSV 형식</p>
-                            <p className="text-blue-600 text-xs mt-1">이름,휴대폰번호,소속(선택)</p>
-                            <p className="text-blue-500 text-xs">예: 홍길동,01012345678,ABC회사</p>
+                            <p className="text-blue-600 text-xs mt-1">이름,이메일,소속(선택)</p>
+                            <p className="text-blue-500 text-xs">예: 홍길동,hero@example.com,ABC회사</p>
                         </div>
 
                         <textarea
                             value={csvData}
                             onChange={(e) => setCsvData(e.target.value)}
-                            placeholder="이름,휴대폰번호,소속&#10;홍길동,01012345678,ABC회사&#10;김철수,01098765432,XYZ기업"
+                            placeholder="이름,이메일,소속&#10;홍길동,hero@example.com,ABC회사&#10;김철수,chulsoo@test.com,XYZ기업"
                             className="w-full h-40 px-3 py-2 border rounded-lg text-sm font-mono"
                         />
 

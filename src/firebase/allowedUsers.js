@@ -1,8 +1,9 @@
 /**
  * Firebase 사전등록 유저 관리 모듈
- * 이름 + 휴대폰 번호로 유저 검증
+ * 이메일 기반 유저 검증 (Phase 10)
  */
 import { database, ref, onValue, set, get, push } from './config';
+import { emailToKey, sanitizeEmail, isValidEmail } from '../utils/sanitize';
 
 /**
  * 사전등록 유저 목록 구독 (실시간)
@@ -17,8 +18,8 @@ export function subscribeToAllowedUsers(callback) {
 
     const unsubscribe = onValue(usersRef, (snapshot) => {
         const data = snapshot.val() || {};
-        const users = Object.entries(data).map(([id, user]) => ({
-            id,
+        const users = Object.entries(data).map(([key, user]) => ({
+            id: key,
             ...user
         }));
         callback(users);
@@ -37,79 +38,49 @@ export async function getAllowedUsers() {
     const snapshot = await get(usersRef);
     const data = snapshot.val() || {};
 
-    return Object.entries(data).map(([id, user]) => ({
-        id,
+    return Object.entries(data).map(([key, user]) => ({
+        id: key,
         ...user
     }));
 }
 
 /**
- * 휴대폰 번호 정규화 (하이픈 제거, 숫자만)
- */
-function normalizePhone(phone) {
-    if (!phone) return '';
-    return phone.replace(/[^0-9]/g, '');
-}
-
-/**
- * 이름 정규화 (공백 제거, 소문자)
- */
-function normalizeName(name) {
-    if (!name) return '';
-    return name.trim().replace(/\s+/g, '').toLowerCase();
-}
-
-/**
- * 유저 검증 (이름 + 휴대폰 번호)
- * @param {string} name - 입력된 이름
- * @param {string} phone - 입력된 휴대폰 번호
+ * 유저 검증 (이메일 기반)
+ * @param {string} email - 입력된 이메일 (또는 링크에서 추출한 이메일)
  * @returns {Promise<{valid: boolean, user: Object|null, message: string}>}
  */
-export async function verifyUser(name, phone) {
-    const allowedUsers = await getAllowedUsers();
+export async function verifyUser(email) {
+    if (!database) return { valid: false, message: '데이터베이스 연결 실패' };
 
-    const normalizedName = normalizeName(name);
-    const normalizedPhone = normalizePhone(phone);
+    const sanitizedEmail = sanitizeEmail(email);
+    const userKey = emailToKey(sanitizedEmail);
 
-    if (!normalizedName || !normalizedPhone) {
+    if (!userKey) {
         return {
             valid: false,
             user: null,
-            message: '이름과 휴대폰 번호를 모두 입력해주세요.'
+            message: '유효하지 않은 이메일 형식입니다.'
         };
     }
 
-    // 휴대폰 번호 형식 검증 (10-11자리)
-    if (normalizedPhone.length < 10 || normalizedPhone.length > 11) {
-        return {
-            valid: false,
-            user: null,
-            message: '유효한 휴대폰 번호를 입력해주세요.'
-        };
-    }
+    // Key로 직접 조회 (최적화)
+    const userRef = ref(database, `allowedUsers/${userKey}`);
+    const snapshot = await get(userRef);
+    const userData = snapshot.val();
 
-    // 이름 + 휴대폰 번호로 검색
-    const matchedUser = allowedUsers.find(user => {
-        const userNormalizedName = normalizeName(user.name);
-        const userNormalizedPhone = normalizePhone(user.phone);
-
-        return userNormalizedName === normalizedName &&
-            userNormalizedPhone === normalizedPhone;
-    });
-
-    if (matchedUser) {
+    if (userData) {
         // 이미 등록 완료된 유저인지 확인
-        if (matchedUser.registered) {
+        if (userData.registered) {
             return {
                 valid: false,
-                user: null,
+                user: { id: userKey, ...userData },
                 message: '이미 등록이 완료된 사용자입니다.'
             };
         }
 
         return {
             valid: true,
-            user: matchedUser,
+            user: { id: userKey, ...userData },
             message: '인증 성공'
         };
     }
@@ -117,19 +88,23 @@ export async function verifyUser(name, phone) {
     return {
         valid: false,
         user: null,
-        message: '등록된 정보와 일치하지 않습니다. 이름과 휴대폰 번호를 확인해주세요.'
+        message: '사전 등록된 이메일이 아닙니다. 관리자에게 문의해주세요.'
     };
 }
 
 /**
  * 유저 등록 완료 표시
- * @param {string} userId - 사전등록 유저 ID
+ * @param {string} userEmail - 사전등록 유저 이메일 (ID 식별용)
  * @param {string} sessionId - 등록된 세션 ID
+ * @param {string} uid - Firebase Auth UID
  */
-export async function markUserAsRegistered(userId, sessionId) {
-    if (!database || !userId) return false;
+export async function markUserAsRegistered(userEmail, sessionId, uid) {
+    if (!database || !userEmail) return false;
 
-    const userRef = ref(database, `allowedUsers/${userId}`);
+    const userKey = emailToKey(userEmail);
+    if (!userKey) return false;
+
+    const userRef = ref(database, `allowedUsers/${userKey}`);
     const snapshot = await get(userRef);
     const user = snapshot.val();
 
@@ -139,6 +114,7 @@ export async function markUserAsRegistered(userId, sessionId) {
         ...user,
         registered: true,
         registeredSessionId: sessionId,
+        registeredUid: uid, // Auth UID 저장
         registeredAt: Date.now()
     });
 
@@ -147,23 +123,27 @@ export async function markUserAsRegistered(userId, sessionId) {
 
 /**
  * 사전등록 유저 추가 (관리자용)
- * @param {Object} userData - { name, phone, company? }
+ * @param {Object} userData - { name, email, company? }
  */
 export async function addAllowedUser(userData) {
     if (!database) return null;
 
-    const usersRef = ref(database, 'allowedUsers');
-    const newUserRef = push(usersRef);
+    const email = sanitizeEmail(userData.email);
+    const userKey = emailToKey(email);
 
-    await set(newUserRef, {
+    if (!userKey) return null; // 이메일 필수
+
+    const userRef = ref(database, `allowedUsers/${userKey}`);
+
+    await set(userRef, {
         name: userData.name?.trim() || '',
-        phone: normalizePhone(userData.phone) || '',
+        email: email,
         company: userData.company?.trim() || '',
         registered: false,
         createdAt: Date.now()
     });
 
-    return newUserRef.key;
+    return userKey;
 }
 
 /**
@@ -172,6 +152,7 @@ export async function addAllowedUser(userData) {
 export async function removeAllowedUser(userId) {
     if (!database || !userId) return false;
 
+    // userId는 이미 Base64 Key라고 가정
     const userRef = ref(database, `allowedUsers/${userId}`);
     await set(userRef, null);
 
@@ -180,7 +161,7 @@ export async function removeAllowedUser(userId) {
 
 /**
  * 사전등록 유저 일괄 추가 (CSV 업로드용)
- * @param {Array} users - [{ name, phone, company? }, ...]
+ * @param {Array} users - [{ name, email, company? }, ...]
  */
 export async function bulkAddAllowedUsers(users) {
     if (!database || !Array.isArray(users)) return { success: 0, failed: 0 };
@@ -190,9 +171,10 @@ export async function bulkAddAllowedUsers(users) {
 
     for (const user of users) {
         try {
-            if (user.name && user.phone) {
-                await addAllowedUser(user);
-                success++;
+            if (user.email) {
+                const result = await addAllowedUser(user);
+                if (result) success++;
+                else failed++;
             } else {
                 failed++;
             }
