@@ -650,8 +650,23 @@ export default function App() {
                     {requests.received.length > 0 && (
                         <JoinRequestModal
                             request={requests.received[0]}
-                            onAccept={() => acceptRequest(requests.received[0].id, requests.received[0])}
-                            onReject={() => rejectRequest(requests.received[0].id)}
+                            onAccept={async () => {
+                                try {
+                                    await acceptRequest(requests.received[0].id, requests.received[0]);
+                                    // 수락 완료 후 요청 정리
+                                    await cleanup(requests.received[0].id);
+                                } catch (error) {
+                                    alert('수락 처리 중 오류: ' + error.message);
+                                }
+                            }}
+                            onReject={async () => {
+                                try {
+                                    await rejectRequest(requests.received[0].id);
+                                    // 거절 후 요청은 Guest 측에서 cleanup 함
+                                } catch (error) {
+                                    alert('거절 처리 중 오류: ' + error.message);
+                                }
+                            }}
                         />
                     )}
 

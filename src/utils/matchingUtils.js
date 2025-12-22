@@ -27,17 +27,17 @@ export function checkCompatibility(me, roommate) {
     // 2. 코골이 검증
     // snoring values: 'no' (없음), 'sometimes' (가끔), 'yes' (자주)
 
-    // 상대방이 코를 심하게 고는 경우
-    if (roommate.snoring === 'yes') {
+    // 상대방이 코를 심하게 고는 경우 - 나는 '가끔' 또는 '없음'일 때 경고
+    if (roommate.snoring === 'yes' && (me.snoring === 'no' || me.snoring === 'sometimes')) {
         warnings.push('룸메이트가 "코골이 심함" 상태입니다.');
     } else if (roommate.snoring === 'sometimes' && me.snoring === 'no') {
         // 상대는 가끔, 나는 예민(없음) 할 때
         warnings.push('룸메이트가 코를 가끔 곯니다.');
     }
 
-    // 내가 코를 심하게 고는 경우
-    if (me.snoring === 'yes' && roommate.snoring === 'no') {
-        warnings.push('본인의 코골이 성향(심함)으로 인해 예민한 룸메이트가 불편해할 수 있습니다.');
+    // 내가 코를 심하게 고는 경우 - 상대가 '가끔' 또는 '없음'일 때 경고
+    if (me.snoring === 'yes' && (roommate.snoring === 'no' || roommate.snoring === 'sometimes')) {
+        warnings.push('본인의 코골이 성향(심함)으로 인해 룸메이트가 불편해할 수 있습니다.');
     }
 
     return warnings;
