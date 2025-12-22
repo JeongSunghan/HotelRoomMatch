@@ -36,11 +36,19 @@ export async function checkPendingInvitations(userName) {
     const now = Date.now();
 
     for (const [id, invitation] of Object.entries(data)) {
-        // 24시간 지난 초대는 만료 처리
-        if (invitation.createdAt && (now - invitation.createdAt) > INVITATION_EXPIRY_MS) {
-            // 만료된 초대 자동 삭제 (비동기로 처리, 결과 대기 안함)
+        // 24시간 지난 pending 초대는 만료 처리
+        if (invitation.status === 'pending' && invitation.createdAt && (now - invitation.createdAt) > INVITATION_EXPIRY_MS) {
             set(ref(database, `roommateInvitations/${id}`), null).catch(() => { });
             continue;
+        }
+
+        // 완료된 초대(accepted/rejected)는 24시간 후 자동 삭제
+        if ((invitation.status === 'accepted' || invitation.status === 'rejected') && invitation.createdAt) {
+            const completedAt = invitation.acceptedAt || invitation.rejectedAt || invitation.createdAt;
+            if ((now - completedAt) > INVITATION_EXPIRY_MS) {
+                set(ref(database, `roommateInvitations/${id}`), null).catch(() => { });
+                continue;
+            }
         }
 
         if (invitation.inviteeName === userName.trim() && invitation.status === 'pending') {
@@ -115,9 +123,21 @@ export async function rejectInvitation(invitationId, rejectorData) {
     await update(invitationRef, {
         status: 'rejected',
         rejectedAt: Date.now(),
-        rejectorSessionId: rejectorData.sessionId
+        rejectorSessionId: rejectorData.sessionId,
+        notified: false // 초대자에게 알림 필요
     });
 
+    return true;
+}
+
+/**
+ * 거절 알림 확인 처리 (초대자가 알림을 확인했을 때 호출)
+ */
+export async function markInvitationNotified(invitationId) {
+    if (!database) return false;
+
+    const invitationRef = ref(database, `roommateInvitations/${invitationId}`);
+    await update(invitationRef, { notified: true });
     return true;
 }
 

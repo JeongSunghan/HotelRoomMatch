@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import { roomData } from '../../data/roomData';
 import { getGenderLabel } from '../../utils/genderUtils';
+import { updateUser } from '../../firebase/index';
+import { SNORING_LABELS } from '../../utils/constants';
 
 export default function MyRoomModal({
     user,
@@ -9,10 +11,16 @@ export default function MyRoomModal({
     onClose
 }) {
     const [showRequestForm, setShowRequestForm] = useState(false);
+    const [showEditProfile, setShowEditProfile] = useState(false);
     const [requestType, setRequestType] = useState('change'); // 'change' or 'cancel'
     const [phoneNumber, setPhoneNumber] = useState('');
     const [requestReason, setRequestReason] = useState('');
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [editForm, setEditForm] = useState({
+        snoring: user?.snoring || 'no',
+        company: user?.company || '',
+        ageTolerance: user?.ageTolerance || 5
+    });
 
     if (!user?.selectedRoom) return null;
 
@@ -52,6 +60,26 @@ export default function MyRoomModal({
             onClose();
         } catch (error) {
             alert('요청 전송에 실패했습니다.');
+        } finally {
+            setIsSubmitting(false);
+        }
+    };
+
+    // 프로필 수정 저장
+    const handleSaveProfile = async () => {
+        if (!user?.sessionId) return;
+        setIsSubmitting(true);
+
+        try {
+            await updateUser(user.sessionId, {
+                snoring: editForm.snoring,
+                company: editForm.company.trim(),
+                ageTolerance: parseInt(editForm.ageTolerance) || 5
+            });
+            alert('정보가 수정되었습니다.');
+            setShowEditProfile(false);
+        } catch (error) {
+            alert('수정 실패: ' + error.message);
         } finally {
             setIsSubmitting(false);
         }
@@ -143,8 +171,98 @@ export default function MyRoomModal({
                     </div>
                 </div>
 
+                {/* 내 정보 수정 섹션 */}
+                {!showEditProfile && !showRequestForm && (
+                    <div className="mb-5 p-4 bg-gray-50 rounded-lg">
+                        <div className="flex justify-between items-center mb-2">
+                            <h3 className="text-sm font-medium text-gray-500">내 정보</h3>
+                            <button
+                                onClick={() => setShowEditProfile(true)}
+                                className="text-xs text-blue-600 hover:underline"
+                            >
+                                수정
+                            </button>
+                        </div>
+                        <div className="space-y-1 text-sm">
+                            <div className="flex justify-between">
+                                <span className="text-gray-500">회사</span>
+                                <span className="text-gray-800">{currentUser.company || '-'}</span>
+                            </div>
+                            <div className="flex justify-between">
+                                <span className="text-gray-500">코골이</span>
+                                <span className="text-gray-800">{SNORING_LABELS[currentUser.snoring] || '-'}</span>
+                            </div>
+                            <div className="flex justify-between">
+                                <span className="text-gray-500">나이 허용 범위</span>
+                                <span className="text-gray-800">±{currentUser.ageTolerance || 5}세</span>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {/* 프로필 수정 폼 */}
+                {showEditProfile && (
+                    <div className="mb-5 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                        <h3 className="text-sm font-medium text-blue-800 mb-3">내 정보 수정</h3>
+                        <div className="space-y-3">
+                            <div>
+                                <label className="block text-xs text-blue-700 mb-1">회사</label>
+                                <input
+                                    type="text"
+                                    value={editForm.company}
+                                    onChange={(e) => setEditForm({ ...editForm, company: e.target.value })}
+                                    className="w-full px-3 py-2 border border-blue-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-xs text-blue-700 mb-1">코골이</label>
+                                <select
+                                    value={editForm.snoring}
+                                    onChange={(e) => setEditForm({ ...editForm, snoring: e.target.value })}
+                                    className="w-full px-3 py-2 border border-blue-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
+                                >
+                                    <option value="no">😴 없음</option>
+                                    <option value="sometimes">😪 가끔</option>
+                                    <option value="yes">😤 자주</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label className="block text-xs text-blue-700 mb-1">나이 허용 범위</label>
+                                <select
+                                    value={editForm.ageTolerance}
+                                    onChange={(e) => setEditForm({ ...editForm, ageTolerance: e.target.value })}
+                                    className="w-full px-3 py-2 border border-blue-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
+                                >
+                                    <option value="3">±3세</option>
+                                    <option value="5">±5세</option>
+                                    <option value="10">±10세</option>
+                                    <option value="99">상관없음</option>
+                                </select>
+                            </div>
+                        </div>
+                        <p className="text-xs text-gray-500 mt-2">
+                            * 성별/이름 변경은 관리자에게 문의해주세요.
+                        </p>
+                        <div className="flex gap-2 mt-3">
+                            <button
+                                onClick={() => setShowEditProfile(false)}
+                                className="flex-1 py-2 border border-gray-300 text-gray-600 rounded-lg text-sm hover:bg-gray-50"
+                            >
+                                취소
+                            </button>
+                            <button
+                                onClick={handleSaveProfile}
+                                disabled={isSubmitting}
+                                className="flex-1 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50"
+                            >
+                                {isSubmitting ? '저장 중...' : '저장'}
+                            </button>
+                        </div>
+                    </div>
+                )}
+
                 {/* 방 수정/취소 요청 */}
-                {!showRequestForm ? (
+                {!showRequestForm && !showEditProfile ? (
                     <div className="flex gap-2">
                         <button
                             onClick={() => { setRequestType('change'); setShowRequestForm(true); }}

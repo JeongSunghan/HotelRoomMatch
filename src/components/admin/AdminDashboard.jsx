@@ -23,6 +23,7 @@ import CsvUploadModal from './CsvUploadModal';
 import HistoryTab from './HistoryTab';
 import DeadlineSettings from './DeadlineSettings';
 import AllowedUsersTab from './AllowedUsersTab';
+import UserManagementTab from './UserManagementTab';
 
 /**
  * 관리자 대시보드 (페이지 전체 레이아웃)
@@ -343,6 +344,10 @@ export default function AdminDashboard({
                         <h2 className="text-2xl font-bold text-gray-800">사전등록 유저 관리</h2>
                         <AllowedUsersTab />
                     </div>
+                )}
+
+                {activeTab === 'activeUsers' && (
+                    <UserManagementTab />
                 )}
             </div>
 

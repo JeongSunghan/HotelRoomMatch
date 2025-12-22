@@ -56,6 +56,149 @@ export async function clearUserSession(sessionId) {
     return true;
 }
 
+// ==================== 관리자용 함수 ====================
+
+/**
+ * 모든 활성 유저 실시간 구독 (관리자용)
+ * @param {Function} callback - 유저 목록 콜백
+ * @returns {Function} unsubscribe 함수
+ */
+export function subscribeToAllUsers(callback) {
+    if (!database) {
+        callback([]);
+        return () => { };
+    }
+
+    const usersRef = ref(database, 'users');
+    const unsubscribe = onValue(usersRef, (snapshot) => {
+        const data = snapshot.val() || {};
+        const users = Object.entries(data).map(([sessionId, user]) => ({
+            sessionId,
+            ...user
+        }));
+        callback(users);
+    });
+
+    return unsubscribe;
+}
+
+/**
+ * 관리자용 유저 정보 업데이트 (성별 변경 등 모든 필드)
+ * 객실 게스트 정보도 함께 동기화
+ * @param {string} sessionId - 유저 세션 ID
+ * @param {Object} updates - 업데이트할 필드들
+ * @returns {Promise<boolean>}
+ */
+export async function adminUpdateUser(sessionId, updates) {
+    if (!database) return false;
+
+    // 1. users/{sessionId} 업데이트
+    const userRef = ref(database, `users/${sessionId}`);
+    const userSnapshot = await get(userRef);
+    const userData = userSnapshot.val();
+
+    if (!userData) return false;
+
+    await update(userRef, {
+        ...updates,
+        updatedAt: Date.now()
+    });
+
+    // 2. 유저가 객실에 배정되어 있다면 rooms/{roomNumber}/guests도 업데이트
+    if (userData.selectedRoom) {
+        const roomRef = ref(database, `rooms/${userData.selectedRoom}`);
+        const roomSnapshot = await get(roomRef);
+        const roomData = roomSnapshot.val();
+
+        if (roomData && roomData.guests) {
+            let guests = roomData.guests;
+            if (!Array.isArray(guests)) {
+                guests = Object.values(guests);
+            }
+
+            // 해당 유저의 게스트 정보 찾아서 업데이트
+            const updatedGuests = guests.map(guest => {
+                if (guest.sessionId === sessionId) {
+                    return { ...guest, ...updates };
+                }
+                return guest;
+            });
+
+            await update(roomRef, { guests: updatedGuests });
+        }
+    }
+
+    return true;
+}
+
+/**
+ * 유저 완전 삭제 (탈퇴 처리)
+ * users, allowedUsers, rooms, otp_requests 모두에서 제거
+ * @param {string} sessionId - 유저 세션 ID
+ * @param {string} email - 유저 이메일
+ * @returns {Promise<{success: boolean, message: string}>}
+ */
+export async function deleteUserCompletely(sessionId, email) {
+    if (!database) return { success: false, message: 'Database not connected' };
+
+    try {
+        // 1. users/{sessionId}에서 유저 정보 조회
+        const userRef = ref(database, `users/${sessionId}`);
+        const userSnapshot = await get(userRef);
+        const userData = userSnapshot.val();
+
+        // 2. 객실에서 제거 (배정되어 있는 경우)
+        if (userData && userData.selectedRoom) {
+            const roomRef = ref(database, `rooms/${userData.selectedRoom}`);
+            const roomSnapshot = await get(roomRef);
+            const roomData = roomSnapshot.val();
+
+            if (roomData && roomData.guests) {
+                let guests = roomData.guests;
+                if (!Array.isArray(guests)) {
+                    guests = Object.values(guests);
+                }
+
+                const filteredGuests = guests.filter(g => g.sessionId !== sessionId);
+                await set(roomRef, filteredGuests.length > 0 ? { guests: filteredGuests } : null);
+            }
+        }
+
+        // 3. users/{sessionId} 삭제
+        await set(userRef, null);
+
+        // 4. allowedUsers에서 registered 상태 초기화 (재가입 가능하도록)
+        if (email) {
+            const emailKey = btoa(email.toLowerCase()).replace(/=/g, '');
+            const allowedUserRef = ref(database, `allowedUsers/${emailKey}`);
+            const allowedSnapshot = await get(allowedUserRef);
+            const allowedData = allowedSnapshot.val();
+
+            if (allowedData) {
+                await update(allowedUserRef, {
+                    registered: false,
+                    registeredSessionId: null,
+                    registeredUid: null,
+                    registeredAt: null,
+                    deletedAt: Date.now()
+                });
+            }
+        }
+
+        // 5. otp_requests 삭제 (있을 경우)
+        if (email) {
+            const emailKey = btoa(email.toLowerCase()).replace(/=/g, '');
+            const otpRef = ref(database, `otp_requests/${emailKey}`);
+            await set(otpRef, null);
+        }
+
+        return { success: true, message: '유저가 완전히 삭제되었습니다.' };
+    } catch (error) {
+        console.error('deleteUserCompletely error:', error);
+        return { success: false, message: error.message };
+    }
+}
+
 // ==================== OTP 서버사이드 검증 ====================
 
 /**

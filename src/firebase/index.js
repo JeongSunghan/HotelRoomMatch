@@ -21,7 +21,11 @@ export {
     clearUserSession,
     createOtpRequest,
     verifyOtpRequest,
-    generateSecurePassKey
+    generateSecurePassKey,
+    // 관리자용
+    subscribeToAllUsers,
+    adminUpdateUser,
+    deleteUserCompletely
 } from './users';
 
 // Invitations
@@ -31,7 +35,8 @@ export {
     acceptInvitation,
     rejectInvitation,
     subscribeToMyInvitations,
-    cancelInvitation
+    cancelInvitation,
+    markInvitationNotified
 } from './invitations';
 
 // Requests

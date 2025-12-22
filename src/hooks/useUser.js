@@ -226,6 +226,53 @@ export function useUser() {
         };
     }, []);
 
+    // 관리자 변경사항 실시간 동기화
+    useEffect(() => {
+        if (!user?.sessionId) return;
+
+        const setupRealtimeSync = async () => {
+            const { subscribeToUserSession } = await import('../firebase/index');
+
+            const unsubscribe = subscribeToUserSession(user.sessionId, (dbUser) => {
+                if (!dbUser) {
+                    // 유저가 삭제됨 (관리자에 의해)
+                    debug.log('유저 데이터가 삭제됨 - 로그아웃 처리');
+                    localStorage.removeItem(STORAGE_KEY);
+                    setUser(null);
+                    return;
+                }
+
+                // 로컬 상태와 DB 상태 비교하여 변경사항 있으면 동기화
+                const hasChanges =
+                    dbUser.name !== user.name ||
+                    dbUser.gender !== user.gender ||
+                    dbUser.age !== user.age ||
+                    dbUser.snoring !== user.snoring ||
+                    dbUser.company !== user.company ||
+                    dbUser.selectedRoom !== user.selectedRoom ||
+                    dbUser.locked !== user.locked;
+
+                if (hasChanges) {
+                    debug.log('관리자 변경사항 감지 - 동기화');
+                    const updatedUser = { ...user, ...dbUser };
+                    localStorage.setItem(STORAGE_KEY, JSON.stringify(updatedUser));
+                    setUser(updatedUser);
+                }
+            });
+
+            return unsubscribe;
+        };
+
+        let unsubscribe = null;
+        setupRealtimeSync().then(unsub => {
+            unsubscribe = unsub;
+        });
+
+        return () => {
+            if (unsubscribe) unsubscribe();
+        };
+    }, [user?.sessionId]);
+
     const registerUser = useCallback((userData) => {
         // 입력값 정리 (XSS 방지)
         const sanitized = sanitizeUserData(userData);
