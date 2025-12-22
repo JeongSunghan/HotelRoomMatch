@@ -1,21 +1,13 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, lazy, Suspense } from 'react';
 import Header from './components/ui/Header';
 import FloorSelector from './components/ui/FloorSelector';
 import RoomGrid from './components/room/RoomGrid';
-import RegistrationModal from './components/auth/RegistrationModal';
-import AdditionalInfoModal from './components/auth/AdditionalInfoModal';
-import SelectionModal from './components/room/SelectionModal';
-import InvitationModal from './components/room/InvitationModal';
-import MyRoomModal from './components/room/MyRoomModal';
-import SearchModal from './components/ui/SearchModal';
 import { useUser } from './hooks/useUser';
 import { useRooms } from './hooks/useRooms';
+import { useUI } from './contexts/UIContext';
 import { floors, floorInfo, roomData } from './data/roomData';
 import { sanitizeName } from './utils/sanitize';
 import { checkCompatibility } from './utils/matchingUtils';
-import MatchingWarningModal from './components/room/MatchingWarningModal';
-import JoinRequestModal from './components/room/JoinRequestModal';
-import WaitingApprovalModal from './components/room/WaitingApprovalModal';
 import { useJoinRequests } from './hooks/useJoinRequests';
 import {
     checkPendingInvitations,
@@ -26,6 +18,20 @@ import {
     createRoomChangeRequest,
     logGuestAdd
 } from './firebase/index';
+
+// Lazy loaded 모달 컴포넌트들 (초기 번들 크기 감소)
+const RegistrationModal = lazy(() => import('./components/auth/RegistrationModal'));
+const AdditionalInfoModal = lazy(() => import('./components/auth/AdditionalInfoModal'));
+const SelectionModal = lazy(() => import('./components/room/SelectionModal'));
+const InvitationModal = lazy(() => import('./components/room/InvitationModal'));
+const MyRoomModal = lazy(() => import('./components/room/MyRoomModal'));
+const SearchModal = lazy(() => import('./components/ui/SearchModal'));
+const MatchingWarningModal = lazy(() => import('./components/room/MatchingWarningModal'));
+const JoinRequestModal = lazy(() => import('./components/room/JoinRequestModal'));
+const WaitingApprovalModal = lazy(() => import('./components/room/WaitingApprovalModal'));
+const CancelledModal = lazy(() => import('./components/room/CancelledModal'));
+const SingleRoomInfoModal = lazy(() => import('./components/room/SingleRoomInfoModal'));
+
 
 /**
  * 메인 앱 컴포넌트
@@ -54,20 +60,47 @@ export default function App() {
         isFirebaseConnected
     } = useRooms();
 
-    // UI 상태
-    const [selectedFloor, setSelectedFloor] = useState(null);
-    const [showRegistrationModal, setShowRegistrationModal] = useState(false);
-    const [showAdditionalInfoModal, setShowAdditionalInfoModal] = useState(false);
-    const [selectedRoomForConfirm, setSelectedRoomForConfirm] = useState(null);
-    const [showMyRoomModal, setShowMyRoomModal] = useState(false);
-    const [showSingleRoomModal, setShowSingleRoomModal] = useState(false);  // 1인실 안내 모달
-    const [showSearchModal, setShowSearchModal] = useState(false);  // 검색 모달
-    const [roomTypeFilter, setRoomTypeFilter] = useState('twin');  // 기본: 2인실만 표시
+    // UI 상태 (UIContext에서 관리)
+    const {
+        modals,
+        openModal,
+        closeModal,
+        selectedRoomNumber,
+        openSelectionModal,
+        warningContent,
+        setWarningContent,
+        pendingSelection,
+        setPendingSelection,
+        selectedFloor,
+        setSelectedFloor,
+        roomTypeFilter,
+        setRoomTypeFilter,
+        MODAL_TYPES,
+    } = useUI();
 
-    // 매칭 경고 상태
-    const [showWarningModal, setShowWarningModal] = useState(false);
-    const [warningContent, setWarningContent] = useState([]);
-    const [pendingSelection, setPendingSelection] = useState(null);
+    // 개별 모달 상태 (가독성을 위한 alias)
+    const showRegistrationModal = modals[MODAL_TYPES.REGISTRATION];
+    const showAdditionalInfoModal = modals[MODAL_TYPES.ADDITIONAL_INFO];
+    const selectedRoomForConfirm = selectedRoomNumber;
+    const showMyRoomModal = modals[MODAL_TYPES.MY_ROOM];
+    const showSingleRoomModal = modals[MODAL_TYPES.SINGLE_ROOM];
+    const showSearchModal = modals[MODAL_TYPES.SEARCH];
+    const showWarningModal = modals[MODAL_TYPES.WARNING];
+
+    // setter 래퍼 함수 (기존 코드 호환용)
+    const setShowRegistrationModal = (val) => val ? openModal(MODAL_TYPES.REGISTRATION) : closeModal(MODAL_TYPES.REGISTRATION);
+    const setShowAdditionalInfoModal = (val) => val ? openModal(MODAL_TYPES.ADDITIONAL_INFO) : closeModal(MODAL_TYPES.ADDITIONAL_INFO);
+    const setShowMyRoomModal = (val) => val ? openModal(MODAL_TYPES.MY_ROOM) : closeModal(MODAL_TYPES.MY_ROOM);
+    const setShowSingleRoomModal = (val) => val ? openModal(MODAL_TYPES.SINGLE_ROOM) : closeModal(MODAL_TYPES.SINGLE_ROOM);
+    const setShowSearchModal = (val) => val ? openModal(MODAL_TYPES.SEARCH) : closeModal(MODAL_TYPES.SEARCH);
+    const setShowWarningModal = (val) => val ? openModal(MODAL_TYPES.WARNING) : closeModal(MODAL_TYPES.WARNING);
+    const setSelectedRoomForConfirm = (roomNum) => {
+        if (roomNum) {
+            openSelectionModal(roomNum);
+        } else {
+            closeModal(MODAL_TYPES.SELECTION);
+        }
+    };
 
     // 입실 요청 Hook
     const {
@@ -124,11 +157,11 @@ export default function App() {
     // 로그인 후 추가 정보(성별 등) 누락 시 모달 표시
     useEffect(() => {
         if (user && !user.gender) {
-            setShowAdditionalInfoModal(true);
+            openModal(MODAL_TYPES.ADDITIONAL_INFO);
         } else {
-            setShowAdditionalInfoModal(false);
+            closeModal(MODAL_TYPES.ADDITIONAL_INFO);
         }
-    }, [user]);
+    }, [user, openModal, closeModal, MODAL_TYPES]);
 
     // 방 삭제 실시간 동기화: 관리자가 유저를 삭제하면 rooms 구독으로 감지
     useEffect(() => {
@@ -148,9 +181,11 @@ export default function App() {
     }, [roomGuests, user?.selectedRoom, user?.sessionId, showCancelledModal, roomsLoading]);
 
     // 기본 층 설정 (사용자 등록 전)
-    if (selectedFloor === null) {
-        setSelectedFloor(floors[0]);
-    }
+    useEffect(() => {
+        if (selectedFloor === null) {
+            setSelectedFloor(floors[0]);
+        }
+    }, [selectedFloor, setSelectedFloor]);
 
     // 페이지 로드 시 대기 중인 초대 확인 (기존 사용자용)
     useEffect(() => {
@@ -531,166 +566,127 @@ export default function App() {
                     roomTypeFilter={roomTypeFilter}
                 />
 
-                {/* 등록 모달 */}
-                {showRegistrationModal && (
-                    <RegistrationModal
-                        onClose={() => setShowRegistrationModal(false)}
-                    />
-                )}
-
-                {/* 추가 정보 입력 모달 */}
-                {showAdditionalInfoModal && user && (
-                    <AdditionalInfoModal
-                        user={user}
-                        onUpdate={(updatedData) => {
-                            updateUser(updatedData);
-                            setShowAdditionalInfoModal(false);
-
-                            // 성별에 맞는 층으로 자동 이동
-                            if (updatedData.gender) {
-                                const defaultFloor = floors.find(f => floorInfo[f].gender === updatedData.gender);
-                                if (defaultFloor) {
-                                    setSelectedFloor(defaultFloor);
-                                }
-                            }
-                        }}
-                    />
-                )}
-
-                {/* 룸메이트 초대 모달 */}
-                {pendingInvitation && (
-                    <InvitationModal
-                        invitation={pendingInvitation}
-                        onAccept={handleAcceptInvitation}
-                        onReject={handleRejectInvitation}
-                        isLoading={invitationLoading}
-                    />
-                )}
-
-                {/* 내 방 정보 모달 */}
-                {showMyRoomModal && user?.locked && (
-                    <MyRoomModal
-                        user={user}
-                        roomGuests={roomGuests}
-                        onRequestChange={async (requestData) => {
-                            await createRoomChangeRequest(requestData);
-                        }}
-                        onClose={() => setShowMyRoomModal(false)}
-                    />
-                )}
-
-                {/* 선택 확인 모달 */}
-                {selectedRoomForConfirm && user && (
-                    <SelectionModal
-                        roomNumber={selectedRoomForConfirm}
-                        roomStatus={getRoomStatus(selectedRoomForConfirm, user.gender, false)}
-                        user={user}
-                        onConfirm={handleConfirmSelection}
-                        onCancel={() => setSelectedRoomForConfirm(null)}
-                    />
-                )}
-
-                {/* 매칭 경고 모달 */}
-                {showWarningModal && (
-                    <MatchingWarningModal
-                        warnings={warningContent}
-                        onConfirm={handleWarningConfirmed}
-                        onCancel={() => {
-                            setShowWarningModal(false);
-                            setPendingSelection(null);
-                        }}
-                    />
-                )}
-
-                {/* 대기 모달 (Guest) */}
-                {mySentRequest && (
-                    <WaitingApprovalModal
-                        onCancel={() => cancelRequest(mySentRequest.id)}
-                    />
-                )}
-
-                {/* 요청 수신 모달 (Host) */}
-                {requests.received.length > 0 && (
-                    <JoinRequestModal
-                        request={requests.received[0]}
-                        onAccept={() => acceptRequest(requests.received[0].id, requests.received[0])}
-                        onReject={() => rejectRequest(requests.received[0].id)}
-                    />
-                )}
-
-                {/* 방 배정 취소 알림 모달 */}
-                {showCancelledModal && (
-                    <div className="fixed inset-0 z-[200] flex items-center justify-center p-4">
-                        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm" />
-                        <div className="relative bg-white rounded-2xl p-8 max-w-md w-full text-center shadow-2xl">
-                            <div className="w-16 h-16 bg-amber-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                                <span className="text-3xl">⚠️</span>
-                            </div>
-                            <h2 className="text-xl font-bold text-gray-800 mb-3">
-                                방 배정이 취소되었습니다
-                            </h2>
-                            <p className="text-gray-600 mb-6">
-                                관리자에 의해 방 배정이 취소되었습니다.<br />
-                                사이트를 새로고침해주세요.
-                            </p>
-                            <button
-                                onClick={async () => {
-                                    // DB 및 로컬 상태를 '미배정'으로 강제 복구 (무한 루프 방지)
-                                    if (updateUser) {
-                                        await updateUser({ selectedRoom: null, locked: false });
-                                    }
-                                    window.location.reload();
-                                }}
-                                className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-semibold transition-colors"
-                            >
-                                🔄 상태 복구 및 새로고침
-                            </button>
-                        </div>
-                    </div>
-                )}
-
-                {/* 1인실 안내 모달 */}
-                {showSingleRoomModal && (
-                    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-                        <div
-                            className="fixed inset-0 bg-black/50"
-                            onClick={() => setShowSingleRoomModal(false)}
+                {/* Lazy loaded 모달들 (Suspense 필요) */}
+                <Suspense fallback={<div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30"><div className="animate-spin w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full" /></div>}>
+                    {/* 등록 모달 */}
+                    {showRegistrationModal && (
+                        <RegistrationModal
+                            onClose={() => setShowRegistrationModal(false)}
                         />
-                        <div className="relative bg-white rounded-2xl p-8 max-w-md w-full text-center shadow-2xl">
-                            <div className="w-16 h-16 bg-amber-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                                <span className="text-3xl">🏨</span>
-                            </div>
-                            <h2 className="text-xl font-bold text-gray-800 mb-3">
-                                1인실 안내
-                            </h2>
-                            <p className="text-gray-600 mb-6">
-                                1인실은 별도 홈페이지에서 신청 후<br />
-                                관리자가 직접 추가합니다.
-                            </p>
-                            <button
-                                onClick={() => setShowSingleRoomModal(false)}
-                                className="w-full py-3 bg-slate-700 hover:bg-slate-800 text-white rounded-xl font-semibold transition-colors"
-                            >
-                                확인
-                            </button>
-                        </div>
-                    </div>
-                )}
+                    )}
 
-                {/* 검색 모달 */}
-                {showSearchModal && (
-                    <SearchModal
-                        roomGuests={roomGuests}
-                        onClose={() => setShowSearchModal(false)}
-                        onRoomClick={(roomNumber) => {
-                            // 해당 층으로 이동
-                            const room = roomData[roomNumber];
-                            if (room) {
-                                setSelectedFloor(room.floor);
-                            }
-                        }}
-                    />
-                )}
+                    {/* 추가 정보 입력 모달 */}
+                    {showAdditionalInfoModal && user && (
+                        <AdditionalInfoModal
+                            user={user}
+                            onUpdate={(updatedData) => {
+                                updateUser(updatedData);
+                                setShowAdditionalInfoModal(false);
+
+                                // 성별에 맞는 층으로 자동 이동
+                                if (updatedData.gender) {
+                                    const defaultFloor = floors.find(f => floorInfo[f].gender === updatedData.gender);
+                                    if (defaultFloor) {
+                                        setSelectedFloor(defaultFloor);
+                                    }
+                                }
+                            }}
+                        />
+                    )}
+
+                    {/* 룸메이트 초대 모달 */}
+                    {pendingInvitation && (
+                        <InvitationModal
+                            invitation={pendingInvitation}
+                            onAccept={handleAcceptInvitation}
+                            onReject={handleRejectInvitation}
+                            isLoading={invitationLoading}
+                        />
+                    )}
+
+                    {/* 내 방 정보 모달 */}
+                    {showMyRoomModal && user?.locked && (
+                        <MyRoomModal
+                            user={user}
+                            roomGuests={roomGuests}
+                            onRequestChange={async (requestData) => {
+                                await createRoomChangeRequest(requestData);
+                            }}
+                            onClose={() => setShowMyRoomModal(false)}
+                        />
+                    )}
+
+                    {/* 선택 확인 모달 */}
+                    {selectedRoomForConfirm && user && (
+                        <SelectionModal
+                            roomNumber={selectedRoomForConfirm}
+                            roomStatus={getRoomStatus(selectedRoomForConfirm, user.gender, false)}
+                            user={user}
+                            onConfirm={handleConfirmSelection}
+                            onCancel={() => setSelectedRoomForConfirm(null)}
+                        />
+                    )}
+
+                    {/* 매칭 경고 모달 */}
+                    {showWarningModal && (
+                        <MatchingWarningModal
+                            warnings={warningContent}
+                            onConfirm={handleWarningConfirmed}
+                            onCancel={() => {
+                                setShowWarningModal(false);
+                                setPendingSelection(null);
+                            }}
+                        />
+                    )}
+
+                    {/* 대기 모달 (Guest) */}
+                    {mySentRequest && (
+                        <WaitingApprovalModal
+                            onCancel={() => cancelRequest(mySentRequest.id)}
+                        />
+                    )}
+
+                    {/* 요청 수신 모달 (Host) */}
+                    {requests.received.length > 0 && (
+                        <JoinRequestModal
+                            request={requests.received[0]}
+                            onAccept={() => acceptRequest(requests.received[0].id, requests.received[0])}
+                            onReject={() => rejectRequest(requests.received[0].id)}
+                        />
+                    )}
+
+                    {/* 방 배정 취소 알림 모달 */}
+                    {showCancelledModal && (
+                        <CancelledModal
+                            onRecoverAndReload={async () => {
+                                if (updateUser) {
+                                    await updateUser({ selectedRoom: null, locked: false });
+                                }
+                                window.location.reload();
+                            }}
+                        />
+                    )}
+
+                    {/* 1인실 안내 모달 */}
+                    {showSingleRoomModal && (
+                        <SingleRoomInfoModal onClose={() => setShowSingleRoomModal(false)} />
+                    )}
+
+                    {/* 검색 모달 */}
+                    {showSearchModal && (
+                        <SearchModal
+                            roomGuests={roomGuests}
+                            onClose={() => setShowSearchModal(false)}
+                            onRoomClick={(roomNumber) => {
+                                // 해당 층으로 이동
+                                const room = roomData[roomNumber];
+                                if (room) {
+                                    setSelectedFloor(room.floor);
+                                }
+                            }}
+                        />
+                    )}
+                </Suspense>
 
                 {/* 플로팅 검색 버튼 */}
                 <button

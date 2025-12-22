@@ -49,11 +49,10 @@
             ".write": "auth != null"
         },
         "otp_requests": {
-            ".read": false,
-            ".write": true,
             "$emailKey": {
                 ".read": "auth != null",
-                ".write": "auth != null"
+                ".write": "auth != null",
+                ".validate": "newData.hasChildren(['hashedCode', 'expiresAt', 'attempts'])"
             }
         }
     }
