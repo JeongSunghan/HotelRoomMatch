@@ -84,6 +84,26 @@ export default function RegistrationModal({ onClose }) {
                 return;
             }
 
+            // 1-1. 기존 계정인 경우, LocalStorage 세션으로 자동 로그인 시도
+            if (result.alreadyRegistered && result.user) {
+                const savedSession = localStorage.getItem(STORAGE_KEYS.USER);
+                if (savedSession) {
+                    try {
+                        const parsed = JSON.parse(savedSession);
+                        // 같은 이메일이고 PassKey가 만료되지 않았으면 자동 로그인
+                        if (parsed.email === email && parsed.passKey && parsed.passKeyExpires > Date.now()) {
+                            console.log('[DEBUG] Step 1-1: 기존 세션 발견 - 자동 로그인 처리');
+                            window.location.reload();
+                            return;
+                        }
+                    } catch (e) {
+                        console.log('[DEBUG] Step 1-1: 세션 파싱 실패, OTP 진행');
+                    }
+                }
+                // LocalStorage에 세션이 없거나 다른 기기인 경우 → OTP 진행
+                console.log('[DEBUG] Step 1-1: 기존 계정이지만 세션 없음 - OTP 발송');
+            }
+
             // 2. OTP 생성 (서버에 해시로 저장됨) 및 이메일 전송
             console.log('[DEBUG] Step 2: Creating OTP request...');
             const code = await createOtpRequest(email);

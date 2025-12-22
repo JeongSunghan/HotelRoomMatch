@@ -114,9 +114,11 @@ export function useUser() {
         // 저장된 사용자 정보 로드 및 세션 유효성 확인
         const loadAndValidateUser = async () => {
             const savedUser = localStorage.getItem(STORAGE_KEY);
+            console.log('[DEBUG] Session Load: savedUser exists?', !!savedUser);
             if (savedUser) {
                 try {
                     const parsed = JSON.parse(savedUser);
+                    console.log('[DEBUG] Session Load: parsed sessionId:', parsed.sessionId);
 
                     // 세션 ID 형식 검증 (보안 강화)
                     if (parsed.sessionId && !isValidSessionId(parsed.sessionId)) {
