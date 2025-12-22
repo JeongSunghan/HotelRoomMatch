@@ -4,6 +4,7 @@ import { getAuth, signInAnonymously } from 'firebase/auth';
 import { database, ref, update } from '../../firebase/config';
 import { STORAGE_KEYS, SESSION_EXPIRY_MS } from '../../utils/constants';
 import emailjs from '@emailjs/browser';
+import debug from '../../utils/debug';
 
 export default function RegistrationModal({ onClose }) {
     const [step, setStep] = useState('input'); // input | verify
@@ -65,19 +66,19 @@ export default function RegistrationModal({ onClose }) {
 
         try {
             // 0. Firebase Rules 통과를 위한 익명 인증 (아직 미인증 상태일 수 있음)
-            console.log('[DEBUG] Step 0: Starting anonymous auth...');
+            debug.log('Step 0: Starting anonymous auth...');
             const auth = getAuth();
             if (!auth.currentUser) {
                 await signInAnonymously(auth);
-                console.log('[DEBUG] Step 0: Anonymous auth SUCCESS');
+                debug.log('Step 0: Anonymous auth SUCCESS');
             } else {
-                console.log('[DEBUG] Step 0: Already authenticated');
+                debug.log('Step 0: Already authenticated');
             }
 
             // 1. 사전등록 확인
-            console.log('[DEBUG] Step 1: Verifying user...');
+            debug.log('Step 1: Verifying user...');
             const result = await verifyUser(email);
-            console.log('[DEBUG] Step 1: verifyUser result:', result);
+            debug.log('Step 1: verifyUser result:', result);
             if (!result.valid) {
                 setError(result.message);
                 setIsSubmitting(false);
@@ -92,22 +93,22 @@ export default function RegistrationModal({ onClose }) {
                         const parsed = JSON.parse(savedSession);
                         // 같은 이메일이고 PassKey가 만료되지 않았으면 자동 로그인
                         if (parsed.email === email && parsed.passKey && parsed.passKeyExpires > Date.now()) {
-                            console.log('[DEBUG] Step 1-1: 기존 세션 발견 - 자동 로그인 처리');
+                            debug.log('Step 1-1: 기존 세션 발견 - 자동 로그인 처리');
                             window.location.reload();
                             return;
                         }
                     } catch (e) {
-                        console.log('[DEBUG] Step 1-1: 세션 파싱 실패, OTP 진행');
+                        debug.log('Step 1-1: 세션 파싱 실패, OTP 진행');
                     }
                 }
                 // LocalStorage에 세션이 없거나 다른 기기인 경우 → OTP 진행
-                console.log('[DEBUG] Step 1-1: 기존 계정이지만 세션 없음 - OTP 발송');
+                debug.log('Step 1-1: 기존 계정이지만 세션 없음 - OTP 발송');
             }
 
             // 2. OTP 생성 (서버에 해시로 저장됨) 및 이메일 전송
-            console.log('[DEBUG] Step 2: Creating OTP request...');
+            debug.log('Step 2: Creating OTP request...');
             const code = await createOtpRequest(email);
-            console.log('[DEBUG] Step 2: OTP created successfully');
+            debug.log('Step 2: OTP created successfully');
 
             const serviceId = import.meta.env.VITE_EMAILJS_SERVICE_ID;
             const templateId = import.meta.env.VITE_EMAILJS_TEMPLATE_ID;
@@ -118,22 +119,22 @@ export default function RegistrationModal({ onClose }) {
                 console.warn('EmailJS keys missing. Dev mode OTP:', code);
                 alert(`[Dev Mode] EmailJS 키가 없습니다. \nOTP: ${code}`);
             } else {
-                console.log('[DEBUG] Step 3: Sending email...');
+                debug.log('Step 3: Sending email...');
                 await emailjs.send(serviceId, templateId, {
                     to_email: email,
                     otp_code: code,
                     message: '인증번호를 입력하여 로그인을 완료해주세요.'
                 }, publicKey);
-                console.log('[DEBUG] Step 3: Email sent successfully');
+                debug.log('Step 3: Email sent successfully');
             }
 
             setStep('verify');
             setTimeLeft(180); // 3분 리셋
 
         } catch (err) {
-            console.error('[DEBUG] Error occurred:', err);
-            console.error('[DEBUG] Error message:', err.message);
-            console.error('[DEBUG] Error code:', err.code);
+            debug.error('Error occurred:', err);
+            debug.error('Error message:', err.message);
+            debug.error('Error code:', err.code);
             setError('메일 발송 실패. 이메일 주소를 확인하거나 관리자에게 문의하세요.');
         } finally {
             setIsSubmitting(false);

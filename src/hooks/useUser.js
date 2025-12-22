@@ -3,6 +3,7 @@ import { getGenderFromResidentId } from '../utils/genderUtils';
 import { STORAGE_KEYS, SESSION_EXPIRY_MS } from '../utils/constants';
 import { sanitizeUserData, isValidSessionId } from '../utils/sanitize';
 import { subscribeToAuthState, adminSignIn, adminSignOut, isFirebaseInitialized, checkGuestInRoom } from '../firebase/index';
+import debug from '../utils/debug';
 
 const STORAGE_KEY = STORAGE_KEYS.USER;
 
@@ -114,15 +115,15 @@ export function useUser() {
         // 저장된 사용자 정보 로드 및 세션 유효성 확인
         const loadAndValidateUser = async () => {
             const savedUser = localStorage.getItem(STORAGE_KEY);
-            console.log('[DEBUG] Session Load: savedUser exists?', !!savedUser);
+            debug.log('Session Load: savedUser exists?', !!savedUser);
             if (savedUser) {
                 try {
                     const parsed = JSON.parse(savedUser);
-                    console.log('[DEBUG] Session Load: parsed sessionId:', parsed.sessionId);
+                    debug.log('Session Load: parsed sessionId:', parsed.sessionId);
 
                     // 세션 ID 형식 검증 (보안 강화)
                     if (parsed.sessionId && !isValidSessionId(parsed.sessionId)) {
-                        console.log('세션 ID 형식 유효성 검사 실패 -> 로그아웃 처리');
+                        debug.log('세션 ID 형식 유효성 검사 실패 -> 로그아웃 처리');
                         localStorage.removeItem(STORAGE_KEY);
                         setUser(null);
                         setIsLoading(false);
@@ -133,7 +134,7 @@ export function useUser() {
                     if (parsed.registeredAt) {
                         const sessionAge = Date.now() - parsed.registeredAt;
                         if (sessionAge > SESSION_EXPIRY_MS) {
-                            console.log('세션 만료됨 (확인 24시간 경과) -> 로그아웃 처리');
+                            debug.log('세션 만료됨 (30일 경과) -> 로그아웃 처리');
                             localStorage.removeItem(STORAGE_KEY);
                             setUser(null);
                             setIsLoading(false);
@@ -149,7 +150,7 @@ export function useUser() {
                         if (!auth.currentUser) {
                             try {
                                 await signInAnonymously(auth);
-                                console.log('Firebase Auth 익명 인증 복원 완료');
+                                debug.log('Firebase Auth 익명 인증 복원 완료');
                             } catch (authError) {
                                 console.error('Firebase Auth 복원 실패:', authError);
                             }
@@ -160,7 +161,7 @@ export function useUser() {
                         const dbUser = await getUser(parsed.sessionId);
 
                         if (!dbUser) {
-                            console.log('세션 유효성 검사 실패: 유저 없음 -> 로그아웃 처리');
+                            debug.log('세션 유효성 검사 실패: 유저 없음 -> 로그아웃 처리');
                             localStorage.removeItem(STORAGE_KEY);
                             setUser(null);
                             setIsLoading(false);
@@ -170,7 +171,7 @@ export function useUser() {
                         // 2. PassKey 검증 (보안 강화)
                         if (parsed.passKey) {
                             if (dbUser.passKey !== parsed.passKey) {
-                                console.log('PassKey 불일치 -> 로그아웃 처리');
+                                debug.log('PassKey 불일치 -> 로그아웃 처리');
                                 localStorage.removeItem(STORAGE_KEY);
                                 setUser(null);
                                 setIsLoading(false);
@@ -179,7 +180,7 @@ export function useUser() {
 
                             // PassKey 만료 체크 (30일)
                             if (parsed.passKeyExpires && Date.now() > parsed.passKeyExpires) {
-                                console.log('PassKey 만료됨 -> 로그아웃 처리');
+                                debug.log('PassKey 만료됨 -> 로그아웃 처리');
                                 localStorage.removeItem(STORAGE_KEY);
                                 setUser(null);
                                 setIsLoading(false);
