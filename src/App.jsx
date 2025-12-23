@@ -177,6 +177,13 @@ export default function App() {
     const [invitationLoading, setInvitationLoading] = useState(false);
     const [rejectionNotification, setRejectionNotification] = useState(null);
 
+    // 방 배정 시 펜딩 초대 리셋
+    useEffect(() => {
+        if (user?.selectedRoom && pendingInvitation) {
+            setPendingInvitation(null);
+        }
+    }, [user?.selectedRoom, pendingInvitation]);
+
     // 방 배정 취소 알림 모달
     const [showCancelledModal, setShowCancelledModal] = useState(false);
 
@@ -499,8 +506,8 @@ export default function App() {
                         />
                     )}
 
-                    {/* 룸메이트 초대 모달 */}
-                    {pendingInvitation && (
+                    {/* 룸메이트 초대 모달 - 방 미배정 사용자에게만 표시 */}
+                    {pendingInvitation && !user?.selectedRoom && (
                         <InvitationModal
                             invitation={pendingInvitation}
                             onAccept={handleAcceptInvitation}
