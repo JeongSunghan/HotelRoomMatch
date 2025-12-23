@@ -5,6 +5,7 @@ import {
     deleteUserCompletely
 } from '../../firebase/index';
 import { SNORING_LABELS } from '../../utils/constants';
+import { useToast } from '../ui/Toast';
 
 /**
  * 유저 관리 탭 (관리자용)
@@ -19,6 +20,7 @@ export default function UserManagementTab() {
     const [editForm, setEditForm] = useState({});
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [deleteConfirm, setDeleteConfirm] = useState(null);
+    const toast = useToast();
 
     // 유저 목록 실시간 구독
     useEffect(() => {
@@ -68,9 +70,9 @@ export default function UserManagementTab() {
 
             await adminUpdateUser(editingUser.sessionId, updates);
             setEditingUser(null);
-            alert('유저 정보가 수정되었습니다.');
+            toast.success('유저 정보가 수정되었습니다.');
         } catch (error) {
-            alert('수정 실패: ' + error.message);
+            toast.error('수정 실패: ' + error.message);
         } finally {
             setIsSubmitting(false);
         }
@@ -88,13 +90,13 @@ export default function UserManagementTab() {
             );
 
             if (result.success) {
-                alert('유저가 삭제되었습니다. (재가입 가능)');
+                toast.success('유저가 삭제되었습니다. (재가입 가능)');
                 setDeleteConfirm(null);
             } else {
-                alert('삭제 실패: ' + result.message);
+                toast.error('삭제 실패: ' + result.message);
             }
         } catch (error) {
-            alert('삭제 실패: ' + error.message);
+            toast.error('삭제 실패: ' + error.message);
         } finally {
             setIsSubmitting(false);
         }

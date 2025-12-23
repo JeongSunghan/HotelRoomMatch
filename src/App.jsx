@@ -4,10 +4,9 @@ import FloorSelector from './components/ui/FloorSelector';
 import RoomGrid from './components/room/RoomGrid';
 import { useUser } from './hooks/useUser';
 import { useRooms } from './hooks/useRooms';
+import { useRoomSelection } from './hooks/useRoomSelection';
 import { useUI } from './contexts/UIContext';
-import { floors, floorInfo, roomData } from './data/roomData';
-import { sanitizeName } from './utils/sanitize';
-import { checkCompatibility } from './utils/matchingUtils';
+import { floors, floorInfo } from './data/roomData';
 import { useJoinRequests } from './hooks/useJoinRequests';
 import {
     checkPendingInvitations,
@@ -15,9 +14,15 @@ import {
     rejectInvitation,
     createRoommateInvitation,
     subscribeToMyInvitations,
-    createRoomChangeRequest,
-    logGuestAdd
+    createRoomChangeRequest
 } from './firebase/index';
+import { useToast } from './components/ui/Toast';
+import {
+    requestNotificationPermission,
+    notifyRequestAccepted,
+    notifyRequestRejected,
+    notifyJoinRequest
+} from './utils/notifications';
 
 // Lazy loaded 모달 컴포넌트들 (초기 번들 크기 감소)
 const RegistrationModal = lazy(() => import('./components/auth/RegistrationModal'));
@@ -86,6 +91,8 @@ export default function App() {
     const showSingleRoomModal = modals[MODAL_TYPES.SINGLE_ROOM];
     const showSearchModal = modals[MODAL_TYPES.SEARCH];
     const showWarningModal = modals[MODAL_TYPES.WARNING];
+    // Toast 알림
+    const toast = useToast();
 
     // setter 래퍼 함수 (기존 코드 호환용)
     const setShowRegistrationModal = (val) => val ? openModal(MODAL_TYPES.REGISTRATION) : closeModal(MODAL_TYPES.REGISTRATION);
@@ -113,6 +120,26 @@ export default function App() {
         REQUEST_STATUS
     } = useJoinRequests(user?.sessionId);
 
+    // 객실 선택 로직 Hook
+    const {
+        handleRoomClick,
+        handleConfirmSelection,
+        handleWarningConfirmed
+    } = useRoomSelection({
+        user,
+        roomGuests,
+        addGuestToRoom,
+        selectUserRoom,
+        sendRequest,
+        setShowRegistrationModal,
+        setSelectedRoomForConfirm,
+        setWarningContent,
+        setPendingSelection,
+        setShowWarningModal,
+        pendingSelection,
+        warningContent
+    });
+
     // 내 요청 상태 감지 (Guest)
     const mySentRequest = requests.sent.find(r => r.status === REQUEST_STATUS.PENDING);
 
@@ -122,17 +149,26 @@ export default function App() {
 
         const rejectedReq = requests.sent.find(r => r.status === REQUEST_STATUS.REJECTED);
         if (rejectedReq) {
-            alert('룸메이트가 요청을 거절했습니다.');
+            toast.warning('룸메이트가 요청을 거절했습니다.');
+            notifyRequestRejected();
             cleanup(rejectedReq.id);
+            // 모달들 닫기
+            setSelectedRoomForConfirm(null);
+            setShowWarningModal(false);
+            setPendingSelection(null);
         }
 
         const acceptedReq = requests.sent.find(r => r.status === REQUEST_STATUS.ACCEPTED);
         if (acceptedReq) {
-            alert('입장이 승인되었습니다!');
+            toast.success('입장이 승인되었습니다!');
+            notifyRequestAccepted(acceptedReq.toRoomNumber);
             cleanup(acceptedReq.id);
-            // 승인되면 useRooms가 업데이트되어 자동으로 반영됨
+            // 모달들 닫기
+            setSelectedRoomForConfirm(null);
+            setShowWarningModal(false);
+            setPendingSelection(null);
         }
-    }, [requests.sent, user, cleanup]);
+    }, [requests.sent, user, cleanup, toast]);
 
     // 초대 시스템 상태
     const [pendingInvitation, setPendingInvitation] = useState(null);
@@ -281,7 +317,7 @@ export default function App() {
             selectUserRoom(roomNumber);
             setPendingInvitation(null);
         } catch (error) {
-            alert(error.message || '초대 수락에 실패했습니다.');
+            toast.error(error.message || '초대 수락에 실패했습니다.');
         } finally {
             setInvitationLoading(false);
         }
@@ -321,149 +357,6 @@ export default function App() {
             }
         } finally {
             setAdminLoginLoading(false);
-        }
-    };
-
-    // 객실 클릭 (클라이언트 보안 강화)
-    const handleRoomClick = (roomNumber) => {
-        // 1. 유저 등록 여부 확인
-        if (!user) {
-            setShowRegistrationModal(true);
-            return;
-        }
-
-        // 2. 이미 방 배정됨 확인 (클라이언트 재검증)
-        if (user.locked || user.selectedRoom) {
-            console.warn('보안: 이미 배정된 유저가 방 클릭 시도');
-            return;
-        }
-
-        // 3. 성별 불일치 확인 (클라이언트 재검증)
-        const room = roomData[roomNumber];
-        if (room && room.gender !== user.gender) {
-            console.warn('보안: 성별 불일치 방 클릭 시도');
-            return;
-        }
-
-        setSelectedRoomForConfirm(roomNumber);
-    };
-
-    // 실제 객실 배정 실행 (경고 승인 후)
-    const performSelection = async (roomNumber, roommateInfo = {}, warningDetails = null) => {
-        try {
-            // Firebase에 저장 (서버에서 추가 검증)
-            await addGuestToRoom(roomNumber, {
-                name: user.name,
-                company: user.company || '',
-                gender: user.gender,
-                age: user.age,
-                sessionId: user.sessionId,
-                registeredAt: Date.now(),
-                snoring: user.snoring || 'no' // 코골이 정보 추가
-            });
-
-            // 히스토리 로깅 (경고 내용 포함)
-            await logGuestAdd(roomNumber, {
-                name: user.name,
-                company: user.company,
-                sessionId: user.sessionId
-            }, 'user', warningDetails);
-
-            // 룸메이트 초대 생성 (이름 sanitize 적용)
-            if (roommateInfo.hasRoommate && roommateInfo.roommateName) {
-                await createRoommateInvitation(
-                    { ...user, roomNumber },
-                    sanitizeName(roommateInfo.roommateName)
-                );
-            }
-
-            // 사용자 상태 업데이트
-            selectUserRoom(roomNumber);
-            setSelectedRoomForConfirm(null);
-            setPendingSelection(null);
-        } catch (error) {
-            // 서버 측 검증 실패 시 사용자에게 알림
-            alert(error.message || '객실 선택에 실패했습니다.');
-            setSelectedRoomForConfirm(null);
-            setPendingSelection(null);
-        }
-    };
-
-    // 객실 선택 확정 (클라이언트 보안 강화 + 매칭 검증)
-    const handleConfirmSelection = async (roomNumber, roommateInfo = {}) => {
-        // 1. 유저 검증
-        if (!user) return;
-
-        // 2. 이미 배정됨 재검증
-        if (user.locked || user.selectedRoom) {
-            console.warn('보안: 이미 배정된 유저가 확정 시도');
-            alert('이미 객실이 배정되어 있습니다.');
-            setSelectedRoomForConfirm(null);
-            return;
-        }
-
-        // 3. 성별 불일치 재검증
-        const room = roomData[roomNumber];
-        if (room && room.gender !== user.gender) {
-            console.warn('보안: 성별 불일치 확정 시도');
-            alert('성별이 맞지 않는 객실입니다.');
-            setSelectedRoomForConfirm(null);
-            return;
-        }
-
-        // 4. 매칭 적합성 검사 (Check Compatibility)
-        const currentGuests = roomGuests[roomNumber] || [];
-        const roommate = Array.isArray(currentGuests) ? currentGuests[0] : Object.values(currentGuests)[0];
-
-        if (roommate) {
-            const warnings = checkCompatibility(user, roommate);
-            if (warnings.length > 0) {
-                setWarningContent(warnings);
-                setPendingSelection({ roomNumber, roommateInfo });
-                setShowWarningModal(true);
-                // 모달에서 '동의' 시 handleWarningConfirmed 호출
-                return;
-            }
-        }
-
-        // 5. 경고 사항 없으면 바로 실행
-        performSelection(roomNumber, roommateInfo);
-    };
-
-    const handleWarningConfirmed = async () => {
-        if (pendingSelection) {
-            // "동의하고 승인 요청" 클릭 시 -> 요청 생성
-            const { roomNumber, roommateInfo } = pendingSelection;
-
-            // 기존 룸메이트 찾기
-            const currentGuests = roomGuests[roomNumber] || [];
-            const roommate = Array.isArray(currentGuests) ? currentGuests[0] : Object.values(currentGuests)[0];
-
-            if (!roommate) {
-                // 룸메이트가 없는데 경고가 떴다? (이상 상황)
-                performSelection(roomNumber, roommateInfo);
-                return;
-            }
-
-            await sendRequest({
-                fromUserId: user.sessionId,
-                fromUserName: user.name,
-                toRoomNumber: roomNumber,
-                toUserId: roommate.sessionId,
-                warnings: warningContent,
-                guestInfo: {
-                    name: user.name,
-                    company: user.company || '',
-                    gender: user.gender,
-                    age: user.age,
-                    sessionId: user.sessionId,
-                    registeredAt: Date.now(),
-                    snoring: user.snoring || 'no'
-                }
-            });
-
-            setShowWarningModal(false);
-            setPendingSelection(null);
         }
     };
 
@@ -655,8 +548,11 @@ export default function App() {
                                     await acceptRequest(requests.received[0].id, requests.received[0]);
                                     // 수락 완료 후 요청 정리
                                     await cleanup(requests.received[0].id);
+                                    // 객실 선택 모달이 열려있으면 닫기
+                                    setSelectedRoomForConfirm(null);
+                                    toast.success('입실 요청을 수락했습니다.');
                                 } catch (error) {
-                                    alert('수락 처리 중 오류: ' + error.message);
+                                    toast.error('수락 처리 중 오류: ' + error.message);
                                 }
                             }}
                             onReject={async () => {
@@ -664,7 +560,7 @@ export default function App() {
                                     await rejectRequest(requests.received[0].id);
                                     // 거절 후 요청은 Guest 측에서 cleanup 함
                                 } catch (error) {
-                                    alert('거절 처리 중 오류: ' + error.message);
+                                    toast.error('거절 처리 중 오류: ' + error.message);
                                 }
                             }}
                         />

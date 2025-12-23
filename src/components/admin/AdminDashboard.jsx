@@ -24,6 +24,8 @@ import HistoryTab from './HistoryTab';
 import DeadlineSettings from './DeadlineSettings';
 import AllowedUsersTab from './AllowedUsersTab';
 import UserManagementTab from './UserManagementTab';
+import { useConfirm } from '../ui/ConfirmModal';
+import { useToast } from '../ui/Toast';
 
 /**
  * 관리자 대시보드 (페이지 전체 레이아웃)
@@ -43,6 +45,8 @@ export default function AdminDashboard({
     const [changeRequests, setChangeRequests] = useState([]);
     const [inquiries, setInquiries] = useState([]);
     const [showCsvModal, setShowCsvModal] = useState(false);
+    const confirm = useConfirm();
+    const toast = useToast();
 
     // 방 수정 요청 구독
     useEffect(() => {
@@ -126,10 +130,11 @@ export default function AdminDashboard({
             else if (request.type === 'change' && request.currentRoom && request.targetRoom && request.sessionId) {
                 const exists = await checkGuestInRoom(request.currentRoom, request.sessionId);
                 if (!exists) {
-                    const proceed = window.confirm(
-                        '⚠️ 경고: 해당 유저는 이미 현재 방에 존재하지 않습니다.\n' +
-                        '그래도 요청을 "완료" 상태로 변경하시겠습니까?'
-                    );
+                    const proceed = await confirm.show({
+                        title: '경고',
+                        message: '해당 유저는 이미 현재 방에 존재하지 않습니다.\n그래도 요청을 "완료" 상태로 변경하시겠습니까?',
+                        type: 'warning'
+                    });
                     if (!proceed) return;
                 } else {
                     const currentRoomGuests = roomGuests[request.currentRoom] || [];

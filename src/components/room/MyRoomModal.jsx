@@ -3,6 +3,7 @@ import { roomData } from '../../data/roomData';
 import { getGenderLabel } from '../../utils/genderUtils';
 import { updateUser } from '../../firebase/index';
 import { SNORING_LABELS } from '../../utils/constants';
+import { useToast } from '../ui/Toast';
 
 export default function MyRoomModal({
     user,
@@ -21,6 +22,7 @@ export default function MyRoomModal({
         company: user?.company || '',
         ageTolerance: user?.ageTolerance || 5
     });
+    const toast = useToast();
 
     if (!user?.selectedRoom) return null;
 
@@ -38,7 +40,7 @@ export default function MyRoomModal({
 
     const handleSubmitRequest = async () => {
         if (!phoneNumber.trim()) {
-            alert('연락처를 입력해주세요.');
+            toast.warning('연락처를 입력해주세요.');
             return;
         }
 
@@ -56,10 +58,10 @@ export default function MyRoomModal({
             const message = requestType === 'cancel'
                 ? '배정 취소 요청이 전송되었습니다. 담당자가 연락드릴 예정입니다.'
                 : '방 수정 요청이 전송되었습니다. 담당자가 연락드릴 예정입니다.';
-            alert(message);
+            toast.success(message);
             onClose();
         } catch (error) {
-            alert('요청 전송에 실패했습니다.');
+            toast.error('요청 전송에 실패했습니다.');
         } finally {
             setIsSubmitting(false);
         }
@@ -76,10 +78,10 @@ export default function MyRoomModal({
                 company: editForm.company.trim(),
                 ageTolerance: parseInt(editForm.ageTolerance) || 5
             });
-            alert('정보가 수정되었습니다.');
+            toast.success('정보가 수정되었습니다.');
             setShowEditProfile(false);
         } catch (error) {
-            alert('수정 실패: ' + error.message);
+            toast.error('수정 실패: ' + error.message);
         } finally {
             setIsSubmitting(false);
         }

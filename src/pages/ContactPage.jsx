@@ -75,7 +75,7 @@ export default function ContactPage() {
             <header className="bg-white shadow px-6 py-4 flex items-center justify-between sticky top-0 z-10">
                 <div className="flex items-center gap-3">
                     <button onClick={() => window.location.href = '/'} className="text-2xl">
-                        🔙
+                        ⬅️
                     </button>
                     <h1 className="text-xl font-bold text-gray-800">1:1 문의사항</h1>
                 </div>
@@ -94,6 +94,7 @@ export default function ContactPage() {
                         >
                             ✏️ 문의하기
                         </button>
+                        {/* 25.12.22 - 해당 부분에서 답변이 등록이 되면, 실시간으로 확인이 안됌 */}
                         <button
                             onClick={() => setActiveTab('list')}
                             className={`flex-1 py-4 font-medium transition-colors ${activeTab === 'list'
