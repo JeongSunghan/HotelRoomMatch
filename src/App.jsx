@@ -23,6 +23,8 @@ import {
     notifyRequestRejected,
     notifyJoinRequest
 } from './utils/notifications';
+import { set, ref } from 'firebase/database';
+import { database } from './firebase/config';
 
 // Lazy loaded 모달 컴포넌트들 (초기 번들 크기 감소)
 const RegistrationModal = lazy(() => import('./components/auth/RegistrationModal'));
@@ -384,7 +386,17 @@ export default function App() {
                                 </p>
                             </div>
                             <button
-                                onClick={() => setRejectionNotification(null)}
+                                onClick={async () => {
+                                    // DB에서 초대 삭제 (다시 나타나지 않도록)
+                                    if (rejectionNotification.id && database) {
+                                        try {
+                                            await set(ref(database, `roommateInvitations/${rejectionNotification.id}`), null);
+                                        } catch (e) {
+                                            console.error('Failed to delete invitation:', e);
+                                        }
+                                    }
+                                    setRejectionNotification(null);
+                                }}
                                 className="text-red-500 hover:text-red-700"
                             >
                                 ✕
@@ -504,6 +516,12 @@ export default function App() {
                             roomGuests={roomGuests}
                             onRequestChange={async (requestData) => {
                                 await createRoomChangeRequest(requestData);
+                            }}
+                            onReinvite={async (roommateName) => {
+                                await createRoommateInvitation(
+                                    { ...user, roomNumber: user.selectedRoom },
+                                    roommateName
+                                );
                             }}
                             onClose={() => setShowMyRoomModal(false)}
                         />

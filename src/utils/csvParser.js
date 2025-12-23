@@ -1,5 +1,6 @@
 /**
  * CSV 파싱 유틸리티
+ * 쉼표(,) 또는 탭(\t) 구분자 지원
  */
 
 /**
@@ -13,8 +14,12 @@ export function parseCSV(csvText) {
         throw new Error('CSV 파일에 데이터가 없습니다.');
     }
 
+    // 구분자 자동 감지 (탭 vs 쉼표)
+    const firstLine = lines[0];
+    const delimiter = firstLine.includes('\t') ? '\t' : ',';
+
     // 헤더 파싱 (첫 줄)
-    const headers = lines[0].split(',').map(h => h.trim().toLowerCase());
+    const headers = parseCSVLine(firstLine, delimiter).map(h => h.trim().toLowerCase());
 
     // 필수 헤더 확인
     const requiredHeaders = ['이름', 'name'];
@@ -32,7 +37,7 @@ export function parseCSV(csvText) {
         const line = lines[i].trim();
         if (!line) continue;
 
-        const values = parseCSVLine(line);
+        const values = parseCSVLine(line, delimiter);
         const row = {};
 
         headers.forEach((header, idx) => {
@@ -59,9 +64,11 @@ export function parseCSV(csvText) {
 }
 
 /**
- * CSV 라인 파싱 (쉼표, 따옴표 처리)
+ * CSV 라인 파싱 (쉼표/탭, 따옴표 처리)
+ * @param {string} line - CSV 라인
+ * @param {string} delimiter - 구분자 (, 또는 \t)
  */
-function parseCSVLine(line) {
+function parseCSVLine(line, delimiter = ',') {
     const result = [];
     let current = '';
     let inQuotes = false;
@@ -71,7 +78,7 @@ function parseCSVLine(line) {
 
         if (char === '"') {
             inQuotes = !inQuotes;
-        } else if (char === ',' && !inQuotes) {
+        } else if (char === delimiter && !inQuotes) {
             result.push(current);
             current = '';
         } else {

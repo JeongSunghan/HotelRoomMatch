@@ -9,9 +9,11 @@ export default function MyRoomModal({
     user,
     roomGuests,
     onRequestChange,
+    onReinvite,
     onClose
 }) {
     const [showRequestForm, setShowRequestForm] = useState(false);
+    const [showReinviteForm, setShowReinviteForm] = useState(false);
     const [showEditProfile, setShowEditProfile] = useState(false);
     const [requestType, setRequestType] = useState('change'); // 'change' or 'cancel'
     const [phoneNumber, setPhoneNumber] = useState('');
@@ -22,6 +24,7 @@ export default function MyRoomModal({
         company: user?.company || '',
         ageTolerance: user?.ageTolerance || 5
     });
+    const [reinviteName, setReinviteName] = useState('');
     const toast = useToast();
 
     if (!user?.selectedRoom) return null;
@@ -82,6 +85,29 @@ export default function MyRoomModal({
             setShowEditProfile(false);
         } catch (error) {
             toast.error('수정 실패: ' + error.message);
+        } finally {
+            setIsSubmitting(false);
+        }
+    };
+
+    // 룸메이트 재초대
+    const handleReinvite = async () => {
+        if (!reinviteName.trim()) {
+            toast.warning('룸메이트 이름을 입력해주세요.');
+            return;
+        }
+        if (reinviteName.trim().length < 2) {
+            toast.warning('이름은 2자 이상 입력해주세요.');
+            return;
+        }
+        setIsSubmitting(true);
+        try {
+            await onReinvite(reinviteName.trim());
+            toast.success(`${reinviteName.trim()}님에게 초대를 보냈습니다.`);
+            setReinviteName('');
+            setShowReinviteForm(false);
+        } catch (error) {
+            toast.error('초대 전송 실패: ' + error.message);
         } finally {
             setIsSubmitting(false);
         }
@@ -163,11 +189,53 @@ export default function MyRoomModal({
                                 </div>
                             </div>
                         ) : room?.capacity === 2 && (
-                            <div className="flex items-center gap-3 p-3 bg-gray-50 border border-gray-200 rounded-lg">
-                                <div className="w-8 h-8 bg-gray-300 rounded-full flex items-center justify-center text-white text-sm">
-                                    ?
+                            <div className="space-y-3">
+                                <div className="flex items-center gap-3 p-3 bg-gray-50 border border-gray-200 rounded-lg">
+                                    <div className="w-8 h-8 bg-gray-300 rounded-full flex items-center justify-center text-white text-sm">
+                                        ?
+                                    </div>
+                                    <p className="text-gray-500 text-sm">룸메이트 대기 중...</p>
                                 </div>
-                                <p className="text-gray-500 text-sm">룸메이트 대기 중...</p>
+                                {/* 재초대 버튼 */}
+                                {onReinvite && !showReinviteForm && (
+                                    <button
+                                        onClick={() => setShowReinviteForm(true)}
+                                        className="w-full py-2 px-4 bg-purple-100 text-purple-700 rounded-lg text-sm font-medium hover:bg-purple-200 transition-colors"
+                                    >
+                                        👥 룸메이트 초대하기
+                                    </button>
+                                )}
+                                {/* 재초대 폼 */}
+                                {showReinviteForm && (
+                                    <div className="p-3 bg-purple-50 border border-purple-200 rounded-lg">
+                                        <p className="text-sm font-medium text-purple-800 mb-2">👥 룸메이트 초대</p>
+                                        <input
+                                            type="text"
+                                            value={reinviteName}
+                                            onChange={(e) => setReinviteName(e.target.value)}
+                                            placeholder="룸메이트 이름"
+                                            className="input-field mb-2"
+                                        />
+                                        <div className="flex gap-2">
+                                            <button
+                                                onClick={() => {
+                                                    setShowReinviteForm(false);
+                                                    setReinviteName('');
+                                                }}
+                                                className="flex-1 py-2 btn-secondary rounded-lg text-sm"
+                                            >
+                                                취소
+                                            </button>
+                                            <button
+                                                onClick={handleReinvite}
+                                                disabled={isSubmitting}
+                                                className="flex-1 py-2 bg-purple-600 text-white rounded-lg text-sm font-medium hover:bg-purple-700 disabled:opacity-50"
+                                            >
+                                                {isSubmitting ? '전송중...' : '초대'}
+                                            </button>
+                                        </div>
+                                    </div>
+                                )}
                             </div>
                         )}
                     </div>

@@ -133,7 +133,7 @@ export async function adminUpdateUser(sessionId, updates) {
 
 /**
  * 유저 완전 삭제 (탈퇴 처리)
- * users, allowedUsers, rooms, otp_requests 모두에서 제거
+ * users, allowedUsers, rooms, otp_requests, roommateInvitations, joinRequests 모두에서 제거
  * @param {string} sessionId - 유저 세션 ID
  * @param {string} email - 유저 이메일
  * @returns {Promise<{success: boolean, message: string}>}
@@ -190,6 +190,28 @@ export async function deleteUserCompletely(sessionId, email) {
             const emailKey = btoa(email.toLowerCase()).replace(/=/g, '');
             const otpRef = ref(database, `otp_requests/${emailKey}`);
             await set(otpRef, null);
+        }
+
+        // 6. 해당 유저와 관련된 초대 삭제 (보낸 것 + 받은 것)
+        const invitationsRef = ref(database, 'roommateInvitations');
+        const invSnapshot = await get(invitationsRef);
+        const invitations = invSnapshot.val() || {};
+
+        for (const [id, inv] of Object.entries(invitations)) {
+            if (inv.inviterSessionId === sessionId || inv.acceptorSessionId === sessionId) {
+                await set(ref(database, `roommateInvitations/${id}`), null);
+            }
+        }
+
+        // 7. 해당 유저와 관련된 입실 요청 삭제
+        const requestsRef = ref(database, 'joinRequests');
+        const reqSnapshot = await get(requestsRef);
+        const requests = reqSnapshot.val() || {};
+
+        for (const [id, req] of Object.entries(requests)) {
+            if (req.fromUserId === sessionId || req.toUserId === sessionId) {
+                await set(ref(database, `joinRequests/${id}`), null);
+            }
         }
 
         return { success: true, message: '유저가 완전히 삭제되었습니다.' };

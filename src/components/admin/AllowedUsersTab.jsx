@@ -79,10 +79,19 @@ export default function AllowedUsersTab() {
         }
     };
 
-    // CSV 파싱
+    // CSV 파싱 (쉼표 또는 탭 지원)
     const parseCSV = (text) => {
         const lines = text.trim().split(/\r?\n/);
         const users = [];
+
+        // 구분자 자동 감지 (첫 데이터 줄 기준)
+        const firstDataLine = lines.find((line, i) => {
+            const trimmed = line.trim();
+            if (!trimmed) return false;
+            if (i === 0 && (trimmed.includes('이름') || trimmed.toLowerCase().includes('name'))) return false;
+            return true;
+        }) || lines[0];
+        const delimiter = firstDataLine.includes('\t') ? '\t' : ',';
 
         for (let i = 0; i < lines.length; i++) {
             const line = lines[i].trim();
@@ -93,7 +102,7 @@ export default function AllowedUsersTab() {
                 continue;
             }
 
-            const parts = line.split(',').map(p => p.trim().replace(/"/g, ''));
+            const parts = line.split(delimiter).map(p => p.trim().replace(/"/g, ''));
             if (parts.length >= 2) {
                 users.push({
                     name: parts[0],
@@ -300,8 +309,8 @@ export default function AllowedUsersTab() {
 
                         <div className="info-box mb-4">
                             <p className="text-blue-700 text-sm font-medium">📋 CSV 형식</p>
-                            <p className="text-blue-600 text-xs mt-1">이름,이메일,소속(선택)</p>
-                            <p className="text-blue-500 text-xs">예: 홍길동,hero@example.com,ABC회사</p>
+                            <p className="text-blue-600 text-xs mt-1">이름, 이메일, 소속(선택) - 쉼표 또는 탭으로 구분</p>
+                            <p className="text-blue-500 text-xs">엑셀에서 복사하면 탭으로 자동 인식됩니다.</p>
                         </div>
 
                         <textarea
