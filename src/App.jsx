@@ -187,6 +187,9 @@ export default function App() {
     // 방 배정 취소 알림 모달
     const [showCancelledModal, setShowCancelledModal] = useState(false);
 
+    // 검색 결과 하이라이트
+    const [highlightedRoom, setHighlightedRoom] = useState(null);
+
     // 사용자 성별에 맞는 기본 층 설정 (초기 진입 시)
     useEffect(() => {
         if (user?.gender && selectedFloor === null) {
@@ -476,6 +479,7 @@ export default function App() {
                     onSingleRoomClick={() => setShowSingleRoomModal(true)}
                     canUserSelect={canSelect}
                     roomTypeFilter={roomTypeFilter}
+                    highlightedRoom={highlightedRoom}
                 />
 
                 {/* Lazy loaded 모달들 (Suspense 필요) */}
@@ -618,6 +622,9 @@ export default function App() {
                                 const room = roomData[roomNumber];
                                 if (room) {
                                     setSelectedFloor(room.floor);
+                                    // 하이라이트 효과
+                                    setHighlightedRoom(roomNumber);
+                                    setTimeout(() => setHighlightedRoom(null), 3000);
                                 }
                             }}
                         />

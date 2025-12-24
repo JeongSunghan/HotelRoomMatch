@@ -5,8 +5,30 @@ import { database, ref, onValue, set, update, get } from './config';
 import { selectRoom } from './rooms';
 import { INVITATION_EXPIRY_MS } from '../utils/constants';
 
+/**
+ * 룸메이트 초대 생성
+ * @param {Object} inviterData - 초대자 정보 (roomNumber, sessionId, name, gender 등)
+ * @param {string} inviteeName - 초대 대상 이름
+ */
 export async function createRoommateInvitation(inviterData, inviteeName) {
     if (!database) return null;
+
+    // 초대 대상이 이미 방에 배정되어 있는지 확인
+    const allRoomsRef = ref(database, 'rooms');
+    const allRoomsSnapshot = await get(allRoomsRef);
+    const allRooms = allRoomsSnapshot.val() || {};
+
+    for (const [roomNumber, roomInfo] of Object.entries(allRooms)) {
+        let guests = roomInfo.guests || [];
+        if (!Array.isArray(guests)) {
+            guests = Object.values(guests);
+        }
+
+        // 초대 대상 이름이 이미 방에 배정되어 있는지 확인
+        if (guests.some(g => g.name === inviteeName.trim())) {
+            throw new Error(`${inviteeName}님은 이미 다른 객실(${roomNumber}호)에 배정되어 있습니다.`);
+        }
+    }
 
     const newInvitationRef = ref(database, `roommateInvitations/${Date.now()}`);
 
@@ -24,6 +46,26 @@ export async function createRoommateInvitation(inviterData, inviteeName) {
     await set(newInvitationRef, invitation);
     return invitation;
 }
+
+/**
+ * 유저가 방에서 나갈 때 해당 유저가 보낸 초대 정리
+ * @param {string} sessionId - 유저 세션 ID
+ */
+export async function cleanupUserInvitations(sessionId) {
+    if (!database) return;
+
+    const invitationsRef = ref(database, 'roommateInvitations');
+    const snapshot = await get(invitationsRef);
+    const data = snapshot.val() || {};
+
+    for (const [id, invitation] of Object.entries(data)) {
+        // 해당 유저가 보낸 pending 초대 삭제
+        if (invitation.inviterSessionId === sessionId && invitation.status === 'pending') {
+            await set(ref(database, `roommateInvitations/${id}`), null);
+        }
+    }
+}
+
 
 export async function checkPendingInvitations(userName) {
     if (!database) return [];

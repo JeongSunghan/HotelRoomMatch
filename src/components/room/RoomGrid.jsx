@@ -14,7 +14,8 @@ export default function RoomGrid({
     onSingleRoomClick,  // 1인실 클릭 시 안내 모달
     canUserSelect,
     isAdmin,
-    roomTypeFilter = 'all'  // 'all', 'twin', 'single'
+    roomTypeFilter = 'all',  // 'all', 'twin', 'single'
+    highlightedRoom = null   // 검색 결과 하이라이트
 }) {
     // 해당 층의 객실 가져오기
     const floorRooms = useMemo(() => {
@@ -95,6 +96,7 @@ export default function RoomGrid({
                                         onClick={onRoomClick}
                                         onSingleRoomClick={onSingleRoomClick}
                                         isAdmin={isAdmin}
+                                        isHighlighted={highlightedRoom === roomNumber}
                                     />
                                 );
                             })}

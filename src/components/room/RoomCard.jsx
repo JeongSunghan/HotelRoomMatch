@@ -9,7 +9,8 @@ export default function RoomCard({
     canSelect,
     onClick,
     onSingleRoomClick,  // 1인실 클릭 시 안내 모달 표시
-    isAdmin
+    isAdmin,
+    isHighlighted = false  // 검색 결과 하이라이트
 }) {
     const { guests, guestCount, capacity, roomType, roomGender, isLocked } = status;
 
@@ -71,6 +72,7 @@ export default function RoomCard({
                 room-card p-4 rounded-lg cursor-pointer
                 ${getCardStyle()}
                 ${!isClickable && 'cursor-not-allowed'}
+                ${isHighlighted && 'ring-4 ring-yellow-400 ring-offset-2 animate-pulse shadow-lg shadow-yellow-200'}
             `}
         >
             {/* 방 번호 */}

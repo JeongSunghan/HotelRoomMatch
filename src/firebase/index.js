@@ -36,7 +36,8 @@ export {
     rejectInvitation,
     subscribeToMyInvitations,
     cancelInvitation,
-    markInvitationNotified
+    markInvitationNotified,
+    cleanupUserInvitations
 } from './invitations';
 
 // Requests
