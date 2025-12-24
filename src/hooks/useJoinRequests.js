@@ -1,3 +1,8 @@
+/**
+ * 입실 요청 관리 훅
+ * - 입실 요청 생성/수락/거절/취소
+ * - 실시간 요청 상태 구독
+ */
 import { useState, useEffect, useCallback } from 'react';
 import {
     subscribeToJoinRequests,

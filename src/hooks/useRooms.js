@@ -1,3 +1,8 @@
+/**
+ * 객실 상태 관리 훅
+ * - Firebase 실시간 구독 또는 로컬 스토리지 폴백
+ * - 객실 선택/해제, 상태 조회, 통계 제공
+ */
 import { useState, useEffect, useCallback } from 'react';
 import { roomData } from '../data/roomData';
 import { subscribeToRooms, isFirebaseInitialized, selectRoom as firebaseSelectRoom, removeGuestFromRoom as firebaseRemoveGuest } from '../firebase/index';
