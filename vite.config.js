@@ -33,6 +33,13 @@ export default defineConfig({
     // 이미지 최적화
     optimizeDeps: {
         include: ['react', 'react-dom', 'react-router-dom', 'firebase/app', 'firebase/database']
+    },
+    // Vitest 설정
+    test: {
+        globals: true,
+        environment: 'jsdom',
+        setupFiles: './src/test/setup.js',
+        css: true
     }
 })
 

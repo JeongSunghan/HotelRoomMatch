@@ -80,7 +80,10 @@ export async function checkPendingInvitations(userName) {
     for (const [id, invitation] of Object.entries(data)) {
         // 24시간 지난 pending 초대는 만료 처리
         if (invitation.status === 'pending' && invitation.createdAt && (now - invitation.createdAt) > INVITATION_EXPIRY_MS) {
-            set(ref(database, `roommateInvitations/${id}`), null).catch(() => { });
+            set(ref(database, `roommateInvitations/${id}`), null).catch((error) => {
+                // 만료된 초대 삭제 실패는 무시해도 되는 작업이지만 로깅은 수행
+                console.warn('만료된 초대 삭제 실패 (무시됨):', id, error);
+            });
             continue;
         }
 
@@ -88,7 +91,10 @@ export async function checkPendingInvitations(userName) {
         if ((invitation.status === 'accepted' || invitation.status === 'rejected') && invitation.createdAt) {
             const completedAt = invitation.acceptedAt || invitation.rejectedAt || invitation.createdAt;
             if ((now - completedAt) > INVITATION_EXPIRY_MS) {
-                set(ref(database, `roommateInvitations/${id}`), null).catch(() => { });
+                set(ref(database, `roommateInvitations/${id}`), null).catch((error) => {
+                    // 완료된 초대 삭제 실패는 무시해도 되는 작업이지만 로깅은 수행
+                    console.warn('완료된 초대 삭제 실패 (무시됨):', id, error);
+                });
                 continue;
             }
         }

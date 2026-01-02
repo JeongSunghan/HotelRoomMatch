@@ -58,3 +58,7 @@ firebaserc
 # Temporary files
 *.tmp
 *.temp
+
+# Documentation files (Markdown) - Git에서 제외
+*.md
+!README.md

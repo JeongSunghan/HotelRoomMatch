@@ -5,19 +5,46 @@
 
 const isDev = import.meta.env.DEV;
 
+/**
+ * 구조화된 로그 포맷
+ * @param {string} level - 로그 레벨
+ * @param {Array} args - 로그 인자
+ */
+function formatLog(level, ...args) {
+    const timestamp = new Date().toISOString();
+    const prefix = `[${timestamp}] [${level}]`;
+    
+    if (args.length === 1 && typeof args[0] === 'object') {
+        // 객체인 경우 구조화된 로그
+        return [prefix, args[0]];
+    }
+    // 일반 로그
+    return [prefix, ...args];
+}
+
 export const debug = {
     log: (...args) => {
-        if (isDev) console.log('[DEBUG]', ...args);
+        if (isDev) {
+            const formatted = formatLog('DEBUG', ...args);
+            console.log(...formatted);
+        }
     },
     warn: (...args) => {
-        if (isDev) console.warn('[DEBUG]', ...args);
+        if (isDev) {
+            const formatted = formatLog('WARN', ...args);
+            console.warn(...formatted);
+        }
     },
     error: (...args) => {
         // 에러는 프로덕션에서도 출력 (문제 추적용)
-        console.error('[ERROR]', ...args);
+        const formatted = formatLog('ERROR', ...args);
+        console.error(...formatted);
     },
     info: (...args) => {
-        if (isDev) console.info('[DEBUG]', ...args);
+        if (isDev) {
+            const formatted = formatLog('INFO', ...args);
+            console.info(...formatted);
+        }
     }
 };
 

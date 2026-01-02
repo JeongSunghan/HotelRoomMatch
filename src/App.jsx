@@ -346,7 +346,8 @@ export default function App() {
             });
             setPendingInvitation(null);
         } catch (error) {
-            // 에러 무시
+            // 초대 거절 실패는 사용자 경험에 큰 영향을 주지 않으므로 조용히 로깅
+            console.warn('초대 거절 처리 중 오류 (무시됨):', error);
         } finally {
             setInvitationLoading(false);
         }

@@ -15,7 +15,20 @@ export default class ErrorBoundary extends Component {
     }
 
     componentDidCatch(error, errorInfo) {
-        console.error('ErrorBoundary caught an error:', error, errorInfo);
+        // 구조화된 에러 로깅
+        const errorData = {
+            error: error.toString(),
+            stack: error.stack,
+            componentStack: errorInfo.componentStack,
+            timestamp: new Date().toISOString()
+        };
+        console.error('[ErrorBoundary] 에러 발생:', errorData);
+        
+        // 개발 환경에서만 상세 정보 출력
+        if (process.env.NODE_ENV === 'development') {
+            console.error('원본 에러:', error);
+            console.error('컴포넌트 스택:', errorInfo.componentStack);
+        }
     }
 
     handleReload = () => {

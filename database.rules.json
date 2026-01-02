@@ -1,52 +1,57 @@
 {
     "rules": {
+        "admins": {
+            ".read": "auth != null",
+            ".write": false
+        },
         "rooms": {
             ".read": true,
             ".write": "auth != null"
         },
         "users": {
             ".read": "auth != null",
-            ".write": "auth != null",
             "$sessionId": {
-                ".indexOn": [
-                    "email"
-                ]
+                ".write": "auth != null",
+                ".indexOn": ["email"]
             }
         },
         "allowedUsers": {
             ".read": "auth != null",
-            ".write": "auth != null"
+            ".write": "auth != null && root.child('admins').child(auth.uid).exists()"
         },
         "roommateInvitations": {
             ".read": "auth != null",
-            ".write": "auth != null"
+            "$invitationId": {
+                ".write": "auth != null"
+            }
         },
         "join_requests": {
             ".read": "auth != null",
-            ".write": "auth != null",
             "$requestId": {
-                ".validate": "newData.hasChildren(['fromUserId', 'toRoomNumber'])"
-            },
-            ".indexOn": [
-                "toUserId",
-                "fromUserId"
-            ]
+                ".write": "auth != null",
+                ".validate": "newData.hasChildren(['fromUserId', 'toRoomNumber'])",
+                ".indexOn": ["toUserId", "fromUserId"]
+            }
         },
         "roomChangeRequests": {
             ".read": "auth != null",
-            ".write": "auth != null"
+            "$requestId": {
+                ".write": "auth != null"
+            }
         },
         "inquiries": {
-            ".read": "auth != null",
-            ".write": "auth != null"
+            ".read": "auth != null && root.child('admins').child(auth.uid).exists()",
+            "$inquiryId": {
+                ".write": "auth != null"
+            }
         },
         "history": {
-            ".read": "auth != null",
-            ".write": "auth != null"
+            ".read": "auth != null && root.child('admins').child(auth.uid).exists()",
+            ".write": "auth != null && root.child('admins').child(auth.uid).exists()"
         },
         "settings": {
             ".read": true,
-            ".write": "auth != null"
+            ".write": "auth != null && root.child('admins').child(auth.uid).exists()"
         },
         "otp_requests": {
             "$emailKey": {
