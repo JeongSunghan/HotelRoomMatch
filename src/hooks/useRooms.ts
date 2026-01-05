@@ -6,22 +6,40 @@
 import { useState, useEffect, useCallback } from 'react';
 import { roomData } from '../data/roomData';
 import { subscribeToRooms, isFirebaseInitialized, selectRoom as firebaseSelectRoom, removeGuestFromRoom as firebaseRemoveGuest } from '../firebase/index';
+import type { RoomGuestsMap, Guest, Gender, RoomStatus, RoomInfo } from '../types';
 
-export function useRooms() {
-    const [roomGuests, setRoomGuests] = useState({});
-    const [isLoading, setIsLoading] = useState(true);
-    const [error, setError] = useState(null);
+interface UseRoomsReturn {
+    roomGuests: RoomGuestsMap;
+    isLoading: boolean;
+    error: string | null;
+    getRoomStatus: (roomNumber: string, userGender: Gender, isAdmin?: boolean) => RoomStatus;
+    addGuestToRoom: (roomNumber: string, guestData: Guest) => Promise<void>;
+    removeGuestFromRoom: (roomNumber: string, sessionId: string) => Promise<void>;
+    getStats: (gender?: Gender | null) => {
+        totalRooms: number;
+        totalCapacity: number;
+        occupiedSlots: number;
+        availableSlots: number;
+        occupancyRate: number;
+    };
+    isFirebaseConnected: boolean;
+}
+
+export function useRooms(): UseRoomsReturn {
+    const [roomGuests, setRoomGuests] = useState<RoomGuestsMap>({});
+    const [isLoading, setIsLoading] = useState<boolean>(true);
+    const [error, setError] = useState<string | null>(null);
 
     useEffect(() => {
         if (isFirebaseInitialized()) {
             const unsubscribe = subscribeToRooms((data) => {
-                const guests = {};
+                const guests: RoomGuestsMap = {};
                 for (const [roomNumber, roomInfo] of Object.entries(data)) {
                     let guestList = roomInfo.guests || [];
                     if (guestList && !Array.isArray(guestList)) {
-                        guestList = Object.values(guestList);
+                        guestList = Object.values(guestList) as Guest[];
                     }
-                    guests[roomNumber] = guestList;
+                    guests[roomNumber] = guestList as Guest[];
                 }
                 setRoomGuests(guests);
                 setIsLoading(false);
@@ -31,7 +49,7 @@ export function useRooms() {
             const savedGuests = localStorage.getItem('vup58_room_guests');
             if (savedGuests) {
                 try {
-                    setRoomGuests(JSON.parse(savedGuests));
+                    setRoomGuests(JSON.parse(savedGuests) as RoomGuestsMap);
                 } catch (e) {
                     // 파싱 실패 무시
                 }
@@ -46,28 +64,40 @@ export function useRooms() {
         }
     }, [roomGuests]);
 
-    const getRoomStatus = useCallback((roomNumber, userGender, isAdmin = false) => {
-        const room = roomData[roomNumber];
+    const getRoomStatus = useCallback((roomNumber: string, userGender: Gender, _isAdmin: boolean = false): RoomStatus => {
+        const room = (roomData as Record<string, RoomInfo>)[roomNumber];
         if (!room) {
-            return { status: 'unknown', canSelect: false, guests: [], isFull: false };
+            return {
+                status: 'unknown',
+                canSelect: false,
+                guests: [],
+                isFull: false,
+                capacity: 0,
+                type: 'double',
+                roomGender: userGender,
+                roomType: '',
+                guestCount: 0
+            };
         }
 
         let guests = roomGuests[roomNumber] || [];
         if (guests && !Array.isArray(guests)) {
-            guests = Object.values(guests);
+            guests = Object.values(guests) as Guest[];
         }
 
         const guestCount = guests.length;
         const isFull = guestCount >= room.capacity;
 
-        const result = {
-            guests,
+        const result: RoomStatus = {
+            guests: guests as Guest[],
             guestCount,
             isFull,
             capacity: room.capacity,
             type: room.type,
             roomGender: room.gender,
-            roomType: room.roomType
+            roomType: room.roomType,
+            status: 'full',
+            canSelect: false
         };
 
         if (room.gender !== userGender) {
@@ -102,8 +132,8 @@ export function useRooms() {
         return { ...result, status: 'full', canSelect: false };
     }, [roomGuests]);
 
-    const addGuestToRoom = useCallback(async (roomNumber, guestData) => {
-        const room = roomData[roomNumber];
+    const addGuestToRoom = useCallback(async (roomNumber: string, guestData: Guest): Promise<void> => {
+        const room = (roomData as Record<string, RoomInfo>)[roomNumber];
         const capacity = room?.capacity || 2;
         const roomGender = room?.gender || null;  // 성별 검증용
 
@@ -112,7 +142,8 @@ export function useRooms() {
                 // 서버 측 검증 강화: capacity와 roomGender 전달
                 await firebaseSelectRoom(roomNumber, guestData, capacity, roomGender);
             } catch (err) {
-                setError(err.message);
+                const errorMessage = err instanceof Error ? err.message : 'Unknown error';
+                setError(errorMessage);
                 throw err; // 에러를 상위로 전파
             }
         } else {
@@ -132,12 +163,13 @@ export function useRooms() {
         }
     }, []);
 
-    const removeGuestFromRoom = useCallback(async (roomNumber, sessionId) => {
+    const removeGuestFromRoom = useCallback(async (roomNumber: string, sessionId: string): Promise<void> => {
         if (isFirebaseInitialized()) {
             try {
                 await firebaseRemoveGuest(roomNumber, sessionId);
             } catch (err) {
-                setError(err.message);
+                const errorMessage = err instanceof Error ? err.message : 'Unknown error';
+                setError(errorMessage);
             }
         } else {
             setRoomGuests(prev => {
@@ -150,15 +182,22 @@ export function useRooms() {
         }
     }, []);
 
-    const getStats = useCallback((gender = null) => {
+    const getStats = useCallback((gender: Gender | null = null): {
+        totalRooms: number;
+        totalCapacity: number;
+        occupiedSlots: number;
+        availableSlots: number;
+        occupancyRate: number;
+    } => {
         let totalRooms = 0;
         let totalCapacity = 0;
         let occupiedSlots = 0;
 
-        for (const [roomNumber, room] of Object.entries(roomData)) {
-            if (gender && room.gender !== gender) continue;
+        for (const [roomNumber, room] of Object.entries(roomData as Record<string, RoomInfo>)) {
+            const roomInfo = room;
+            if (gender && roomInfo.gender !== gender) continue;
             totalRooms++;
-            totalCapacity += room.capacity;
+            totalCapacity += roomInfo.capacity;
             occupiedSlots += (roomGuests[roomNumber] || []).length;
         }
 
@@ -182,3 +221,4 @@ export function useRooms() {
         isFirebaseConnected: isFirebaseInitialized()
     };
 }
+

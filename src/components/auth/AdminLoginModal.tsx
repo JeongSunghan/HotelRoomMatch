@@ -1,10 +1,17 @@
-import { useState } from 'react';
+import { useState, FormEvent, ChangeEvent } from 'react';
 
-export default function AdminLoginModal({ onLogin, onClose, isLoading, error }) {
-    const [email, setEmail] = useState('');
-    const [password, setPassword] = useState('');
+interface AdminLoginModalProps {
+    onLogin: (email: string, password: string) => void;
+    onClose: () => void;
+    isLoading?: boolean;
+    error?: string | null;
+}
 
-    const handleSubmit = (e) => {
+export default function AdminLoginModal({ onLogin, onClose, isLoading = false, error }: AdminLoginModalProps) {
+    const [email, setEmail] = useState<string>('');
+    const [password, setPassword] = useState<string>('');
+
+    const handleSubmit = (e: FormEvent<HTMLFormElement>): void => {
         e.preventDefault();
         if (email.trim() && password) {
             onLogin(email.trim(), password);
@@ -38,7 +45,7 @@ export default function AdminLoginModal({ onLogin, onClose, isLoading, error }) 
                         <input
                             type="email"
                             value={email}
-                            onChange={(e) => setEmail(e.target.value)}
+                            onChange={(e: ChangeEvent<HTMLInputElement>) => setEmail(e.target.value)}
                             placeholder="admin@example.com"
                             className="input-field"
                             required
@@ -53,7 +60,7 @@ export default function AdminLoginModal({ onLogin, onClose, isLoading, error }) 
                         <input
                             type="password"
                             value={password}
-                            onChange={(e) => setPassword(e.target.value)}
+                            onChange={(e: ChangeEvent<HTMLInputElement>) => setPassword(e.target.value)}
                             placeholder="••••••••"
                             className="input-field"
                             required
@@ -83,3 +90,4 @@ export default function AdminLoginModal({ onLogin, onClose, isLoading, error }) 
         </div>
     );
 }
+

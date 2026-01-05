@@ -5,14 +5,25 @@ import {
     rejectInvitation,
     subscribeToMyInvitations
 } from '../firebase/index';
+import type { User, RoommateInvitation } from '../types';
+
+interface UseInvitationReturn {
+    pendingInvitation: RoommateInvitation | null;
+    isLoading: boolean;
+    rejectionNotification: RoommateInvitation | null;
+    checkForInvitations: (userName: string) => Promise<RoommateInvitation[]>;
+    handleAccept: () => Promise<string | undefined>;
+    handleReject: () => Promise<void>;
+    dismissRejectionNotification: () => void;
+}
 
 /**
  * 룸메이트 초대 관련 로직을 관리하는 훅
  */
-export function useInvitation(user, onRoomSelected) {
-    const [pendingInvitation, setPendingInvitation] = useState(null);
-    const [isLoading, setIsLoading] = useState(false);
-    const [rejectionNotification, setRejectionNotification] = useState(null);
+export function useInvitation(user: User | null, onRoomSelected?: (roomNumber: string) => void): UseInvitationReturn {
+    const [pendingInvitation, setPendingInvitation] = useState<RoommateInvitation | null>(null);
+    const [isLoading, setIsLoading] = useState<boolean>(false);
+    const [rejectionNotification, setRejectionNotification] = useState<RoommateInvitation | null>(null);
 
     // 내가 보낸 초대 상태 구독 (거절 알림용)
     useEffect(() => {
@@ -32,7 +43,7 @@ export function useInvitation(user, onRoomSelected) {
     }, [user?.sessionId]);
 
     // 대기 중인 초대 확인
-    const checkForInvitations = useCallback(async (userName) => {
+    const checkForInvitations = useCallback(async (userName: string): Promise<RoommateInvitation[]> => {
         const invitations = await checkPendingInvitations(userName);
         if (invitations.length > 0) {
             setPendingInvitation(invitations[0]); // 첫 번째 초대만 처리
@@ -41,18 +52,15 @@ export function useInvitation(user, onRoomSelected) {
     }, []);
 
     // 초대 수락
-    const handleAccept = useCallback(async () => {
+    const handleAccept = useCallback(async (): Promise<string | undefined> => {
         if (!pendingInvitation || !user) return;
 
         setIsLoading(true);
         try {
-            const roomNumber = await acceptInvitation(pendingInvitation.id, {
+            const roomNumber = await acceptInvitation(pendingInvitation.id!, {
                 name: user.name,
-                company: user.company || '',
                 gender: user.gender,
-                age: user.age,
-                sessionId: user.sessionId,
-                registeredAt: Date.now()
+                sessionId: user.sessionId
             });
 
             // 사용자 상태 업데이트 콜백
@@ -69,12 +77,12 @@ export function useInvitation(user, onRoomSelected) {
     }, [pendingInvitation, user, onRoomSelected]);
 
     // 초대 거절
-    const handleReject = useCallback(async () => {
+    const handleReject = useCallback(async (): Promise<void> => {
         if (!pendingInvitation || !user) return;
 
         setIsLoading(true);
         try {
-            await rejectInvitation(pendingInvitation.id, {
+            await rejectInvitation(pendingInvitation.id!, {
                 sessionId: user.sessionId
             });
             setPendingInvitation(null);
@@ -101,3 +109,5 @@ export function useInvitation(user, onRoomSelected) {
         dismissRejectionNotification
     };
 }
+
+

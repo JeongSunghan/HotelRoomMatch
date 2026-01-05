@@ -1,10 +1,29 @@
 import { getGenderLabel } from '../../utils/genderUtils';
-import { ThemeToggle } from '../../hooks/useTheme.jsx';
+import { ThemeToggle } from '../../hooks/useTheme';
+import type { User, Gender } from '../../types';
+
+interface Stats {
+    male?: {
+        occupiedSlots: number;
+        availableSlots: number;
+    };
+    female?: {
+        occupiedSlots: number;
+        availableSlots: number;
+    };
+}
+
+interface HeaderProps {
+    user: User | null;
+    stats?: Stats | null;
+    isAdmin?: boolean;
+    onUserClick?: () => void;
+}
 
 /**
  * 헤더 컴포넌트 - 화이트 스타일 (수정됨)
  */
-export default function Header({ user, stats, isAdmin, onUserClick }) {
+export default function Header({ user, stats, isAdmin, onUserClick }: HeaderProps) {
     return (
         <header className="card-white rounded-xl p-6 mb-6">
             {/* 타이틀 */}
@@ -127,3 +146,5 @@ export default function Header({ user, stats, isAdmin, onUserClick }) {
         </header>
     );
 }
+
+

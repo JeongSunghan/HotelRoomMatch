@@ -1,8 +1,10 @@
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import type { ReactNode } from 'react';
+
 /**
  * React Query Provider 설정
  * 서버 상태 관리 및 캐싱 설정
  */
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
 // QueryClient 인스턴스 생성
 const queryClient = new QueryClient({
@@ -19,7 +21,11 @@ const queryClient = new QueryClient({
     },
 });
 
-export function QueryProvider({ children }) {
+interface QueryProviderProps {
+    children: ReactNode;
+}
+
+export function QueryProvider({ children }: QueryProviderProps) {
     return (
         <QueryClientProvider client={queryClient}>
             {children}
@@ -28,3 +34,4 @@ export function QueryProvider({ children }) {
 }
 
 export { queryClient };
+

@@ -1,4 +1,15 @@
 import { floors, floorInfo } from '../../data/roomData';
+import type { Gender } from '../../types';
+
+type RoomTypeFilter = 'all' | 'twin' | 'single';
+
+interface FloorSelectorProps {
+    selectedFloor: number;
+    onSelectFloor: (floor: number) => void;
+    userGender: Gender | null;
+    roomTypeFilter: RoomTypeFilter;
+    onRoomTypeFilterChange: (filter: RoomTypeFilter) => void;
+}
 
 /**
  * 층 선택 탭 컴포넌트 - 1인실/2인실 필터 포함
@@ -9,7 +20,7 @@ export default function FloorSelector({
     userGender,
     roomTypeFilter,
     onRoomTypeFilterChange
-}) {
+}: FloorSelectorProps) {
     return (
         <div className="space-y-4 mb-6">
             {/* 객실 타입 필터 */}
@@ -53,10 +64,6 @@ export default function FloorSelector({
                     const isSelected = selectedFloor === floor;
                     const isUserGender = info.gender === userGender;
 
-                    // 필터에 따라 층 표시 여부 결정
-                    const floorHasTwin = info.type === 'twin';
-                    const floorHasSingle = info.type === 'single';
-
                     return (
                         <button
                             key={floor}
@@ -83,3 +90,5 @@ export default function FloorSelector({
         </div>
     );
 }
+
+

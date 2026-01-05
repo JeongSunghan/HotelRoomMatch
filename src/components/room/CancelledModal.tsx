@@ -1,8 +1,12 @@
+interface CancelledModalProps {
+    onRecoverAndReload: () => void;
+}
+
 /**
  * 방 배정 취소 알림 모달
  * 관리자가 사용자를 방에서 삭제했을 때 표시
  */
-export default function CancelledModal({ onRecoverAndReload }) {
+export default function CancelledModal({ onRecoverAndReload }: CancelledModalProps) {
     return (
         <div className="fixed inset-0 z-[200] flex items-center justify-center p-4">
             <div className="fixed inset-0 bg-black/60 backdrop-blur-sm" />
@@ -27,3 +31,4 @@ export default function CancelledModal({ onRecoverAndReload }) {
         </div>
     );
 }
+

@@ -1,13 +1,20 @@
 /**
  * 로딩 스피너 컴포넌트
  */
+interface LoadingSpinnerProps {
+    size?: 'sm' | 'md' | 'lg';
+    text?: string;
+    fullScreen?: boolean;
+    className?: string;
+}
+
 export default function LoadingSpinner({
     size = 'md',
     text = '로딩 중...',
     fullScreen = false,
     className = ''
-}) {
-    const sizeClasses = {
+}: LoadingSpinnerProps) {
+    const sizeClasses: Record<'sm' | 'md' | 'lg', string> = {
         sm: 'w-6 h-6 border-2',
         md: 'w-10 h-10 border-3',
         lg: 'w-16 h-16 border-4'
@@ -36,3 +43,5 @@ export default function LoadingSpinner({
 
     return spinner;
 }
+
+

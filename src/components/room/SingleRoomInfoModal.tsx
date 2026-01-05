@@ -1,8 +1,12 @@
+interface SingleRoomInfoModalProps {
+    onClose: () => void;
+}
+
 /**
  * 1인실 안내 모달
  * 1인실은 별도 신청 후 관리자가 직접 추가함을 안내
  */
-export default function SingleRoomInfoModal({ onClose }) {
+export default function SingleRoomInfoModal({ onClose }: SingleRoomInfoModalProps) {
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
             <div
@@ -30,3 +34,4 @@ export default function SingleRoomInfoModal({ onClose }) {
         </div>
     );
 }
+

@@ -236,3 +236,4 @@ export function isSafeFirebasePath(path: unknown): boolean {
     return !dangerousPatterns.some(pattern => path.includes(pattern));
 }
 
+

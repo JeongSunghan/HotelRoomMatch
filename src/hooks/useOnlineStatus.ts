@@ -4,8 +4,8 @@ import { useState, useEffect } from 'react';
  * 온라인/오프라인 상태 감지 훅
  */
 export function useOnlineStatus() {
-    const [isOnline, setIsOnline] = useState(navigator.onLine);
-    const [wasOffline, setWasOffline] = useState(false);
+    const [isOnline, setIsOnline] = useState<boolean>(navigator.onLine);
+    const [wasOffline, setWasOffline] = useState<boolean>(false);
 
     useEffect(() => {
         const handleOnline = () => {
@@ -32,3 +32,5 @@ export function useOnlineStatus() {
 
     return { isOnline, wasOffline };
 }
+
+

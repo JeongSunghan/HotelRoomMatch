@@ -1,19 +1,61 @@
-import { useState, createContext, useContext, useCallback } from 'react';
+import { useState, createContext, useContext, useCallback, type ReactNode } from 'react';
 
-const ConfirmContext = createContext(null);
+type ConfirmType = 'warning' | 'danger' | 'info';
+
+interface ConfirmState {
+    isOpen: boolean;
+    title: string;
+    message: string;
+    confirmText: string;
+    cancelText: string;
+    type: ConfirmType;
+    onConfirm: (() => void) | null;
+    onCancel: (() => void) | null;
+}
+
+interface ConfirmOptions {
+    title?: string;
+    message?: string;
+    confirmText?: string;
+    cancelText?: string;
+    type?: ConfirmType;
+}
+
+interface ConfirmContextType {
+    show: (options: ConfirmOptions) => Promise<boolean>;
+    warning: (message: string, title?: string) => Promise<boolean>;
+    danger: (message: string, title?: string) => Promise<boolean>;
+    info: (message: string, title?: string) => Promise<boolean>;
+}
+
+interface ConfirmProviderProps {
+    children: ReactNode;
+}
+
+interface ConfirmModalProps {
+    title: string;
+    message: string;
+    confirmText: string;
+    cancelText: string;
+    type: ConfirmType;
+    onConfirm: () => void;
+    onCancel: () => void;
+}
+
+const ConfirmContext = createContext<ConfirmContextType | null>(null);
 
 /**
  * 확인 모달 Provider
  * window.confirm() 대신 사용하는 커스텀 확인 모달
  */
-export function ConfirmProvider({ children }) {
-    const [confirmState, setConfirmState] = useState({
+export function ConfirmProvider({ children }: ConfirmProviderProps) {
+    const [confirmState, setConfirmState] = useState<ConfirmState>({
         isOpen: false,
         title: '',
         message: '',
         confirmText: '확인',
         cancelText: '취소',
-        type: 'warning', // 'warning', 'danger', 'info'
+        type: 'warning',
         onConfirm: null,
         onCancel: null
     });
@@ -24,7 +66,7 @@ export function ConfirmProvider({ children }) {
         confirmText = '확인',
         cancelText = '취소',
         type = 'warning'
-    }) => {
+    }: ConfirmOptions): Promise<boolean> => {
         return new Promise((resolve) => {
             setConfirmState({
                 isOpen: true,
@@ -45,17 +87,17 @@ export function ConfirmProvider({ children }) {
         });
     }, []);
 
-    const confirm = {
+    const confirm: ConfirmContextType = {
         show: showConfirm,
-        warning: (message, title = '경고') => showConfirm({ message, title, type: 'warning' }),
-        danger: (message, title = '주의') => showConfirm({ message, title, type: 'danger', confirmText: '삭제' }),
-        info: (message, title = '확인') => showConfirm({ message, title, type: 'info' })
+        warning: (message: string, title: string = '경고') => showConfirm({ message, title, type: 'warning' }),
+        danger: (message: string, title: string = '주의') => showConfirm({ message, title, type: 'danger', confirmText: '삭제' }),
+        info: (message: string, title: string = '확인') => showConfirm({ message, title, type: 'info' })
     };
 
     return (
         <ConfirmContext.Provider value={confirm}>
             {children}
-            {confirmState.isOpen && (
+            {confirmState.isOpen && confirmState.onConfirm && confirmState.onCancel && (
                 <ConfirmModal
                     title={confirmState.title}
                     message={confirmState.message}
@@ -73,8 +115,8 @@ export function ConfirmProvider({ children }) {
 /**
  * 확인 모달 컴포넌트
  */
-function ConfirmModal({ title, message, confirmText, cancelText, type, onConfirm, onCancel }) {
-    const typeStyles = {
+function ConfirmModal({ title, message, confirmText, cancelText, type, onConfirm, onCancel }: ConfirmModalProps) {
+    const typeStyles: Record<ConfirmType, { icon: string; bg: string; btn: string }> = {
         warning: {
             icon: '⚠️',
             bg: 'bg-amber-100',
@@ -128,10 +170,12 @@ function ConfirmModal({ title, message, confirmText, cancelText, type, onConfirm
 /**
  * useConfirm Hook
  */
-export function useConfirm() {
+export function useConfirm(): ConfirmContextType {
     const context = useContext(ConfirmContext);
     if (!context) {
         throw new Error('useConfirm must be used within a ConfirmProvider');
     }
     return context;
 }
+
+

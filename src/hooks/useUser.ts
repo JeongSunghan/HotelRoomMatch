@@ -1,14 +1,16 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { getGenderFromResidentId } from '../utils/genderUtils';
 import { STORAGE_KEYS, SESSION_EXPIRY_MS } from '../utils/constants';
 import { sanitizeUserData, isValidSessionId } from '../utils/sanitize';
-import { subscribeToAuthState, adminSignIn, adminSignOut, isFirebaseInitialized, checkGuestInRoom } from '../firebase/index';
+import { subscribeToAuthState, adminSignIn, adminSignOut, isFirebaseInitialized } from '../firebase/index';
 import debug from '../utils/debug';
+import type { User, UserRegistrationData, UserUpdateData } from '../types';
+import type { User as FirebaseAuthUser } from 'firebase/auth';
 
 const STORAGE_KEY = STORAGE_KEYS.USER;
 
 // 보안 강화된 세션 ID 생성
-function generateSessionId() {
+function generateSessionId(): string {
     if (typeof crypto !== 'undefined' && crypto.randomUUID) {
         return 'session_' + crypto.randomUUID();
     }
@@ -16,11 +18,27 @@ function generateSessionId() {
     return 'session_' + Math.random().toString(36).substring(2, 15) + Date.now().toString(36);
 }
 
-export function useUser() {
-    const [user, setUser] = useState(null);
-    const [isAdmin, setIsAdmin] = useState(false);
-    const [adminUser, setAdminUser] = useState(null);
-    const [isLoading, setIsLoading] = useState(true);
+interface UseUserReturn {
+    user: User | null;
+    isAdmin: boolean;
+    adminUser: FirebaseAuthUser | null;
+    isLoading: boolean;
+    isRegistered: boolean;
+    canSelect: boolean;
+    registerUser: (userData: UserRegistrationData) => User;
+    updateUser: (newData: UserUpdateData) => Promise<User>;
+    selectRoom: (roomNumber: string) => Promise<User>;
+    loginAdmin: (email: string, password: string) => Promise<FirebaseAuthUser>;
+    logoutAdmin: () => Promise<void>;
+    logout: () => void;
+    isMyRoom: (roomNumber: string) => boolean;
+}
+
+export function useUser(): UseUserReturn {
+    const [user, setUser] = useState<User | null>(null);
+    const [isAdmin, setIsAdmin] = useState<boolean>(false);
+    const [adminUser, setAdminUser] = useState<FirebaseAuthUser | null>(null);
+    const [isLoading, setIsLoading] = useState<boolean>(true);
 
     // Firebase Auth 상태 구독 (Admin)
     useEffect(() => {
@@ -47,7 +65,7 @@ export function useUser() {
 
                 // 이메일이 없으면 (다른 기기에서 연 경우) 사용자에게 물어봄
                 if (!email) {
-                    email = window.prompt('보안을 위해 이메일 확인이 필요합니다.\n링크를 전송받은 이메일 주소를 입력해주세요:');
+                    email = window.prompt('보안을 위해 이메일 확인이 필요합니다.\n링크를 전송받은 이메일 주소를 입력해주세요:') || '';
                 }
 
                 if (email) {
@@ -61,7 +79,7 @@ export function useUser() {
                         const allowedCheck = await verifyUser(email);
                         if (allowedCheck.valid && allowedCheck.user) {
                             const userData = allowedCheck.user;
-                            let sessionUser = null;
+                            let sessionUser: User | null = null;
 
                             // 이미 등록된 유저라면 기존 프로필 복구 시도
                             if (allowedCheck.alreadyRegistered && userData.registeredSessionId) {
@@ -81,13 +99,15 @@ export function useUser() {
                             if (!sessionUser) {
                                 sessionUser = {
                                     sessionId: userData.registeredSessionId || generateSessionId(),
-                                    name: userData.name,
+                                    name: userData.name || '',
                                     email: userData.email, // 이메일 저장
                                     company: userData.company,
                                     // 이미 등록된 상태였는데 복구 실패했다면 일단 locked 풀어줌 (재입력 유도)
                                     locked: false,
                                     selectedRoom: null,
-                                    registeredAt: Date.now()
+                                    registeredAt: Date.now(),
+                                    gender: 'M', // 기본값, 실제로는 등록 시 입력받아야 함
+                                    snoring: 'no'
                                 };
                             }
 
@@ -118,7 +138,7 @@ export function useUser() {
             debug.log('Session Load: savedUser exists?', !!savedUser);
             if (savedUser) {
                 try {
-                    const parsed = JSON.parse(savedUser);
+                    const parsed = JSON.parse(savedUser) as Partial<User> & { sessionId?: string; registeredAt?: number; passKey?: string; passKeyExpires?: number };
                     debug.log('Session Load: parsed sessionId:', parsed.sessionId);
 
                     // 세션 ID 형식 검증 (보안 강화)
@@ -130,7 +150,7 @@ export function useUser() {
                         return;
                     }
 
-                    // 세션 만료 체크 (24시간)
+                    // 세션 만료 체크 (30일)
                     if (parsed.registeredAt) {
                         const sessionAge = Date.now() - parsed.registeredAt;
                         if (sessionAge > SESSION_EXPIRY_MS) {
@@ -193,10 +213,7 @@ export function useUser() {
                                 localStorage.setItem(STORAGE_KEY, JSON.stringify(parsed));
                             }
                         } else {
-                            // 구버전 세션 호환성을 위해 PassKey 없어도 방에 있으면 일단 인정?
-                            // -> 아니요, 보안 정책 변경으로 재인증 유도 권장. 
-                            // -> 일단 유지하되, 추후 강제 로그아웃 고려.
-                            // 여기선 'checkGuestInRoom' 로직을 user 조회로 대체했으므로 OK.
+                            // 구버전 세션 호환성을 위해 PassKey 없어도 방에 있으면 일단 인정
                             // 3. 최신 데이터 동기화 (DB -> Local)
                             // 배정 취소 등으로 DB 상태가 변경되었을 수 있으므로 동기화 필수
                             if (dbUser) {
@@ -206,7 +223,7 @@ export function useUser() {
                         }
                     }
 
-                    setUser(parsed);
+                    setUser(parsed as User);
                 } catch (e) {
                     console.error('세션 복구 오류:', e);
                     localStorage.removeItem(STORAGE_KEY);
@@ -263,7 +280,7 @@ export function useUser() {
             return unsubscribe;
         };
 
-        let unsubscribe = null;
+        let unsubscribe: (() => void) | null = null;
         setupRealtimeSync().then(unsub => {
             unsubscribe = unsub;
         });
@@ -273,22 +290,26 @@ export function useUser() {
         };
     }, [user?.sessionId]);
 
-    const registerUser = useCallback((userData) => {
+    const registerUser = useCallback((userData: UserRegistrationData): User => {
         // 입력값 정리 (XSS 방지)
         const sanitized = sanitizeUserData(userData);
         const { name, company, residentIdBack, age, snoring } = sanitized;
+
+        if (!residentIdBack) {
+            throw new Error('주민번호 뒷자리가 필요합니다.');
+        }
 
         const gender = getGenderFromResidentId(residentIdBack);
         if (!gender) {
             throw new Error('유효하지 않은 주민번호입니다.');
         }
 
-        const newUser = {
+        const newUser: User = {
             sessionId: generateSessionId(),
-            name,
-            company,
+            name: name || undefined, 
+            company: company || undefined,
             gender,
-            age: age || null,
+            age: age || undefined,
             snoring: snoring || 'no',
             // residentIdFront는 보안상 저장하지 않음
             registeredAt: Date.now(),
@@ -302,13 +323,13 @@ export function useUser() {
         return newUser;
     }, []);
 
-    const selectRoom = useCallback(async (roomNumber) => {
-        if (!user) return;
+    const selectRoom = useCallback(async (roomNumber: string): Promise<User> => {
+        if (!user) throw new Error('User not found');
 
         // Async import check
         const { updateUser: dbUpdateUser } = await import('../firebase/index');
 
-        const updatedUser = {
+        const updatedUser: User = {
             ...user,
             selectedRoom: roomNumber,
             selectedAt: Date.now(),
@@ -330,13 +351,13 @@ export function useUser() {
         return updatedUser;
     }, [user]);
 
-    const updateUser = useCallback(async (newData) => {
-        if (!user) return;
+    const updateUser = useCallback(async (newData: UserUpdateData): Promise<User> => {
+        if (!user) throw new Error('User not found');
 
         // Async import check
         const { updateUser: dbUpdateUser } = await import('../firebase/index');
 
-        const updatedUser = {
+        const updatedUser: User = {
             ...user,
             ...newData
         };
@@ -352,27 +373,27 @@ export function useUser() {
         return updatedUser;
     }, [user]);
 
-    const loginAdmin = useCallback(async (email, password) => {
+    const loginAdmin = useCallback(async (email: string, password: string): Promise<FirebaseAuthUser> => {
         const firebaseUser = await adminSignIn(email, password);
         setIsAdmin(true);
         setAdminUser(firebaseUser);
         return firebaseUser;
     }, []);
 
-    const logoutAdmin = useCallback(async () => {
+    const logoutAdmin = useCallback(async (): Promise<void> => {
         await adminSignOut();
         setIsAdmin(false);
         setAdminUser(null);
     }, []);
 
-    const logout = useCallback(() => {
+    const logout = useCallback((): void => {
         localStorage.removeItem(STORAGE_KEY);
         setUser(null);
     }, []);
 
-    const canSelect = user && !user.locked;
+    const canSelect = user ? !user.locked : false;
 
-    const isMyRoom = useCallback((roomNumber) => {
+    const isMyRoom = useCallback((roomNumber: string): boolean => {
         return user?.selectedRoom === roomNumber;
     }, [user]);
 
@@ -392,3 +413,5 @@ export function useUser() {
         isMyRoom
     };
 }
+
+

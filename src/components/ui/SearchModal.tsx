@@ -1,22 +1,40 @@
 import { useState, useMemo } from 'react';
 import { roomData } from '../../data/roomData';
 import { getGenderLabel } from '../../utils/genderUtils';
+import type { RoomGuestsMap, Guest, RoomInfo } from '../../types';
+
+type SearchType = 'all' | 'name' | 'room';
+
+interface SearchResult {
+    type: 'room' | 'guest';
+    roomNumber: string;
+    room: RoomInfo;
+    guest?: Guest;
+    guests: Guest[];
+    matchText: string;
+}
+
+interface SearchModalProps {
+    roomGuests: RoomGuestsMap;
+    onClose: () => void;
+    onRoomClick?: (roomNumber: string) => void;
+}
 
 /**
  * 객실/이름 검색 모달 (유저용)
  */
-export default function SearchModal({ roomGuests, onClose, onRoomClick }) {
-    const [searchQuery, setSearchQuery] = useState('');
-    const [searchType, setSearchType] = useState('all'); // 'all', 'name', 'room'
+export default function SearchModal({ roomGuests, onClose, onRoomClick }: SearchModalProps) {
+    const [searchQuery, setSearchQuery] = useState<string>('');
+    const [searchType, setSearchType] = useState<SearchType>('all'); // 'all', 'name', 'room'
 
     // 검색 결과
-    const searchResults = useMemo(() => {
+    const searchResults = useMemo<SearchResult[]>(() => {
         if (!searchQuery.trim()) return [];
 
         const query = searchQuery.toLowerCase().trim();
-        const results = [];
+        const results: SearchResult[] = [];
 
-        for (const [roomNumber, room] of Object.entries(roomData)) {
+        for (const [roomNumber, room] of Object.entries(roomData as Record<string, RoomInfo>)) {
             const guests = roomGuests[roomNumber] || [];
 
             // 방 번호 검색
@@ -57,7 +75,7 @@ export default function SearchModal({ roomGuests, onClose, onRoomClick }) {
         }).slice(0, 20); // 최대 20개
     }, [searchQuery, searchType, roomGuests]);
 
-    const handleResultClick = (roomNumber) => {
+    const handleResultClick = (roomNumber: string): void => {
         if (onRoomClick) {
             onRoomClick(roomNumber);
         }
@@ -94,11 +112,11 @@ export default function SearchModal({ roomGuests, onClose, onRoomClick }) {
 
                     {/* 검색 타입 필터 */}
                     <div className="flex gap-2 mt-3">
-                        {[
-                            { value: 'all', label: '전체' },
-                            { value: 'name', label: '이름만' },
-                            { value: 'room', label: '방 번호만' },
-                        ].map(opt => (
+                        {([
+                            { value: 'all' as SearchType, label: '전체' },
+                            { value: 'name' as SearchType, label: '이름만' },
+                            { value: 'room' as SearchType, label: '방 번호만' },
+                        ]).map(opt => (
                             <button
                                 key={opt.value}
                                 onClick={() => setSearchType(opt.value)}
@@ -142,7 +160,7 @@ export default function SearchModal({ roomGuests, onClose, onRoomClick }) {
                                                 {result.roomNumber}
                                             </div>
                                             <div>
-                                                {result.type === 'guest' ? (
+                                                {result.type === 'guest' && result.guest ? (
                                                     <>
                                                         <p className="font-medium text-gray-800">
                                                             {result.guest.name}
@@ -180,3 +198,5 @@ export default function SearchModal({ roomGuests, onClose, onRoomClick }) {
         </div>
     );
 }
+
+

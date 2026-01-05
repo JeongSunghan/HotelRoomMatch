@@ -1,9 +1,42 @@
-import { useState, useEffect, useCallback, createContext, useContext } from 'react';
+import { useState, useEffect, useCallback, createContext, useContext, type ReactNode } from 'react';
+
+type ToastType = 'success' | 'error' | 'warning' | 'info';
+
+interface Toast {
+    id: number;
+    message: string;
+    type: ToastType;
+    duration: number;
+}
+
+interface ToastContextType {
+    show: (message: string, type?: ToastType, duration?: number) => number;
+    success: (message: string, duration?: number) => number;
+    error: (message: string, duration?: number) => number;
+    warning: (message: string, duration?: number) => number;
+    info: (message: string, duration?: number) => number;
+}
+
+interface ToastProps {
+    message: string;
+    type?: ToastType;
+    onClose: () => void;
+    duration?: number;
+}
+
+interface ToastContainerProps {
+    toasts: Toast[];
+    removeToast: (id: number) => void;
+}
+
+interface ToastProviderProps {
+    children: ReactNode;
+}
 
 /**
  * Toast 알림 컴포넌트
  */
-export function Toast({ message, type = 'info', onClose, duration = 3000 }) {
+export function Toast({ message, type = 'info', onClose, duration = 3000 }: ToastProps) {
     useEffect(() => {
         if (duration > 0) {
             const timer = setTimeout(onClose, duration);
@@ -11,14 +44,14 @@ export function Toast({ message, type = 'info', onClose, duration = 3000 }) {
         }
     }, [duration, onClose]);
 
-    const typeStyles = {
+    const typeStyles: Record<ToastType, string> = {
         success: 'bg-green-500',
         error: 'bg-red-500',
         warning: 'bg-amber-500',
         info: 'bg-blue-500'
     };
 
-    const icons = {
+    const icons: Record<ToastType, string> = {
         success: '✓',
         error: '✕',
         warning: '⚠',
@@ -49,7 +82,7 @@ export function Toast({ message, type = 'info', onClose, duration = 3000 }) {
 /**
  * Toast 컨테이너 컴포넌트
  */
-export function ToastContainer({ toasts, removeToast }) {
+export function ToastContainer({ toasts, removeToast }: ToastContainerProps) {
     if (toasts.length === 0) return null;
 
     return (
@@ -68,30 +101,30 @@ export function ToastContainer({ toasts, removeToast }) {
 }
 
 // Toast Context
-const ToastContext = createContext(null);
+const ToastContext = createContext<ToastContextType | null>(null);
 
 /**
  * Toast Provider 컴포넌트
  */
-export function ToastProvider({ children }) {
-    const [toasts, setToasts] = useState([]);
+export function ToastProvider({ children }: ToastProviderProps) {
+    const [toasts, setToasts] = useState<Toast[]>([]);
 
-    const addToast = useCallback((message, type = 'info', duration = 3000) => {
+    const addToast = useCallback((message: string, type: ToastType = 'info', duration: number = 3000): number => {
         const id = Date.now();
         setToasts(prev => [...prev, { id, message, type, duration }]);
         return id;
     }, []);
 
-    const removeToast = useCallback((id) => {
+    const removeToast = useCallback((id: number): void => {
         setToasts(prev => prev.filter(t => t.id !== id));
     }, []);
 
-    const toast = {
-        show: (message, type, duration) => addToast(message, type, duration),
-        success: (message, duration) => addToast(message, 'success', duration),
-        error: (message, duration) => addToast(message, 'error', duration),
-        warning: (message, duration) => addToast(message, 'warning', duration),
-        info: (message, duration) => addToast(message, 'info', duration)
+    const toast: ToastContextType = {
+        show: (message: string, type?: ToastType, duration?: number) => addToast(message, type, duration),
+        success: (message: string, duration?: number) => addToast(message, 'success', duration),
+        error: (message: string, duration?: number) => addToast(message, 'error', duration),
+        warning: (message: string, duration?: number) => addToast(message, 'warning', duration),
+        info: (message: string, duration?: number) => addToast(message, 'info', duration)
     };
 
     return (
@@ -105,10 +138,12 @@ export function ToastProvider({ children }) {
 /**
  * Toast 훅
  */
-export function useToast() {
+export function useToast(): ToastContextType {
     const context = useContext(ToastContext);
     if (!context) {
         throw new Error('useToast must be used within a ToastProvider');
     }
     return context;
 }
+
+

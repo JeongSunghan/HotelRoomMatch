@@ -1,20 +1,29 @@
-import { Component } from 'react';
+import { Component, type ReactNode, type ErrorInfo } from 'react';
+
+interface ErrorBoundaryProps {
+    children: ReactNode;
+}
+
+interface ErrorBoundaryState {
+    hasError: boolean;
+    error: Error | null;
+}
 
 /**
  * 에러 바운더리 컴포넌트
  * 하위 컴포넌트에서 발생하는 에러를 포착하고 Fallback UI를 표시합니다.
  */
-export default class ErrorBoundary extends Component {
-    constructor(props) {
+export default class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
+    constructor(props: ErrorBoundaryProps) {
         super(props);
         this.state = { hasError: false, error: null };
     }
 
-    static getDerivedStateFromError(error) {
+    static getDerivedStateFromError(error: Error): ErrorBoundaryState {
         return { hasError: true, error };
     }
 
-    componentDidCatch(error, errorInfo) {
+    componentDidCatch(error: Error, errorInfo: ErrorInfo): void {
         // 구조화된 에러 로깅
         const errorData = {
             error: error.toString(),
@@ -25,17 +34,17 @@ export default class ErrorBoundary extends Component {
         console.error('[ErrorBoundary] 에러 발생:', errorData);
         
         // 개발 환경에서만 상세 정보 출력
-        if (process.env.NODE_ENV === 'development') {
+        if (import.meta.env.DEV) {
             console.error('원본 에러:', error);
             console.error('컴포넌트 스택:', errorInfo.componentStack);
         }
     }
 
-    handleReload = () => {
+    handleReload = (): void => {
         window.location.reload();
     };
 
-    render() {
+    render(): ReactNode {
         if (this.state.hasError) {
             return (
                 <div className="min-h-screen flex items-center justify-center bg-gray-100 p-4">
@@ -56,7 +65,7 @@ export default class ErrorBoundary extends Component {
                         >
                             페이지 새로고침
                         </button>
-                        {process.env.NODE_ENV === 'development' && this.state.error && (
+                        {import.meta.env.DEV && this.state.error && (
                             <details className="mt-4 text-left">
                                 <summary className="cursor-pointer text-sm text-gray-500">
                                     개발자 정보
@@ -74,3 +83,5 @@ export default class ErrorBoundary extends Component {
         return this.props.children;
     }
 }
+
+

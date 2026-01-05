@@ -35,6 +35,27 @@ export type RequestStatus = 'pending' | 'accepted' | 'rejected';
  */
 export type RequestType = 'change' | 'cancel';
 
+/**
+ * 객실 상태 타입
+ */
+export type RoomStatusType = 'unknown' | 'wrong-gender' | 'locked' | 'full' | 'empty' | 'half';
+
+/**
+ * 객실 상태 정보
+ */
+export interface RoomStatus {
+    status: RoomStatusType;
+    canSelect: boolean;
+    guests: Guest[];
+    isFull: boolean;
+    capacity: number;
+    type: RoomType;
+    roomGender: Gender;
+    roomType: string;
+    guestCount: number;
+    isLocked?: boolean;
+}
+
 // ==================== 사용자 관련 ====================
 
 /**
@@ -52,6 +73,9 @@ export interface User {
     registeredAt: number;
     selectedAt?: number;
     ageTolerance?: number;
+    email?: string;
+    passKey?: string;
+    passKeyExpires?: number;
 }
 
 /**
@@ -146,6 +170,8 @@ export interface RoommateInvitation {
     acceptedAt?: number;
     rejectedAt?: number;
     notified?: boolean;
+    acceptorSessionId?: string;
+    rejectorSessionId?: string;
 }
 
 /**
@@ -174,6 +200,9 @@ export interface JoinRequest {
     createdAt: number;
     acceptedAt?: number;
     rejectedAt?: number;
+    warnings?: unknown;
+    guestInfo?: Guest;
+    timestamp?: number;
 }
 
 /**
@@ -190,6 +219,7 @@ export interface RoomChangeRequest {
     status: RequestStatus;
     createdAt: number;
     processedAt?: number;
+    resolvedAt?: number;
 }
 
 // ==================== 관리자 관련 ====================
@@ -198,10 +228,16 @@ export interface RoomChangeRequest {
  * 허용된 사용자 정보 (사전등록)
  */
 export interface AllowedUser {
+    id?: string;
     email: string;
     name?: string;
+    company?: string;
     registered?: boolean;
     registeredAt?: number;
+    registeredSessionId?: string;
+    registeredUid?: string;
+    createdAt?: number;
+    deletedAt?: number;
 }
 
 /**
@@ -216,6 +252,19 @@ export interface HistoryEntry {
     details?: Record<string, unknown>;
     timestamp: number;
     adminId?: string;
+    guestName?: string;
+    guestCompany?: string;
+    guestSessionId?: string;
+    source?: string;
+    warningDetails?: unknown;
+    removedBy?: string;
+    fromRoom?: string;
+    toRoom?: string;
+    oldName?: string;
+    newName?: string;
+    oldCompany?: string;
+    newCompany?: string;
+    createdAt?: string;
 }
 
 /**
@@ -224,13 +273,16 @@ export interface HistoryEntry {
 export interface Inquiry {
     id?: string;
     userId?: string;
+    sessionId?: string;
     userName?: string;
     email?: string;
     subject: string;
     message: string;
     createdAt: number;
     replied?: boolean;
-    repliedAt?: number;
+    reply?: string;
+    replyAt?: number;
+    status?: 'pending' | 'replied';
 }
 
 /**
@@ -270,4 +322,3 @@ export type Callback<T = void> = (data: T) => void;
  * 에러 핸들러 타입
  */
 export type ErrorHandler = (error: Error, context?: Record<string, unknown>) => string;
-
