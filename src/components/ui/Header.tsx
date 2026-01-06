@@ -1,6 +1,7 @@
+import { memo, useCallback } from 'react';
 import { getGenderLabel } from '../../utils/genderUtils';
 import { ThemeToggle } from '../../hooks/useTheme';
-import type { User, Gender } from '../../types';
+import type { User } from '../../types';
 
 interface Stats {
     male?: {
@@ -16,14 +17,18 @@ interface Stats {
 interface HeaderProps {
     user: User | null;
     stats?: Stats | null;
-    isAdmin?: boolean;
     onUserClick?: () => void;
 }
 
 /**
  * 헤더 컴포넌트 - 화이트 스타일 (수정됨)
+ * React.memo로 최적화: props가 변경되지 않으면 리렌더링 방지
  */
-export default function Header({ user, stats, isAdmin, onUserClick }: HeaderProps) {
+const Header = memo(function Header({ user, stats, onUserClick }: HeaderProps) {
+    // 사용자 클릭 핸들러 메모이제이션
+    const handleUserClick = useCallback(() => {
+        onUserClick?.();
+    }, [onUserClick]);
     return (
         <header className="card-white rounded-xl p-6 mb-6">
             {/* 타이틀 */}
@@ -43,37 +48,40 @@ export default function Header({ user, stats, isAdmin, onUserClick }: HeaderProp
                 {/* 사용자 정보 - 개선된 UI */}
                 {user && (
                     <button
-                        onClick={onUserClick}
-                        className={`
-                            flex items-center gap-4 px-5 py-3 rounded-xl border-2 transition-all
-                            ${user.gender === 'M'
-                                ? 'bg-gradient-to-r from-blue-50 to-blue-100 border-blue-300 hover:border-blue-400'
-                                : 'bg-gradient-to-r from-pink-50 to-pink-100 border-pink-300 hover:border-pink-400'}
-                            ${user.locked ? 'cursor-pointer hover:shadow-lg' : 'cursor-default'}
-                        `}
+                        onClick={handleUserClick}
                         disabled={!user.locked}
+                        aria-label={`${user.name}님의 객실 정보 보기`}
+                        aria-disabled={!user.locked}
+                        className={`
+                            flex items-center gap-2 sm:gap-4 px-3 sm:px-5 py-2 sm:py-3 rounded-xl border-2 transition-all
+                            ${user.gender === 'M'
+                                ? 'bg-gradient-to-r from-blue-50 to-blue-100 border-blue-300 hover:border-blue-400 dark:from-blue-900/20 dark:to-blue-800/20 dark:border-blue-700'
+                                : 'bg-gradient-to-r from-pink-50 to-pink-100 border-pink-300 hover:border-pink-400 dark:from-pink-900/20 dark:to-pink-800/20 dark:border-pink-700'}
+                            ${user.locked ? 'cursor-pointer hover:shadow-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:focus:ring-offset-gray-800' : 'cursor-default opacity-60'}
+                            min-h-[44px] touch-manipulation
+                        `}
                     >
                         {/* 아바타 */}
                         <div className={`
-                            w-12 h-12 rounded-full flex items-center justify-center text-xl font-bold text-white
+                            w-10 h-10 sm:w-12 sm:h-12 rounded-full flex items-center justify-center text-lg sm:text-xl font-bold text-white
                             ${user.gender === 'M' ? 'bg-blue-500' : 'bg-pink-500'}
-                        `}>
+                        `} aria-hidden="true">
                             {user.gender === 'M' ? '♂' : '♀'}
                         </div>
 
                         {/* 정보 */}
                         <div className="text-left">
-                            <p className="font-bold text-gray-800 text-lg">{user.name}</p>
-                            <div className="flex items-center gap-2 text-sm">
-                                <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${user.gender === 'M' ? 'bg-blue-200 text-blue-700' : 'bg-pink-200 text-pink-700'
+                            <p className="font-bold text-gray-800 dark:text-gray-100 text-base sm:text-lg">{user.name}</p>
+                            <div className="flex items-center gap-1 sm:gap-2 text-xs sm:text-sm flex-wrap">
+                                <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${user.gender === 'M' ? 'bg-blue-200 text-blue-700 dark:bg-blue-800 dark:text-blue-200' : 'bg-pink-200 text-pink-700 dark:bg-pink-800 dark:text-pink-200'
                                     }`}>
                                     {getGenderLabel(user.gender)}
                                 </span>
                                 {user.age && (
-                                    <span className="text-gray-500">{user.age}세</span>
+                                    <span className="text-gray-500 dark:text-gray-400">{user.age}세</span>
                                 )}
                                 {user.locked && (
-                                    <span className="text-emerald-600 font-medium">✓ {user.selectedRoom}호</span>
+                                    <span className="text-emerald-600 dark:text-emerald-400 font-medium">✓ {user.selectedRoom}호</span>
                                 )}
                             </div>
                         </div>
@@ -87,7 +95,7 @@ export default function Header({ user, stats, isAdmin, onUserClick }: HeaderProp
             </div>
 
             {/* 범례 */}
-            <div className="flex flex-wrap gap-4 mb-4 p-4 bg-gray-50 rounded-lg border border-gray-100">
+            <div className="flex flex-wrap gap-2 sm:gap-4 mb-4 p-3 sm:p-4 bg-gray-50 dark:bg-gray-800/50 rounded-lg border border-gray-100 dark:border-gray-700" role="region" aria-label="객실 상태 범례">
                 <div className="legend-item">
                     <div className="legend-color border-2 border-blue-500 bg-white" />
                     <span className="text-gray-600">남성 빈 방</span>
@@ -145,6 +153,8 @@ export default function Header({ user, stats, isAdmin, onUserClick }: HeaderProp
             )}
         </header>
     );
-}
+});
 
+Header.displayName = 'Header';
 
+export default Header;

@@ -21,21 +21,22 @@ export default function LoadingSpinner({
     };
 
     const spinner = (
-        <div className={`flex flex-col items-center justify-center gap-3 ${className}`}>
+        <div className={`flex flex-col items-center justify-center gap-2 sm:gap-3 ${className}`} role="status" aria-live="polite" aria-label={text}>
             <div
                 className={`
                     ${sizeClasses[size] || sizeClasses.md}
                     border-blue-500 border-t-transparent 
                     rounded-full animate-spin
                 `}
+                aria-hidden="true"
             />
-            {text && <p className="text-gray-400 text-sm">{text}</p>}
+            {text && <p className="text-gray-400 dark:text-gray-500 text-xs sm:text-sm">{text}</p>}
         </div>
     );
 
     if (fullScreen) {
         return (
-            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm">
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 dark:bg-black/50 backdrop-blur-sm" role="dialog" aria-modal="true" aria-label="로딩 중">
                 {spinner}
             </div>
         );

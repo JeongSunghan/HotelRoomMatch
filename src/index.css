@@ -59,6 +59,35 @@ body {
     min-width: 320px;
     min-height: 100vh;
     background: linear-gradient(180deg, var(--bg-primary) 0%, var(--bg-tertiary) 100%);
+    /* 터치 최적화 */
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+}
+
+/* 터치 디바이스 최적화 */
+@media (hover: none) and (pointer: coarse) {
+    /* 모바일 터치 디바이스 */
+    button, a, [role="button"] {
+        min-height: 44px;
+        min-width: 44px;
+    }
+}
+
+/* 모션 감소 선호 사용자 지원 (접근성) */
+@media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+        scroll-behavior: auto !important;
+    }
+    
+    .animate-spin,
+    .animate-pulse {
+        animation: none !important;
+    }
 }
 
 /* 커스텀 스크롤바 */
@@ -105,11 +134,25 @@ body {
     transition: all 0.2s ease-in-out;
     background: var(--bg-secondary);
     border: 2px solid var(--border-primary);
+    /* 터치 최적화 */
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
 }
 
-.room-card:hover:not(.disabled) {
+.room-card:hover:not(.disabled):not(:focus) {
     transform: translateY(-2px);
     box-shadow: 0 8px 20px var(--card-shadow);
+}
+
+/* 모바일에서 호버 효과 비활성화 */
+@media (hover: none) and (pointer: coarse) {
+    .room-card:hover:not(.disabled):not(:focus) {
+        transform: none;
+    }
+    
+    .room-card:active:not(.disabled) {
+        transform: scale(0.98);
+    }
 }
 
 /* 선택된 방 펄스 애니메이션 */
@@ -135,9 +178,12 @@ body {
     background: var(--bg-secondary);
     border: 1px solid var(--border-primary);
     color: var(--text-primary);
+    /* 터치 최적화 */
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
 }
 
-.floor-tab:hover {
+.floor-tab:hover:not(:focus) {
     background: var(--bg-tertiary);
     border-color: #3b82f6;
 }
@@ -146,6 +192,17 @@ body {
     background: linear-gradient(135deg, #1a2744 0%, #2563eb 100%);
     border-color: #1a2744;
     color: white;
+}
+
+/* 모바일에서 호버 효과 비활성화 */
+@media (hover: none) and (pointer: coarse) {
+    .floor-tab:hover:not(:focus) {
+        background: var(--bg-secondary);
+    }
+    
+    .floor-tab:active {
+        transform: scale(0.95);
+    }
 }
 
 /* 모달 오버레이 */
@@ -281,6 +338,37 @@ body {
 .dark .success-box {
     background: rgba(16, 185, 129, 0.15);
     border-color: rgba(52, 211, 153, 0.3);
+}
+
+/* 스켈레톤 애니메이션 */
+@keyframes skeleton-wave {
+    0% {
+        background-position: -200% 0;
+    }
+    100% {
+        background-position: 200% 0;
+    }
+}
+
+.skeleton-wave {
+    background: linear-gradient(
+        90deg,
+        var(--bg-tertiary) 25%,
+        var(--border-primary) 50%,
+        var(--bg-tertiary) 75%
+    );
+    background-size: 200% 100%;
+    animation: skeleton-wave 1.5s ease-in-out infinite;
+}
+
+.dark .skeleton-wave {
+    background: linear-gradient(
+        90deg,
+        rgba(55, 65, 81, 0.5) 25%,
+        rgba(75, 85, 99, 0.8) 50%,
+        rgba(55, 65, 81, 0.5) 75%
+    );
+    background-size: 200% 100%;
 }
 
 /* 입력 필드 */

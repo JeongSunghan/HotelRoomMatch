@@ -291,6 +291,11 @@ export interface Inquiry {
 export interface Settings {
     deadline?: number;
     enabled?: boolean;
+    deadlineEnabled?: boolean;
+    deadlineTime?: string;
+    deadlineMessage?: string;
+    allowRegistration?: boolean;
+    adminEmail?: string;
     [key: string]: unknown;
 }
 
