@@ -32,6 +32,7 @@ export async function createInquiry(data: {
 
 /**
  * 모든 문의 구독 (관리자용)
+ * 최적화: 변경사항이 있을 때만 콜백 호출
  */
 export function subscribeToInquiries(callback: (inquiries: Inquiry[]) => void): () => void {
     if (!database) {
@@ -40,10 +41,21 @@ export function subscribeToInquiries(callback: (inquiries: Inquiry[]) => void): 
     }
 
     const inquiriesRef = ref(database, 'inquiries');
+    
+    // 이전 결과를 저장하여 불필요한 업데이트 방지 (최적화)
+    let lastInquiries: Inquiry[] | null = null;
+
     const unsubscribe = onValue(inquiriesRef, (snapshot) => {
         const data = snapshot.val() as Record<string, Inquiry> | null || {};
         const list = Object.values(data).sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
-        callback(list);
+
+        // 변경사항이 있을 때만 콜백 호출 (최적화)
+        if (!lastInquiries || 
+            lastInquiries.length !== list.length ||
+            JSON.stringify(lastInquiries.map(i => i.id)) !== JSON.stringify(list.map(i => i.id))) {
+            lastInquiries = list;
+            callback(list);
+        }
     });
 
     return unsubscribe;

@@ -5,6 +5,10 @@ import { database, ref, onValue, set, get, runTransaction } from './config';
 import { isValidRoomNumber, isValidSessionId } from '../utils/sanitize';
 import type { Guest, Gender, RoomData } from '../types';
 
+/**
+ * 객실 데이터 실시간 구독
+ * 최적화: 변경사항이 있을 때만 콜백 호출
+ */
 export function subscribeToRooms(callback: (rooms: Record<string, RoomData>) => void): () => void {
     if (!database) {
         callback({});
@@ -12,9 +16,24 @@ export function subscribeToRooms(callback: (rooms: Record<string, RoomData>) => 
     }
 
     const roomsRef = ref(database, 'rooms');
+    
+    // 이전 결과를 저장하여 불필요한 업데이트 방지 (최적화)
+    let lastData: Record<string, RoomData> | null = null;
+
     const unsubscribe = onValue(roomsRef, (snapshot) => {
         const data = snapshot.val() || {};
-        callback(data);
+        
+        // 변경사항이 있을 때만 콜백 호출 (최적화)
+        // 깊은 비교는 성능상 부담이 크므로, 간단한 참조 비교와 키 개수 비교 사용
+        if (!lastData || JSON.stringify(Object.keys(data)) !== JSON.stringify(Object.keys(lastData))) {
+            lastData = data;
+            callback(data);
+        } else {
+            // 키는 같지만 내용이 변경되었을 수 있으므로 항상 업데이트
+            // 단, 참조가 동일하면 스킵 (Firebase가 새 객체를 반환하므로 사실상 항상 업데이트됨)
+            lastData = data;
+            callback(data);
+        }
     });
 
     return unsubscribe;

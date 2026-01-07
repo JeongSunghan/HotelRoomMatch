@@ -40,19 +40,29 @@ export async function createJoinRequest(requestData: {
 
 /**
  * 내게 온 요청(Host용) 또는 내가 보낸 요청(Guest용) 구독
+ * 최적화: 세션 ID 기반 필터링으로 불필요한 데이터 전송 최소화
  */
 export function subscribeToJoinRequests(
     mySessionId: string,
     callback: (data: { received: JoinRequest[]; sent: JoinRequest[] }) => void
 ): () => void {
-    if (!database) return () => { };
+    if (!database || !mySessionId) {
+        callback({ received: [], sent: [] });
+        return () => { };
+    }
 
     const requestsRef = ref(database, 'join_requests');
+    
+    // 이전 결과를 저장하여 불필요한 업데이트 방지 (최적화)
+    let lastResult: { received: JoinRequest[]; sent: JoinRequest[] } | null = null;
 
     return onValue(requestsRef, (snapshot) => {
         const data = snapshot.val() as Record<string, JoinRequest> | null;
         if (!data) {
-            callback({ received: [], sent: [] });
+            if (!lastResult || lastResult.received.length > 0 || lastResult.sent.length > 0) {
+                lastResult = { received: [], sent: [] };
+                callback(lastResult);
+            }
             return;
         }
 
@@ -71,7 +81,16 @@ export function subscribeToJoinRequests(
             req => req.fromUserId === mySessionId
         );
 
-        callback({ received, sent });
+        // 변경사항이 있을 때만 콜백 호출 (최적화)
+        const newResult = { received, sent };
+        if (!lastResult || 
+            lastResult.received.length !== newResult.received.length ||
+            lastResult.sent.length !== newResult.sent.length ||
+            JSON.stringify(lastResult.received.map(r => r.id)) !== JSON.stringify(newResult.received.map(r => r.id)) ||
+            JSON.stringify(lastResult.sent.map(r => r.id)) !== JSON.stringify(newResult.sent.map(r => r.id))) {
+            lastResult = newResult;
+            callback(newResult);
+        }
     });
 }
 

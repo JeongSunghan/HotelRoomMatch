@@ -1,6 +1,14 @@
+/**
+ * RoomGrid 컴포넌트 - 벤토 그리드 레이아웃
+ * 디자인: 밀도 높은 카드 그리드 시스템
+ * 
+ * [업데이트] 2026-01-07 - 리메이크 버전으로 교체
+ * 기존 버전: legacy/RoomGrid.tsx
+ */
+
 import { useMemo } from 'react';
 import RoomCard from './RoomCard';
-import Skeleton, { SkeletonCard } from '../ui/Skeleton';
+import Skeleton from '../ui/Skeleton';
 import { getRoomsByFloor, floorInfo } from '../../data/roomData';
 import type { Gender, RoomStatus, RoomInfo } from '../../types';
 
@@ -8,6 +16,9 @@ interface FloorInfo {
     label: string;
     description: string;
     gender: Gender;
+    floor?: number;
+    name?: string;
+    roomCount?: number;
 }
 
 interface RoomGridProps {
@@ -16,16 +27,16 @@ interface RoomGridProps {
     getRoomStatus: (roomNumber: string, userGender: Gender | null, isAdmin: boolean) => RoomStatus;
     isMyRoom: (roomNumber: string) => boolean;
     onRoomClick: (roomNumber: string) => void;
-    onSingleRoomClick?: (roomNumber: string) => void;  // 1인실 클릭 시 안내 모달
+    onSingleRoomClick?: (roomNumber: string) => void;
     canUserSelect: boolean;
     isAdmin: boolean;
-    roomTypeFilter?: 'all' | 'twin' | 'single';  // 'all', 'twin', 'single'
-    highlightedRoom?: string | null;   // 검색 결과 하이라이트
-    isLoading?: boolean;  // 로딩 상태
+    roomTypeFilter?: 'all' | 'twin' | 'single';
+    highlightedRoom?: string | null;
+    isLoading?: boolean;
 }
 
 /**
- * 객실 그리드 컴포넌트 - 네이비 스타일
+ * 벤토 그리드 기반 RoomGrid
  */
 export default function RoomGrid({
     selectedFloor,
@@ -78,8 +89,8 @@ export default function RoomGrid({
 
     if (!info) {
         return (
-            <div className="card-white rounded-xl p-6">
-                <p className="text-gray-500 dark:text-gray-400">층 정보를 찾을 수 없습니다.</p>
+            <div className="flex items-center justify-center p-12 text-gray-400">
+                <p>층 정보를 찾을 수 없습니다.</p>
             </div>
         );
     }
@@ -87,103 +98,128 @@ export default function RoomGrid({
     // 로딩 중 스켈레톤 UI
     if (isLoading) {
         return (
-            <div className="card-white rounded-xl p-6">
-                {/* 층 헤더 스켈레톤 */}
-                <div className="flex items-center justify-between mb-6 pb-4 border-b border-gray-200 dark:border-gray-700">
+            <div className="bg-gray-900 rounded-xl p-6">
+                <div className="flex items-center justify-between mb-6 pb-4 border-b border-gray-700">
                     <div className="flex-1">
                         <Skeleton variant="text" width="200px" height={28} className="mb-2" />
                         <Skeleton variant="text" width="150px" height={16} />
                     </div>
                     <Skeleton variant="text" width="100px" height={16} />
                 </div>
-
-                {/* 객실 카드 스켈레톤 */}
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
                     {Array.from({ length: 12 }).map((_, idx) => (
-                        <Skeleton
-                            key={idx}
-                            variant="card"
-                            height={180}
-                            animation="pulse"
-                        />
+                        <Skeleton key={idx} variant="card" height={180} animation="pulse" />
                     ))}
                 </div>
             </div>
         );
     }
 
+    if (sortedRooms.length === 0) {
+        return (
+            <div className="flex flex-col items-center justify-center p-12 text-gray-400 bg-gray-900 rounded-xl">
+                <svg className="w-16 h-16 mb-4 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
+                </svg>
+                <p className="text-lg font-medium">필터 조건에 맞는 객실이 없습니다</p>
+                <p className="text-sm mt-1">다른 필터를 선택해보세요</p>
+            </div>
+        );
+    }
+
+    // 층 번호 추출
+    const floorNumber = info.floor ?? (typeof selectedFloor === 'number' ? selectedFloor : parseInt(String(selectedFloor), 10));
+
     return (
-        <div className="card-white rounded-xl p-6">
-            {/* 층 헤더 */}
-            <div className="flex items-center justify-between mb-6 pb-4 border-b border-gray-200 dark:border-gray-700">
-                <div>
-                    <h2 className="text-xl font-bold text-gray-800 dark:text-gray-100 flex items-center gap-2">
+        <div className="w-full">
+            {/* 층 정보 헤더 (컴팩트, 다크 모드) */}
+            <div className="mb-6 p-4 bg-gradient-to-r from-gray-800 to-gray-900 rounded-lg border border-gray-700">
+                <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                        <span className="text-3xl font-bold text-white">
+                            {floorNumber}F
+                        </span>
+                        <div className="h-8 w-px bg-gray-600"></div>
+                        <div className="text-sm">
+                            <p className="text-gray-300 font-medium">{info.name || info.label}</p>
+                            <p className="text-gray-500 text-xs">총 {sortedRooms.length}개 객실</p>
+                        </div>
+                    </div>
+                    
+                    {/* 성별 뱃지 */}
+                    <div className="flex items-center gap-2">
                         <span className={`
-              w-3 h-3 rounded-full
-              ${info.gender === 'M' ? 'bg-blue-500' : 'bg-pink-500'}
-            `} aria-hidden="true" />
-                        {info.label}
-                    </h2>
-                    <p className="text-sm text-gray-500 dark:text-gray-400">{info.description}</p>
-                </div>
-                <div className="text-right">
-                    <p className="text-sm text-gray-500 dark:text-gray-400">총 {Object.keys(floorRooms).length}개 객실</p>
+                            px-3 py-1 text-xs font-semibold rounded-full border
+                            ${info.gender === 'M' 
+                                ? 'bg-blue-500/20 text-blue-300 border-blue-400/30' 
+                                : 'bg-pink-500/20 text-pink-300 border-pink-400/30'}
+                        `}>
+                            {info.gender === 'M' ? '남성' : '여성'} 전용
+                        </span>
+                    </div>
                 </div>
             </div>
 
-            {/* 객실 그리드 */}
-            {sortedRooms.length > 0 ? (
-                <div className="space-y-4">
-                    {Object.entries(roomsByRow).map(([rowIndex, rooms]) => (
-                        <div
-                            key={rowIndex}
-                            className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3"
-                        >
-                            {rooms.map(({ roomNumber, roomData }) => {
-                                const status = getRoomStatus(roomNumber, userGender || null, isAdmin);
-                                const isThisMyRoom = isMyRoom(roomNumber);
-                                const canSelect = canUserSelect && status.canSelect && !isThisMyRoom;
+            {/* 벤토 그리드 - 밀도 높은 카드 배열 */}
+            <div className="space-y-8">
+                {Object.keys(roomsByRow).map((row) => {
+                    const rowRooms = roomsByRow[Number(row)];
+                    
+                    return (
+                        <div key={row} className="animate-fade-in">
+                            {/* 행 구분선 (옵션) */}
+                            {Number(row) > 1 && (
+                                <div className="h-px bg-gradient-to-r from-transparent via-gray-700 to-transparent mb-6"></div>
+                            )}
 
-                                return (
-                                    <RoomCard
-                                        key={roomNumber}
-                                        roomNumber={roomNumber}
-                                        roomInfo={roomData}
-                                        status={status}
-                                        isMyRoom={isThisMyRoom}
-                                        canSelect={canSelect}
-                                        onClick={onRoomClick}
-                                        onSingleRoomClick={onSingleRoomClick}
-                                        isAdmin={isAdmin}
-                                        isHighlighted={highlightedRoom === roomNumber}
-                                    />
-                                );
-                            })}
+                            {/* CSS Grid - 밀도 높은 배열 */}
+                            <div 
+                                className="grid gap-4"
+                                style={{
+                                    // 카드 최소 너비 140px
+                                    gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))'
+                                }}
+                            >
+                                {rowRooms.map(({ roomNumber, roomData }) => {
+                                    const roomStatus = getRoomStatus(roomNumber, userGender || null, isAdmin);
+                                    const isMyRoomStatus = isMyRoom(roomNumber);
+                                    const canSelect = canUserSelect && roomStatus.canSelect && !isMyRoomStatus;
+
+                                    return (
+                                        <RoomCard
+                                            key={roomNumber}
+                                            roomNumber={roomNumber}
+                                            roomInfo={roomData}
+                                            status={roomStatus}
+                                            isMyRoom={isMyRoomStatus}
+                                            canSelect={canSelect}
+                                            onClick={onRoomClick}
+                                            onSingleRoomClick={onSingleRoomClick}
+                                            isAdmin={isAdmin}
+                                            isHighlighted={highlightedRoom === roomNumber}
+                                        />
+                                    );
+                                })}
+                            </div>
                         </div>
-                    ))}
-                </div>
-            ) : (
-                <div className="py-12 text-center bg-gray-50 dark:bg-gray-800/50 rounded-lg border border-gray-100 dark:border-gray-700">
-                    <p className="text-gray-500 dark:text-gray-400 font-medium">
-                        {roomTypeFilter === 'twin' && '해당 층에는 2인실이 존재하지 않습니다.'}
-                        {roomTypeFilter === 'single' && '해당 층에는 1인실이 존재하지 않습니다.'}
-                        {roomTypeFilter === 'all' && '표시할 객실이 없습니다.'}
-                    </p>
-                    <p className="text-sm text-gray-400 dark:text-gray-500 mt-1">다른 층을 선택하거나 필터를 변경해보세요.</p>
-                </div>
-            )}
+                    );
+                })}
+            </div>
 
             {/* 다른 성별 층일 때 안내 */}
             {info.gender !== userGender && userGender && (
-                <div className="warning-box mt-6 text-center">
-                    <p className="text-amber-700 dark:text-amber-400 font-medium">
+                <div className="mt-6 p-4 bg-amber-900/30 border border-amber-500/30 rounded-lg text-center">
+                    <p className="text-amber-400 font-medium">
                         ⚠️ 이 층은 {info.gender === 'M' ? '남성' : '여성'} 전용입니다.
                     </p>
-                    <p className="text-sm text-amber-600 dark:text-amber-500 mt-1">
+                    <p className="text-sm text-amber-500/80 mt-1">
                         본인 성별에 맞는 층을 선택해주세요.
                     </p>
                 </div>
             )}
+
+            {/* 그리드 하단 여백 */}
+            <div className="h-8"></div>
         </div>
     );
 }

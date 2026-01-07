@@ -205,17 +205,22 @@ export async function markInvitationNotified(invitationId: string): Promise<bool
 
 /**
  * 내가 보낸 초대 구독
+ * 최적화: 변경사항이 있을 때만 콜백 호출
  */
 export function subscribeToMyInvitations(
     sessionId: string,
     callback: (invitations: RoommateInvitation[]) => void
 ): () => void {
-    if (!database) {
+    if (!database || !sessionId) {
         callback([]);
         return () => { };
     }
 
     const invitationsRef = ref(database, 'roommateInvitations');
+    
+    // 이전 결과를 저장하여 불필요한 업데이트 방지 (최적화)
+    let lastInvitations: RoommateInvitation[] | null = null;
+
     const unsubscribe = onValue(invitationsRef, (snapshot) => {
         const data = snapshot.val() as Record<string, RoommateInvitation> | null || {};
         const myInvitations: RoommateInvitation[] = [];
@@ -226,7 +231,13 @@ export function subscribeToMyInvitations(
             }
         }
 
-        callback(myInvitations);
+        // 변경사항이 있을 때만 콜백 호출 (최적화)
+        if (!lastInvitations || 
+            lastInvitations.length !== myInvitations.length ||
+            JSON.stringify(lastInvitations.map(i => i.id)) !== JSON.stringify(myInvitations.map(i => i.id))) {
+            lastInvitations = myInvitations;
+            callback(myInvitations);
+        }
     });
 
     return unsubscribe;

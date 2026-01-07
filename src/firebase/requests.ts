@@ -31,6 +31,7 @@ export async function createRoomChangeRequest(requestData: {
 
 /**
  * 방 변경 요청 구독
+ * 최적화: 변경사항이 있을 때만 콜백 호출
  */
 export function subscribeToRoomChangeRequests(
     callback: (requests: RoomChangeRequest[]) => void
@@ -41,10 +42,22 @@ export function subscribeToRoomChangeRequests(
     }
 
     const requestsRef = ref(database, 'roomChangeRequests');
+    
+    // 이전 결과를 저장하여 불필요한 업데이트 방지 (최적화)
+    let lastRequests: RoomChangeRequest[] | null = null;
+
     const unsubscribe = onValue(requestsRef, (snapshot) => {
         const data = snapshot.val() as Record<string, RoomChangeRequest> | null || {};
-        const requests = Object.entries(data).map(([id, req]) => ({ id, ...req }));
-        callback(requests.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0)));
+        const requests = Object.entries(data).map(([id, req]) => ({ id, ...req }))
+            .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+
+        // 변경사항이 있을 때만 콜백 호출 (최적화)
+        if (!lastRequests || 
+            lastRequests.length !== requests.length ||
+            JSON.stringify(lastRequests.map(r => r.id)) !== JSON.stringify(requests.map(r => r.id))) {
+            lastRequests = requests;
+            callback(requests);
+        }
     });
 
     return unsubscribe;

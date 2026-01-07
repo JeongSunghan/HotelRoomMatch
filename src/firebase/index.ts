@@ -102,3 +102,50 @@ export {
     REQUEST_STATUS
 } from './joinRequests';
 
+// ==================== Firestore 마이그레이션 ====================
+
+// Firestore Users
+export {
+    createUser as createFirestoreUser,
+    getUserByEmail as getFirestoreUserByEmail,
+    getUserById as getFirestoreUserById,
+    updateUser as updateFirestoreUser,
+    deleteUser as deleteFirestoreUser,
+    getAllUsers as getAllFirestoreUsers,
+    subscribeToUser as subscribeToFirestoreUser,
+    subscribeToAllUsers as subscribeToAllFirestoreUsers,
+    checkEmailExists as checkFirestoreEmailExists,
+    getUserCountByGender as getFirestoreUserCountByGender,
+    verifyUserByEmail as verifyFirestoreUserByEmail,
+    bulkCreateUsers as bulkCreateFirestoreUsers
+} from './firestore/users';
+
+// Firestore UserStays
+export {
+    createUserStay as createFirestoreUserStay,
+    getUserStayByUserId as getFirestoreUserStayByUserId,
+    getUserStayById as getFirestoreUserStayById,
+    updateUserStay as updateFirestoreUserStay,
+    deleteUserStay as deleteFirestoreUserStay,
+    getAllUserStays as getAllFirestoreUserStays,
+    getUserStaysByStatus as getFirestoreUserStaysByStatus,
+    subscribeToUserStay as subscribeToFirestoreUserStay,
+    subscribeToAllUserStays as subscribeToAllFirestoreUserStays,
+    getOrCreateUserStay as getOrCreateFirestoreUserStay,
+    updateUserStayBirthDate as updateFirestoreUserStayBirthDate,
+    validateUserId as validateFirestoreUserId,
+    checkReferentialIntegrity as checkFirestoreReferentialIntegrity,
+    cascadeDeleteUserStay as cascadeDeleteFirestoreUserStay,
+    getUserStaysByRoomId as getFirestoreUserStaysByRoomId,
+    getUserStayStats as getFirestoreUserStayStats
+} from './firestore/userStays';
+
+// Firestore Room Assignment
+export {
+    assignRoom as assignFirestoreRoom,
+    unassignRoom as unassignFirestoreRoom,
+    changeRoom as changeFirestoreRoom,
+    getRoomAssignmentStats as getFirestoreRoomAssignmentStats,
+    canAssignRoom as canAssignFirestoreRoom
+} from './firestore/roomAssignment';
+

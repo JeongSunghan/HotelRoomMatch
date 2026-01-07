@@ -128,6 +128,7 @@ export async function logRoomChange(
 
 /**
  * 히스토리 구독 (실시간)
+ * 최적화: 변경사항이 있을 때만 콜백 호출
  */
 export function subscribeToHistory(
     callback: (history: HistoryEntry[]) => void,
@@ -139,11 +140,17 @@ export function subscribeToHistory(
     }
 
     const historyRef = ref(database, 'history');
+    
+    // 이전 결과를 저장하여 불필요한 업데이트 방지 (최적화)
+    let lastHistory: HistoryEntry[] | null = null;
 
     const unsubscribe = onValue(historyRef, (snapshot) => {
         const data = snapshot.val() as Record<string, HistoryEntry> | null;
         if (!data) {
-            callback([]);
+            if (!lastHistory || lastHistory.length > 0) {
+                lastHistory = [];
+                callback([]);
+            }
             return;
         }
 
@@ -153,7 +160,13 @@ export function subscribeToHistory(
             .sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0))
             .slice(0, limit);
 
-        callback(historyList);
+        // 변경사항이 있을 때만 콜백 호출 (최적화)
+        if (!lastHistory || 
+            lastHistory.length !== historyList.length ||
+            JSON.stringify(lastHistory.map(h => h.id)) !== JSON.stringify(historyList.map(h => h.id))) {
+            lastHistory = historyList;
+            callback(historyList);
+        }
     });
 
     return unsubscribe;

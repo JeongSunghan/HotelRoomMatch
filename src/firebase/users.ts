@@ -32,18 +32,37 @@ export async function updateUser(sessionId: string, updates: UserUpdateData): Pr
 }
 
 /**
- * 사용자 조회
+ * 사용자 조회 (캐싱 적용)
  */
-export async function getUser(sessionId: string): Promise<User | null> {
+export async function getUser(sessionId: string, useCache: boolean = true): Promise<User | null> {
     if (!database) return null;
+
+    // 캐시 확인 (최적화)
+    if (useCache) {
+        const { default: queryCache } = await import('../utils/queryCache');
+        const cached = queryCache.get<User>(`user_${sessionId}`);
+        if (cached !== null) {
+            return cached;
+        }
+    }
 
     const userRef = ref(database, `users/${sessionId}`);
     const snapshot = await get(userRef);
-    return snapshot.val();
+    const user = snapshot.val();
+
+    // 캐시 저장 (최적화)
+    if (useCache && user) {
+        const { default: queryCache } = await import('../utils/queryCache');
+        // 사용자 데이터는 자주 변경될 수 있으므로 짧은 TTL (10초)
+        queryCache.set(`user_${sessionId}`, user, 10000);
+    }
+
+    return user;
 }
 
 /**
  * 사용자 세션 실시간 구독 (관리자 삭제 감지용)
+ * 캐시 무효화 포함 (최적화)
  */
 export function subscribeToUserSession(sessionId: string, callback: (user: User | null) => void): () => void {
     if (!database || !sessionId) {
@@ -52,8 +71,20 @@ export function subscribeToUserSession(sessionId: string, callback: (user: User 
     }
 
     const userRef = ref(database, `users/${sessionId}`);
-    const unsubscribe = onValue(userRef, (snapshot) => {
-        callback(snapshot.val());
+    const unsubscribe = onValue(userRef, async (snapshot) => {
+        const user = snapshot.val();
+        
+        // 캐시 업데이트 (최적화)
+        if (typeof window !== 'undefined') {
+            const { default: queryCache } = await import('../utils/queryCache');
+            if (user) {
+                queryCache.set(`user_${sessionId}`, user, 10000);
+            } else {
+                queryCache.delete(`user_${sessionId}`);
+            }
+        }
+        
+        callback(user);
     });
 
     return unsubscribe;
@@ -75,6 +106,7 @@ export async function clearUserSession(sessionId: string): Promise<boolean> {
 
 /**
  * 모든 활성 유저 실시간 구독 (관리자용)
+ * 최적화: 변경사항이 있을 때만 콜백 호출
  */
 export function subscribeToAllUsers(callback: (users: User[]) => void): () => void {
     if (!database) {
@@ -83,13 +115,24 @@ export function subscribeToAllUsers(callback: (users: User[]) => void): () => vo
     }
 
     const usersRef = ref(database, 'users');
+    
+    // 이전 결과를 저장하여 불필요한 업데이트 방지 (최적화)
+    let lastUsers: User[] | null = null;
+
     const unsubscribe = onValue(usersRef, (snapshot) => {
         const data = snapshot.val() || {};
         const users = Object.entries(data).map(([sessionId, user]) => ({
             sessionId,
             ...user as Omit<User, 'sessionId'>
         })) as User[];
-        callback(users);
+
+        // 변경사항이 있을 때만 콜백 호출 (최적화)
+        if (!lastUsers || 
+            lastUsers.length !== users.length ||
+            JSON.stringify(lastUsers.map(u => u.sessionId)) !== JSON.stringify(users.map(u => u.sessionId))) {
+            lastUsers = users;
+            callback(users);
+        }
     });
 
     return unsubscribe;
