@@ -417,7 +417,7 @@ export default function App() {
     };
 
     return (
-        <div className="min-h-screen p-4 md:p-6 bg-gray-950">
+        <div className="min-h-screen p-4 md:p-6 bg-gradient-to-br from-slate-50 to-gray-100">
             <div className="max-w-7xl mx-auto">
                 {/* Firebase 연결 상태 */}
                 {!isFirebaseConnected && (
@@ -468,19 +468,19 @@ export default function App() {
 
                 {/* 미등록 사용자 안내 */}
                 {!isRegistered && (
-                    <div className="bg-gray-900 border border-gray-800 rounded-xl p-8 text-center mb-6">
-                        <div className="w-16 h-16 bg-gradient-to-br from-blue-500 to-blue-600 rounded-full flex items-center justify-center mx-auto mb-4 shadow-lg shadow-blue-500/30">
+                    <div className="bg-white border border-gray-200 rounded-xl p-8 text-center mb-6 shadow-sm">
+                        <div className="w-16 h-16 bg-gradient-to-br from-blue-500 to-blue-600 rounded-full flex items-center justify-center mx-auto mb-4 shadow-lg">
                             <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
                             </svg>
                         </div>
-                        <h2 className="text-xl font-bold text-white mb-2">객실 배정 등록 요청</h2>
-                        <p className="text-gray-400 text-sm mb-6">
+                        <h2 className="text-xl font-bold text-gray-800 mb-2">객실 배정 등록 요청</h2>
+                        <p className="text-gray-500 text-sm mb-6">
                             객실 배정을 위해 정보를 입력해주세요.
                         </p>
                         <button
                             onClick={() => setShowRegistrationModal(true)}
-                            className="px-8 py-3 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white rounded-xl font-semibold text-sm transition-all duration-200 shadow-lg shadow-blue-500/30 hover:shadow-blue-500/50"
+                            className="px-8 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-semibold text-sm transition-all duration-200 shadow-md hover:shadow-lg"
                         >
                             등록하기
                         </button>
@@ -489,15 +489,15 @@ export default function App() {
 
                 {/* 선택 완료 안내 */}
                 {user?.locked && (
-                    <div className="bg-gradient-to-r from-lime-900/30 to-gray-900 border border-lime-500/30 rounded-xl p-4 mb-6">
+                    <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4 mb-6 shadow-sm">
                         <div className="flex items-center gap-4">
-                            <div className="w-12 h-12 bg-gradient-to-br from-lime-400 to-lime-500 rounded-full flex items-center justify-center text-white text-2xl shadow-lg shadow-lime-500/30">
+                            <div className="w-12 h-12 bg-emerald-500 rounded-full flex items-center justify-center text-white text-2xl shadow-md">
                                 ✓
                             </div>
                             <div>
-                                <h3 className="font-bold text-lime-400">객실 선택 완료!</h3>
-                                <p className="text-lime-300/80">
-                                    <span className="font-semibold text-white">{user.selectedRoom}호</span>에 배정되었습니다.
+                                <h3 className="font-bold text-emerald-700">객실 선택 완료!</h3>
+                                <p className="text-emerald-600">
+                                    <span className="font-semibold">{user.selectedRoom}호</span>에 배정되었습니다.
                                 </p>
                             </div>
                         </div>
@@ -522,6 +522,7 @@ export default function App() {
                     onRoomClick={handleRoomClick}
                     onSingleRoomClick={() => setShowSingleRoomModal(true)}
                     canUserSelect={canSelect}
+                    isAdmin={false}
                     roomTypeFilter={roomTypeFilter}
                     highlightedRoom={highlightedRoom}
                     isLoading={roomsLoading}
@@ -699,9 +700,9 @@ export default function App() {
                     🔍
                 </button>
 
-                <footer className="footer flex justify-between items-center px-4">
-                    <p>KVCA V-Up 객실 배정 시스템</p>
-                    <a href="/contact" className="text-gray-400 hover:text-gray-600 text-sm underline">
+                <footer className="mt-8 py-4 border-t border-gray-200 flex justify-between items-center px-4">
+                    <p className="text-gray-500 text-sm">KVCA V-Up 객실 배정 시스템</p>
+                    <a href="/contact" className="text-blue-600 hover:text-blue-700 text-sm transition-colors">
                         1:1 문의사항
                     </a>
                 </footer>

@@ -47,10 +47,14 @@ describe('Header', () => {
 
     it('통계 정보 표시', () => {
         render(<Header user={null} stats={mockStats} />);
-        expect(screen.getByText('10')).toBeInTheDocument(); // 남성 배정
-        expect(screen.getByText('5')).toBeInTheDocument(); // 남성 잔여
-        expect(screen.getByText('8')).toBeInTheDocument(); // 여성 배정
-        expect(screen.getByText('7')).toBeInTheDocument(); // 여성 잔여
+        // 남성 잔여 슬롯 (availableSlots)
+        expect(screen.getByTestId('male-available')).toHaveTextContent('5');
+        // 남성 전체 슬롯 (occupiedSlots + availableSlots = 10 + 5 = 15)
+        expect(screen.getByTestId('male-total')).toHaveTextContent('/ 15');
+        // 여성 잔여 슬롯
+        expect(screen.getByTestId('female-available')).toHaveTextContent('7');
+        // 여성 전체 슬롯 (8 + 7 = 15)
+        expect(screen.getByTestId('female-total')).toHaveTextContent('/ 15');
     });
 
     it('사용자 클릭 핸들러 호출', async () => {

@@ -16,6 +16,20 @@ build/
 .env.production.local
 .env*.local
 
+# Firebase 민감 정보
+.firebase/
+firebase-debug.log
+firebase-debug.*.log
+.firebaserc
+# firebase.json은 보통 추적하지만, 민감한 설정이 있으면 제외
+# firebase.json
+
+# Service Account Key (절대 커밋 금지!)
+*-firebase-adminsdk-*.json
+serviceAccountKey.json
+service-account*.json
+firebase-admin*.json
+
 # Logs
 logs/
 *.log
@@ -44,11 +58,7 @@ Thumbs.db
 
 # Testing
 coverage/
-
-# Firebase
-.firebase/
-firebase-debug.log
-firebaserc
+*.lcov
 
 # Cache
 .cache/
@@ -59,6 +69,11 @@ firebaserc
 *.tmp
 *.temp
 
-# Documentation files (Markdown) - Git에서 제외
-*.md
-!README.md
+# TypeScript
+*.tsbuildinfo
+
+# Secrets (추가 보안)
+secrets/
+*.pem
+*.key
+credentials.json

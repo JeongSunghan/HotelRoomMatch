@@ -107,7 +107,8 @@ describe('sanitize', () => {
             expect(sanitized.name).toBe('test홍길동');
             expect(sanitized.company).toBe('삼성전자');
             expect(sanitized.residentIdFront).toBe('990101');
-            expect(sanitized.residentIdBack).toBe('1234567');
+            // 보안상 residentIdBack은 첫 1자리만 저장 (성별 구분용)
+            expect(sanitized.residentIdBack).toBe('1');
             expect(sanitized.age).toBe(25);
             expect(sanitized.snoring).toBe('yes');
         });

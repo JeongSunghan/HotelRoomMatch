@@ -6,67 +6,91 @@ service cloud.firestore {
     // ==================== Helper Functions ====================
     
     /**
-     * 관리자 권한 확인
-     * Firebase Auth의 관리자 이메일로 확인
+     * 관리자 권한 확인 - Custom Claims 기반 (권장)
+     * Firebase Admin SDK로 설정: admin.auth().setCustomUserClaims(uid, { admin: true })
      */
-    function isAdmin() {
-      return request.auth != null && 
-             request.auth.token.email != null &&
-             request.auth.token.email.matches('.*@admin\\.com$'); // 관리자 이메일 패턴 수정 필요
+    function isAdminByClaims() {
+      return request.auth != null && request.auth.token.admin == true;
     }
     
     /**
-     * 인증된 사용자 확인
+     * 이메일 기반 관리자 확인
+     * ⚠️ 실제 배포 전 관리자 이메일 주소를 여기에 추가하세요!
+     */
+    function isAdminByEmail() {
+      return request.auth != null && 
+             request.auth.token.email != null &&
+             request.auth.token.email in [
+               'adminsh@kvca.or.kr'
+               // 필요시 관리자 이메일 추가
+             ];
+    }
+    
+    /**
+     * 관리자 확인 (Claims 또는 이메일)
+     */
+    function isAdmin() {
+      return isAdminByClaims() || isAdminByEmail();
+    }
+    
+    /**
+     * 인증된 사용자 확인 (익명 인증 포함)
      */
     function isAuthenticated() {
       return request.auth != null;
     }
     
     // ==================== users 컬렉션 ====================
+    // 관리자에 의해 사전 등록된 사용자 정보
     
     match /users/{userId} {
-      // 읽기: 인증된 사용자 (자신 또는 관리자)
+      // 읽기: 모든 인증된 사용자
       allow read: if isAuthenticated();
       
-      // 생성: 관리자만
-      allow create: if isAdmin();
-      
-      // 업데이트: 관리자만
-      allow update: if isAdmin();
-      
-      // 삭제: 관리자만
-      allow delete: if isAdmin();
+      // 생성/수정/삭제: 관리자 또는 인증된 이메일 사용자
+      // ⚠️ 개발 환경: 이메일 인증된 사용자 허용
+      // 🔒 프로덕션: isAdmin()만 허용하도록 변경 필요
+      allow create, update, delete: if isAdmin() || 
+                                       (request.auth != null && request.auth.token.email != null);
     }
     
     // ==================== userStays 컬렉션 ====================
+    // 사용자의 숙박 및 방 배정 정보
     
     match /userStays/{stayId} {
-      // 읽기: 인증된 사용자 (자신의 userId 또는 관리자)
-      allow read: if isAuthenticated() && 
-                     (resource.data.userId == request.auth.uid || isAdmin());
+      // 읽기: 모든 인증된 사용자
+      allow read: if isAuthenticated();
       
-      // 생성: 인증된 사용자 자신 또는 관리자
-      allow create: if isAuthenticated() && 
-                       (request.resource.data.userId == request.auth.uid || isAdmin());
-      
-      // 업데이트: 자신의 데이터 또는 관리자
-      allow update: if isAuthenticated() && 
-                       (resource.data.userId == request.auth.uid || isAdmin());
+      // 생성/수정: 인증된 사용자
+      allow create, update: if isAuthenticated();
       
       // 삭제: 관리자만
-      allow delete: if isAdmin();
+      allow delete: if isAdmin() || 
+                       (request.auth != null && request.auth.token.email != null);
     }
     
-    // ==================== otpRequests 컬렉션 (선택사항) ====================
+    // ==================== rooms 컬렉션 ====================
+    
+    match /rooms/{roomId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin() || 
+                      (request.auth != null && request.auth.token.email != null);
+    }
+    
+    // ==================== otpRequests 컬렉션 ====================
     
     match /otpRequests/{requestId} {
-      // 읽기/쓰기: 서버 사이드에서만 (클라이언트 접근 제한)
-      allow read, write: if false; // Cloud Functions에서만 접근하도록 제한
+      allow read, create, update: if isAuthenticated();
+      allow delete: if isAuthenticated();
     }
     
-    // ==================== 기타 컬렉션 ====================
-    // rooms, invitations, joinRequests 등은 기존 Realtime Database 유지 또는 별도 규칙 필요
+    // ==================== allowedUsers 컬렉션 ====================
+    
+    match /allowedUsers/{userId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin() || 
+                      (request.auth != null && request.auth.token.email != null);
+    }
     
   }
 }
-

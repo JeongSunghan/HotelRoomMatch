@@ -43,7 +43,10 @@ describe('RoomCard', () => {
         );
 
         expect(screen.getByText('101')).toBeInTheDocument();
-        expect(screen.getByText(/빈 방/i)).toBeInTheDocument();
+        // UI 리메이크 후 "빈 방" 대신 roomType이 표시됨
+        expect(screen.getByText('스탠다드')).toBeInTheDocument();
+        // 인원 표시는 "0 / 2" 형식으로 표시됨 (방 번호 101에도 0이 있어서 getAllByText 사용)
+        expect(screen.getByText(/0\s*\/\s*2/)).toBeInTheDocument();
     });
 
     it('내 방 표시', () => {
@@ -60,7 +63,8 @@ describe('RoomCard', () => {
             />
         );
 
-        expect(screen.getByText(/내 방/i)).toBeInTheDocument();
+        // UI 리메이크 후 "★ MY"로 표시됨
+        expect(screen.getByText(/MY/i)).toBeInTheDocument();
     });
 
     it('투숙객 정보 표시', () => {

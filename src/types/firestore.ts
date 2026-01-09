@@ -93,39 +93,114 @@ export function nowTimestamp(): Timestamp {
 // ==================== 타입 가드 ====================
 
 /**
- * FirestoreUser 타입 가드
+ * Timestamp 검증 (Firestore Timestamp 또는 호환 객체)
+ */
+function isTimestampLike(value: unknown): boolean {
+    if (value === null || value === undefined) return false;
+    if (value instanceof Timestamp) return true;
+    // Firestore SDK 버전 차이로 인한 호환성 처리
+    if (typeof value === 'object' && value !== null) {
+        const obj = value as Record<string, unknown>;
+        return typeof obj.seconds === 'number' && typeof obj.nanoseconds === 'number';
+    }
+    return false;
+}
+
+/**
+ * FirestoreUser 타입 가드 (유연한 버전)
+ * 필수 필드만 엄격히 검증하고, 선택 필드는 유연하게 처리
  */
 export function isFirestoreUser(data: unknown): data is FirestoreUser {
     if (typeof data !== 'object' || data === null) return false;
     const user = data as Record<string, unknown>;
-    return (
-        typeof user.org === 'string' &&
-        typeof user.name === 'string' &&
-        typeof user.position === 'string' &&
-        typeof user.email === 'string' &&
-        typeof user.phone === 'string' &&
-        (user.gender === 'M' || user.gender === 'F') &&
-        typeof user.singleAllowed === 'boolean' &&
-        user.createdAt instanceof Timestamp
+    
+    // 필수 필드 검증 (email, name, gender만 필수)
+    const hasRequiredFields = (
+        typeof user.email === 'string' && user.email.length > 0 &&
+        typeof user.name === 'string' && user.name.length > 0 &&
+        (user.gender === 'M' || user.gender === 'F')
     );
+    
+    if (!hasRequiredFields) return false;
+    
+    // 선택 필드 타입 검증 (존재하는 경우에만)
+    if (user.org !== undefined && typeof user.org !== 'string') return false;
+    if (user.position !== undefined && typeof user.position !== 'string') return false;
+    if (user.phone !== undefined && typeof user.phone !== 'string') return false;
+    if (user.singleAllowed !== undefined && typeof user.singleAllowed !== 'boolean') return false;
+    if (user.createdAt !== undefined && !isTimestampLike(user.createdAt)) return false;
+    
+    return true;
 }
 
 /**
- * FirestoreUserStay 타입 가드
+ * FirestoreUserStay 타입 가드 (유연한 버전)
  */
 export function isFirestoreUserStay(data: unknown): data is FirestoreUserStay {
     if (typeof data !== 'object' || data === null) return false;
     const stay = data as Record<string, unknown>;
-    return (
-        typeof stay.userId === 'string' &&
-        typeof stay.birthDate === 'string' &&
-        typeof stay.age === 'number' &&
-        typeof stay.snoring === 'boolean' &&
-        (stay.roomType === 'SINGLE' || stay.roomType === 'SHARED' || stay.roomType === null) &&
-        (typeof stay.roomId === 'string' || stay.roomId === null) &&
-        (stay.status === 'UNASSIGNED' || stay.status === 'ASSIGNED') &&
-        (stay.assignedAt instanceof Timestamp || stay.assignedAt === null) &&
-        stay.createdAt instanceof Timestamp
-    );
+    
+    // 필수 필드: userId만 엄격히 검증
+    if (typeof stay.userId !== 'string' || stay.userId.length === 0) return false;
+    
+    // birthDate: 문자열이거나 없을 수 있음
+    if (stay.birthDate !== undefined && stay.birthDate !== null && typeof stay.birthDate !== 'string') return false;
+    
+    // age: 숫자이거나 없을 수 있음
+    if (stay.age !== undefined && stay.age !== null && typeof stay.age !== 'number') return false;
+    
+    // snoring: boolean이거나 없을 수 있음
+    if (stay.snoring !== undefined && stay.snoring !== null && typeof stay.snoring !== 'boolean') return false;
+    
+    // roomType: 특정 값 또는 null
+    if (stay.roomType !== undefined && stay.roomType !== null && 
+        stay.roomType !== 'SINGLE' && stay.roomType !== 'SHARED') return false;
+    
+    // roomId: 문자열 또는 null
+    if (stay.roomId !== undefined && stay.roomId !== null && typeof stay.roomId !== 'string') return false;
+    
+    // status: 특정 값 (기본값 UNASSIGNED)
+    if (stay.status !== undefined && stay.status !== 'UNASSIGNED' && stay.status !== 'ASSIGNED') return false;
+    
+    // assignedAt: Timestamp 또는 null
+    if (stay.assignedAt !== undefined && stay.assignedAt !== null && !isTimestampLike(stay.assignedAt)) return false;
+    
+    // createdAt: Timestamp (있으면)
+    if (stay.createdAt !== undefined && stay.createdAt !== null && !isTimestampLike(stay.createdAt)) return false;
+    
+    return true;
+}
+
+/**
+ * FirestoreUser 데이터 정규화 (기본값 적용)
+ */
+export function normalizeFirestoreUser(data: Record<string, unknown>): FirestoreUser {
+    return {
+        org: (data.org as string) || '',
+        name: (data.name as string) || '',
+        position: (data.position as string) || '',
+        email: (data.email as string) || '',
+        phone: (data.phone as string) || '',
+        gender: (data.gender as 'M' | 'F') || 'M',
+        singleAllowed: (data.singleAllowed as boolean) ?? false,
+        createdAt: (data.createdAt as Timestamp) || Timestamp.now()
+    };
+}
+
+/**
+ * FirestoreUserStay 데이터 정규화 (기본값 적용)
+ */
+export function normalizeFirestoreUserStay(data: Record<string, unknown>): FirestoreUserStay {
+    return {
+        userId: (data.userId as string) || '',
+        birthDate: (data.birthDate as string) || '',
+        age: (data.age as number) || 0,
+        snoring: (data.snoring as boolean) ?? false,
+        roomType: (data.roomType as 'SINGLE' | 'SHARED' | null) ?? null,
+        roomId: (data.roomId as string | null) ?? null,
+        status: (data.status as 'UNASSIGNED' | 'ASSIGNED') || 'UNASSIGNED',
+        assignedAt: (data.assignedAt as Timestamp | null) ?? null,
+        createdAt: (data.createdAt as Timestamp) || Timestamp.now()
+    };
 }
 

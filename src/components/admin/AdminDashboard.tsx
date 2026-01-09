@@ -186,7 +186,7 @@ export default function AdminDashboard({
             }
         } catch (error: unknown) {
             const errorMessage = error instanceof Error ? error.message : '알 수 없는 오류';
-            alert('오류: ' + errorMessage);
+            toast.show({ message: '오류: ' + errorMessage, type: 'error' });
         }
     };
 
