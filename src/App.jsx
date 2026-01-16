@@ -6,25 +6,13 @@ import { useUser } from './hooks/useUser';
 import { useRooms } from './hooks/useRooms';
 import { useRoomSelection } from './hooks/useRoomSelection';
 import { useUI } from './contexts/UIContext';
-import { floors, floorInfo } from './data/roomData';
+import { floors, floorInfo, roomData } from './data/roomData';
 import { useJoinRequests } from './hooks/useJoinRequests';
-import {
-    checkPendingInvitations,
-    acceptInvitation,
-    rejectInvitation,
-    createRoommateInvitation,
-    subscribeToMyInvitations,
-    createRoomChangeRequest
-} from './firebase/index';
+import { useInvitationHandlers } from './hooks/useInvitationHandlers';
+import { useRequestHandlers } from './hooks/useRequestHandlers';
+import { useFloorNavigation } from './hooks/useFloorNavigation';
+import { createRoommateInvitation, createRoomChangeRequest } from './firebase/index';
 import { useToast } from './components/ui/Toast';
-import {
-    requestNotificationPermission,
-    notifyRequestAccepted,
-    notifyRequestRejected,
-    notifyJoinRequest
-} from './utils/notifications';
-import { set, ref } from 'firebase/database';
-import { database } from './firebase/config';
 
 // Lazy loaded 모달 컴포넌트들 (초기 번들 크기 감소)
 const RegistrationModal = lazy(() => import('./components/auth/RegistrationModal'));

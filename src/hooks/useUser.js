@@ -105,7 +105,11 @@ export function useUser() {
                             alert(allowedCheck.message || '로그인 불가');
                         }
                     } catch (error) {
-                        console.error('이메일 링크 로그인 실패:', error);
+                        const { handleError } = await import('../utils/errorHandler');
+                        handleError(error, {
+                            context: 'emailLinkSignIn',
+                            showToast: false
+                        });
                         alert('로그인에 실패했습니다. 링크가 만료되었거나 이미 사용되었습니다.');
                     }
                 }
@@ -152,7 +156,11 @@ export function useUser() {
                                 await signInAnonymously(auth);
                                 debug.log('Firebase Auth 익명 인증 복원 완료');
                             } catch (authError) {
-                                console.error('Firebase Auth 복원 실패:', authError);
+                                const { handleError } = await import('../utils/errorHandler');
+                                handleError(authError, {
+                                    context: 'firebaseAuthRestore',
+                                    showToast: false
+                                });
                             }
                         }
 
@@ -208,7 +216,11 @@ export function useUser() {
 
                     setUser(parsed);
                 } catch (e) {
-                    console.error('세션 복구 오류:', e);
+                    const { handleError } = await import('../utils/errorHandler');
+                    handleError(e, {
+                        context: 'sessionRestore',
+                        showToast: false
+                    });
                     localStorage.removeItem(STORAGE_KEY);
                 }
             }

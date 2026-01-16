@@ -15,7 +15,25 @@ export default class ErrorBoundary extends Component {
     }
 
     componentDidCatch(error, errorInfo) {
-        console.error('ErrorBoundary caught an error:', error, errorInfo);
+        // 에러 핸들러를 통해 로깅 및 리포팅
+        import('../utils/errorHandler').then(({ analyzeError, ERROR_SEVERITY }) => {
+            const errorData = analyzeError(error, {
+                location: 'ErrorBoundary',
+                componentStack: errorInfo.componentStack,
+                errorInfo
+            });
+
+            // 개발 환경에서만 상세 로그
+            if (import.meta.env.DEV) {
+                console.error('ErrorBoundary caught an error:', error, errorInfo);
+            }
+
+            // Critical 에러는 리포팅 서비스에 전송 (향후 Sentry 등)
+            if (errorData.severity === ERROR_SEVERITY.CRITICAL) {
+                // TODO: Sentry.captureException(error, { contexts: { react: errorInfo } });
+                console.log('📊 Critical error reported to service');
+            }
+        });
     }
 
     handleReload = () => {

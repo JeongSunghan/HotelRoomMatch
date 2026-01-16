@@ -1,52 +1,73 @@
 {
     "rules": {
         "rooms": {
-            ".read": true,
-            ".write": "auth != null"
+            ".read": "auth != null",
+            ".write": "auth != null",
+            "$roomId": {
+                ".validate": "newData.hasChildren(['capacity', 'floor', 'gender'])"
+            }
         },
         "users": {
             ".read": "auth != null",
-            ".write": "auth != null",
             "$sessionId": {
+                ".write": "auth != null",
                 ".indexOn": [
                     "email"
-                ]
+                ],
+                ".validate": "newData.hasChildren(['name', 'gender', 'sessionId'])"
             }
         },
         "allowedUsers": {
             ".read": "auth != null",
-            ".write": "auth != null"
+            ".write": "auth != null",
+            "$userId": {
+                ".validate": "newData.hasChildren(['name', 'email'])"
+            }
         },
         "roommateInvitations": {
             ".read": "auth != null",
-            ".write": "auth != null"
+            ".write": "auth != null",
+            "$invitationId": {
+                ".validate": "newData.hasChildren(['inviterSessionId', 'inviteeName', 'roomNumber', 'status'])"
+            }
         },
         "join_requests": {
             ".read": "auth != null",
             ".write": "auth != null",
             "$requestId": {
-                ".validate": "newData.hasChildren(['fromUserId', 'toRoomNumber'])"
+                ".validate": "newData.hasChildren(['fromUserId', 'toRoomNumber', 'status'])"
             },
             ".indexOn": [
                 "toUserId",
-                "fromUserId"
+                "fromUserId",
+                "status"
             ]
         },
         "roomChangeRequests": {
             ".read": "auth != null",
-            ".write": "auth != null"
+            ".write": "auth != null",
+            "$requestId": {
+                ".validate": "newData.hasChildren(['sessionId', 'currentRoom', 'reason'])"
+            }
         },
         "inquiries": {
             ".read": "auth != null",
-            ".write": "auth != null"
+            ".write": "auth != null",
+            "$inquiryId": {
+                ".validate": "newData.hasChildren(['name', 'email', 'message', 'createdAt'])"
+            }
         },
         "history": {
             ".read": "auth != null",
-            ".write": "auth != null"
+            ".write": "auth != null",
+            "$historyId": {
+                ".validate": "newData.hasChildren(['action', 'timestamp'])"
+            }
         },
         "settings": {
             ".read": true,
-            ".write": "auth != null"
+            ".write": "auth != null",
+            ".validate": "newData.hasChildren(['deadline'])"
         },
         "otp_requests": {
             "$emailKey": {

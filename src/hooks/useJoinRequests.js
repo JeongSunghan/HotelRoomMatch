@@ -68,7 +68,11 @@ export function useJoinRequests(mySessionId) {
         try {
             await firebaseCleanupRequest(requestId);
         } catch (e) {
-            console.error(e);
+            const { handleError } = await import('../utils/errorHandler');
+            handleError(e, {
+                context: 'cleanupJoinRequest',
+                showToast: false
+            });
         }
     }, []);
 

@@ -14,7 +14,12 @@
     --navy-600: #2563eb;
     --navy-500: #3b82f6;
 
-    /* 다크 모드 변수 */
+    /* 따뜻한 액센트 */
+    --warm-50: #fffbf7;
+    --warm-100: #fef3e2;
+    --warm-glow: rgba(254, 243, 226, 0.6);
+
+    /* 라이트 모드 변수 */
     --bg-primary: #f3f4f6;
     --bg-secondary: #ffffff;
     --bg-tertiary: #f9fafb;
@@ -26,6 +31,20 @@
     --card-shadow: rgba(0, 0, 0, 0.08);
     --modal-overlay: rgba(0, 0, 0, 0.5);
 
+    /* 배경 그라데이션 */
+    --bg-gradient: linear-gradient(180deg, #f8fafc 0%, #f1f5f9 50%, #fefce8 100%);
+
+    /* 글래스 효과 */
+    --glass-bg: rgba(255, 255, 255, 0.7);
+    --glass-border: rgba(255, 255, 255, 0.5);
+    --glass-blur: 12px;
+
+    /* 컬러드 섀도우 */
+    --shadow-soft: 0 4px 20px rgba(30, 58, 95, 0.08);
+    --shadow-medium: 0 8px 30px rgba(30, 58, 95, 0.12);
+    --shadow-glow-blue: 0 0 20px rgba(37, 99, 235, 0.15);
+    --shadow-glow-green: 0 0 20px rgba(16, 185, 129, 0.2);
+
     color-scheme: light;
     color: var(--text-primary);
     background-color: var(--bg-primary);
@@ -36,29 +55,11 @@
     -moz-osx-font-smoothing: grayscale;
 }
 
-/* 다크 모드 */
-.dark {
-    --bg-primary: #111827;
-    --bg-secondary: #1f2937;
-    --bg-tertiary: #374151;
-    --text-primary: #f9fafb;
-    --text-secondary: #d1d5db;
-    --text-muted: #9ca3af;
-    --border-primary: #374151;
-    --border-secondary: #4b5563;
-    --card-shadow: rgba(0, 0, 0, 0.3);
-    --modal-overlay: rgba(0, 0, 0, 0.7);
-
-    color-scheme: dark;
-    color: var(--text-primary);
-    background-color: var(--bg-primary);
-}
-
 body {
     margin: 0;
     min-width: 320px;
     min-height: 100vh;
-    background: linear-gradient(180deg, var(--bg-primary) 0%, var(--bg-tertiary) 100%);
+    background: var(--bg-gradient);
 }
 
 /* 커스텀 스크롤바 */
@@ -73,12 +74,12 @@ body {
 }
 
 ::-webkit-scrollbar-thumb {
-    background: var(--text-muted);
+    background: linear-gradient(180deg, #94a3b8 0%, #64748b 100%);
     border-radius: 4px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-    background: var(--text-secondary);
+    background: linear-gradient(180deg, #64748b 0%, #475569 100%);
 }
 
 /* 네이비 헤더 스타일 */
@@ -100,101 +101,105 @@ body {
     box-shadow: 0 4px 12px var(--card-shadow);
 }
 
-/* 객실 카드 호버 효과 */
+/* 객실 카드 - 글래스 효과 */
 .room-card {
-    transition: all 0.2s ease-in-out;
-    background: var(--bg-secondary);
-    border: 2px solid var(--border-primary);
+    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    background: var(--glass-bg);
+    backdrop-filter: blur(var(--glass-blur));
+    border: 1px solid var(--glass-border);
+    box-shadow: var(--shadow-soft);
 }
 
 .room-card:hover:not(.disabled) {
-    transform: translateY(-2px);
-    box-shadow: 0 8px 20px var(--card-shadow);
+    transform: translateY(-4px);
+    box-shadow: var(--shadow-medium), var(--shadow-glow-blue);
+    border-color: rgba(37, 99, 235, 0.3);
 }
 
-/* 선택된 방 펄스 애니메이션 */
-@keyframes pulse-green {
+/* 선택된 방 - 부드러운 떠오름 애니메이션 */
+@keyframes float {
 
     0%,
     100% {
-        box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.4);
+        transform: translateY(0);
     }
 
     50% {
-        box-shadow: 0 0 0 8px rgba(16, 185, 129, 0);
+        transform: translateY(-3px);
     }
 }
 
 .my-room {
-    animation: pulse-green 2s infinite;
+    animation: float 3s ease-in-out infinite;
+    box-shadow: var(--shadow-glow-green);
+    border-color: rgba(16, 185, 129, 0.4);
 }
 
-/* 층 탭 스타일 */
+/* 층 탭 - Pill 스타일 */
 .floor-tab {
-    transition: all 0.2s ease;
-    background: var(--bg-secondary);
-    border: 1px solid var(--border-primary);
+    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    background: transparent;
+    border: none;
+    border-radius: 9999px;
+    padding: 0.5rem 1.25rem;
     color: var(--text-primary);
 }
 
 .floor-tab:hover {
-    background: var(--bg-tertiary);
-    border-color: #3b82f6;
+    background: var(--warm-100);
 }
 
 .floor-tab.active {
-    background: linear-gradient(135deg, #1a2744 0%, #2563eb 100%);
-    border-color: #1a2744;
+    background: linear-gradient(135deg, #1e3a5f 0%, #3b82f6 100%);
+    box-shadow: var(--shadow-soft);
     color: white;
 }
 
-/* 모달 오버레이 */
+/* 모달 오버레이 - 강화된 블러 */
 .modal-overlay {
-    backdrop-filter: blur(4px);
+    backdrop-filter: blur(8px);
     background: var(--modal-overlay);
 }
 
-/* 모달 카드 */
+/* 모달 카드 - Warm 그라데이션 */
 .modal-card {
-    background: var(--bg-secondary);
-    border: 1px solid var(--border-primary);
-    box-shadow: 0 20px 40px var(--card-shadow);
+    background: linear-gradient(180deg, #ffffff 0%, var(--warm-50) 100%);
+    border: 1px solid var(--glass-border);
+    box-shadow: var(--shadow-medium);
     color: var(--text-primary);
 }
 
 /* 버튼 스타일 */
 .btn-primary {
-    background: linear-gradient(135deg, #1a2744 0%, #2563eb 100%);
+    background: linear-gradient(135deg, #2563eb 0%, #3b82f6 100%);
     color: white;
     border: none;
-    transition: all 0.2s;
+    box-shadow: var(--shadow-soft);
+    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .btn-primary:hover {
-    background: linear-gradient(135deg, #0f1729 0%, #1d4ed8 100%);
+    background: linear-gradient(135deg, #1d4ed8 0%, #2563eb 100%);
+    box-shadow: var(--shadow-medium), var(--shadow-glow-blue);
     transform: translateY(-1px);
 }
 
 .btn-secondary {
-    background: var(--bg-tertiary);
+    background: var(--glass-bg);
+    border: 1px solid var(--glass-border);
+    backdrop-filter: blur(8px);
     color: var(--text-primary);
-    border: 1px solid var(--border-secondary);
+    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .btn-secondary:hover {
-    background: var(--border-primary);
+    background: var(--warm-100);
+    border-color: rgba(37, 99, 235, 0.2);
 }
 
 /* 그라데이션 텍스트 - 네이비 버전 */
 .gradient-text {
     background: linear-gradient(135deg, #1a2744 0%, #2563eb 100%);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
-}
-
-.dark .gradient-text {
-    background: linear-gradient(135deg, #60a5fa 0%, #93c5fd 100%);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     background-clip: text;
@@ -243,18 +248,13 @@ body {
     color: #be185d;
 }
 
-/* 안내 박스 - 다크모드 대응 */
+/* 안내 박스 */
 .info-box {
     background: #eff6ff;
     border: 1px solid #bfdbfe;
     border-left: 4px solid #2563eb;
     padding: 1rem;
     border-radius: 0.5rem;
-}
-
-.dark .info-box {
-    background: rgba(37, 99, 235, 0.15);
-    border-color: rgba(59, 130, 246, 0.3);
 }
 
 .warning-box {
@@ -265,22 +265,12 @@ body {
     border-radius: 0.5rem;
 }
 
-.dark .warning-box {
-    background: rgba(245, 158, 11, 0.15);
-    border-color: rgba(251, 191, 36, 0.3);
-}
-
 .success-box {
     background: #ecfdf5;
     border: 1px solid #6ee7b7;
     border-left: 4px solid #10b981;
     padding: 1rem;
     border-radius: 0.5rem;
-}
-
-.dark .success-box {
-    background: rgba(16, 185, 129, 0.15);
-    border-color: rgba(52, 211, 153, 0.3);
 }
 
 /* 입력 필드 */
@@ -343,6 +333,84 @@ body {
 
 .animate-slide-in-down {
     animation: slide-in-down 0.3s ease-out;
+}
+
+/* 새로운 애니메이션 - Phase 3 */
+
+/* 부드러운 확장 glow */
+@keyframes expand-glow {
+    0% {
+        box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.3);
+    }
+
+    100% {
+        box-shadow: 0 0 0 8px rgba(16, 185, 129, 0);
+    }
+}
+
+/* 슬라이드 업 (모달용) */
+@keyframes slide-up {
+    from {
+        transform: translateY(100%);
+        opacity: 0;
+    }
+
+    to {
+        transform: translateY(0);
+        opacity: 1;
+    }
+}
+
+/* 에러 shake */
+@keyframes shake {
+
+    0%,
+    100% {
+        transform: translateX(0);
+    }
+
+    25% {
+        transform: translateX(-4px);
+    }
+
+    75% {
+        transform: translateX(4px);
+    }
+}
+
+/* 스켈레톤 로딩 */
+@keyframes skeleton-pulse {
+
+    0%,
+    100% {
+        opacity: 1;
+    }
+
+    50% {
+        opacity: 0.5;
+    }
+}
+
+/* 전환 유틸리티 클래스 */
+.transition-base {
+    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.transition-fast {
+    transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.transition-slow {
+    transition: all 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* 피드백 애니메이션 */
+.feedback-success {
+    animation: expand-glow 0.6s ease-out;
+}
+
+.feedback-error {
+    animation: shake 0.4s ease-out;
 }
 
 /* ===================================
@@ -444,4 +512,99 @@ body {
         position: fixed;
         bottom: 0;
     }
+}
+
+/* ===================================
+   Phase 4: 접근성 및 확장 컴포넌트
+   =================================== */
+
+/* 모션 감소 모드 */
+@media (prefers-reduced-motion: reduce) {
+
+    *,
+    *::before,
+    *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+        scroll-behavior: auto !important;
+    }
+
+    .my-room {
+        animation: none;
+        box-shadow: var(--shadow-glow-green);
+    }
+}
+
+/* 고대비 모드 */
+@media (prefers-contrast: high) {
+    :root {
+        --text-primary: #000000;
+        --text-secondary: #1f2937;
+        --bg-primary: #ffffff;
+        --bg-secondary: #ffffff;
+        --border-primary: #000000;
+        --border-secondary: #000000;
+    }
+
+    .room-card {
+        border-width: 2px;
+        border-color: var(--border-primary);
+        background: var(--bg-secondary);
+    }
+
+    .btn-primary {
+        border: 2px solid #000000;
+    }
+}
+
+/* 스켈레톤 로딩 컴포넌트 */
+.skeleton {
+    background: linear-gradient(90deg,
+            var(--bg-tertiary) 25%,
+            var(--bg-secondary) 50%,
+            var(--bg-tertiary) 75%);
+    background-size: 200% 100%;
+    animation: skeleton-pulse 1.5s ease-in-out infinite;
+    border-radius: 0.5rem;
+}
+
+/* 현대적 토스트 */
+.toast-modern {
+    background: var(--glass-bg);
+    backdrop-filter: blur(12px);
+    border: 1px solid var(--glass-border);
+    box-shadow: var(--shadow-medium);
+    border-radius: 1rem;
+    padding: 1rem 1.5rem;
+}
+
+.toast-success {
+    border-left: 4px solid #10b981;
+}
+
+.toast-error {
+    border-left: 4px solid #ef4444;
+}
+
+.toast-info {
+    border-left: 4px solid #3b82f6;
+}
+
+.toast-warning {
+    border-left: 4px solid #f59e0b;
+}
+
+/* AI 추천 배지 (향후 확장용) */
+.badge-ai {
+    background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+    color: white;
+    padding: 0.25rem 0.75rem;
+    border-radius: 9999px;
+    font-size: 0.75rem;
+    font-weight: 500;
+    box-shadow: 0 0 12px rgba(99, 102, 241, 0.3);
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
 }

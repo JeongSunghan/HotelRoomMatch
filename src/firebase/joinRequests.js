@@ -111,8 +111,12 @@ export async function acceptJoinRequest(requestId, requestData) {
         );
 
     } catch (error) {
-        console.error('Accept fail:', error);
-        throw error;
+        const { handleFirebaseError } = await import('../utils/errorHandler');
+        handleFirebaseError(error, {
+            context: 'acceptJoinRequest',
+            showToast: true,
+            rethrow: true
+        });
     }
 }
 

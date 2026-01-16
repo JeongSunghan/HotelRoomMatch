@@ -216,7 +216,12 @@ export async function deleteUserCompletely(sessionId, email) {
 
         return { success: true, message: '유저가 완전히 삭제되었습니다.' };
     } catch (error) {
-        console.error('deleteUserCompletely error:', error);
+        const { handleFirebaseError } = await import('../utils/errorHandler');
+        handleFirebaseError(error, {
+            context: 'deleteUserCompletely',
+            showToast: false,
+            rethrow: false
+        });
         return { success: false, message: error.message };
     }
 }

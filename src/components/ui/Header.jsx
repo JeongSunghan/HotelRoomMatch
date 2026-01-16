@@ -1,5 +1,4 @@
 import { getGenderLabel } from '../../utils/genderUtils';
-import { ThemeToggle } from '../../hooks/useTheme.jsx';
 
 /**
  * 헤더 컴포넌트 - 화이트 스타일 (수정됨)
@@ -9,16 +8,13 @@ export default function Header({ user, stats, isAdmin, onUserClick }) {
         <header className="card-white rounded-xl p-6 mb-6">
             {/* 타이틀 */}
             <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6">
-                <div className="flex items-center gap-3">
-                    <div>
-                        <h1 className="text-2xl md:text-3xl font-bold gradient-text">
-                            V-Up 호텔 객실 배정
-                        </h1>
-                        <p className="text-gray-500 dark:text-gray-400 text-sm mt-1">
-                            KVCA 벤처투자 전문인력 양성(V-Up)
-                        </p>
-                    </div>
-                    <ThemeToggle />
+                <div>
+                    <h1 className="text-2xl md:text-3xl font-bold gradient-text">
+                        V-Up 호텔 객실 배정
+                    </h1>
+                    <p className="text-gray-500 text-sm mt-1">
+                        KVCA 벤처투자 전문인력 양성(V-Up)
+                    </p>
                 </div>
 
                 {/* 사용자 정보 - 개선된 UI */}

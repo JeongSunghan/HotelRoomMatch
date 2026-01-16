@@ -64,3 +64,34 @@ export const REQUEST_STATUS = {
     PENDING: 'pending',
     RESOLVED: 'resolved'
 };
+
+// ==================== Modal Types ====================
+export const MODAL_TYPES = {
+    REGISTRATION: 'registration',
+    ADDITIONAL_INFO: 'additionalInfo',
+    MY_ROOM: 'myRoom',
+    SEARCH: 'search',
+    SINGLE_ROOM: 'singleRoom',
+    WARNING: 'warning',
+    CANCELLED: 'cancelled',
+    INVITATIONS: 'invitations',
+    SELECTION: 'selection',
+    JOIN_REQUEST: 'joinRequest',
+    WAITING_APPROVAL: 'waitingApproval'
+};
+
+// ==================== Loading Messages ====================
+export const LOADING_MESSAGES = {
+    DEFAULT: '로딩 중...',
+    USER: '사용자 정보 불러오는 중...',
+    ROOMS: '객실 정보 불러오는 중...',
+    FIREBASE: 'Firebase 연결 중...'
+};
+
+// ==================== Toast Types ====================
+export const TOAST_TYPES = {
+    SUCCESS: 'success',
+    ERROR: 'error',
+    WARNING: 'warning',
+    INFO: 'info'
+};
