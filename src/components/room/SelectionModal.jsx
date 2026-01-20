@@ -101,8 +101,7 @@ export default function SelectionModal({
                     const hasAgeWarning = ageDiff && ageDiff > 5;
                     const snoringLabel = {
                         'no': '😴 없음',
-                        'sometimes': '😪 가끔',
-                        'yes': '😤 자주'
+                        'yes': '😤 있음'
                     };
                     const hasSnoringConflict =
                         (existingGuest.snoring === 'yes' && user.snoring !== 'yes') ||

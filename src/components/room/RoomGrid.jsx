@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useCallback } from 'react';
 import RoomCard from './RoomCard';
 import { getRoomsByFloor, floorInfo } from '../../data/roomData';
 
@@ -11,11 +11,11 @@ export default function RoomGrid({
     getRoomStatus,
     isMyRoom,
     onRoomClick,
-    onSingleRoomClick,  // 1인실 클릭 시 안내 모달
+    onSingleRoomClick,
     canUserSelect,
     isAdmin,
-    roomTypeFilter = 'all',  // 'all', 'twin', 'single'
-    highlightedRoom = null   // 검색 결과 하이라이트
+    roomTypeFilter = 'all',
+    highlightedRoom = null
 }) {
     // 해당 층의 객실 가져오기
     const floorRooms = useMemo(() => {
@@ -29,10 +29,9 @@ export default function RoomGrid({
     const sortedRooms = useMemo(() => {
         return Object.entries(floorRooms)
             .filter(([, roomData]) => {
-                // 필터 적용
                 if (roomTypeFilter === 'twin') return roomData.capacity === 2;
                 if (roomTypeFilter === 'single') return roomData.capacity === 1;
-                return true; // 'all'
+                return true;
             })
             .sort((a, b) => {
                 const posA = a[1].position;
@@ -52,6 +51,15 @@ export default function RoomGrid({
         }
         return rows;
     }, [sortedRooms]);
+
+    // 핸들러 메모이제이션 - 성능 최적화
+    const handleRoomClick = useCallback((roomNumber) => {
+        onRoomClick(roomNumber);
+    }, [onRoomClick]);
+
+    const handleSingleRoomClick = useCallback((roomNumber) => {
+        onSingleRoomClick(roomNumber);
+    }, [onSingleRoomClick]);
 
     return (
         <div className="card-white rounded-xl p-6">
@@ -93,8 +101,8 @@ export default function RoomGrid({
                                         status={status}
                                         isMyRoom={isThisMyRoom}
                                         canSelect={canSelect}
-                                        onClick={onRoomClick}
-                                        onSingleRoomClick={onSingleRoomClick}
+                                        onClick={handleRoomClick}
+                                        onSingleRoomClick={handleSingleRoomClick}
                                         isAdmin={isAdmin}
                                         isHighlighted={highlightedRoom === roomNumber}
                                     />
@@ -128,3 +136,4 @@ export default function RoomGrid({
         </div>
     );
 }
+

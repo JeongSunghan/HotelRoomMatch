@@ -11,7 +11,7 @@
  * @property {string} company - 소속 회사
  * @property {'M'|'F'} gender - 성별
  * @property {number|null} age - 나이
- * @property {'no'|'sometimes'|'yes'} snoring - 코골이 여부
+ * @property {'no'|'yes'} snoring - 코골이 여부
  * @property {string|null} selectedRoom - 선택한 방 번호
  * @property {boolean} locked - 방 선택 잠금 여부
  * @property {number} registeredAt - 등록 시간 (timestamp)
@@ -28,7 +28,7 @@
  * @property {string} company - 소속 회사
  * @property {'M'|'F'} gender - 성별
  * @property {number|null} age - 나이
- * @property {'no'|'sometimes'|'yes'} snoring - 코골이 여부
+ * @property {'no'|'yes'} snoring - 코골이 여부
  */
 
 /**

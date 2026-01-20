@@ -148,10 +148,9 @@ export default function AdditionalInfoModal({ user, onUpdate, onClose }) {
                             <label className="block text-sm font-medium text-gray-700 mb-2">
                                 코골이 여부 <span className="text-red-500">*</span>
                             </label>
-                            <div className="grid grid-cols-3 gap-2">
+                            <div className="grid grid-cols-2 gap-2">
                                 <button type="button" onClick={() => setSnoring('no')} className={`py-3 px-4 rounded-lg border-2 font-medium text-sm transition-all ${snoring === 'no' ? 'border-emerald-500 bg-emerald-50 text-emerald-700' : 'border-gray-200 hover:border-gray-300'}`}>😴 없음</button>
-                                <button type="button" onClick={() => setSnoring('sometimes')} className={`py-3 px-4 rounded-lg border-2 font-medium text-sm transition-all ${snoring === 'sometimes' ? 'border-amber-500 bg-amber-50 text-amber-700' : 'border-gray-200 hover:border-gray-300'}`}>😪 가끔</button>
-                                <button type="button" onClick={() => setSnoring('yes')} className={`py-3 px-4 rounded-lg border-2 font-medium text-sm transition-all ${snoring === 'yes' ? 'border-red-500 bg-red-50 text-red-700' : 'border-gray-200 hover:border-gray-300'}`}>😤 자주</button>
+                                <button type="button" onClick={() => setSnoring('yes')} className={`py-3 px-4 rounded-lg border-2 font-medium text-sm transition-all ${snoring === 'yes' ? 'border-red-500 bg-red-50 text-red-700' : 'border-gray-200 hover:border-gray-300'}`}>😤 있음</button>
                             </div>
                         </div>
                     )}

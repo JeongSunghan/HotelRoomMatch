@@ -44,6 +44,38 @@
     --shadow-medium: 0 8px 30px rgba(30, 58, 95, 0.12);
     --shadow-glow-blue: 0 0 20px rgba(37, 99, 235, 0.15);
     --shadow-glow-green: 0 0 20px rgba(16, 185, 129, 0.2);
+    --shadow-xl: 0 20px 40px rgba(0, 0, 0, 0.15);
+    --shadow-colored-blue: 0 10px 30px rgba(59, 130, 246, 0.3);
+    --shadow-colored-green: 0 10px 30px rgba(16, 185, 129, 0.3);
+
+    /* 새로운 색상 팔레트 */
+    --primary-50: #eff6ff;
+    --primary-100: #dbeafe;
+    --primary-500: #3b82f6;
+    --primary-600: #2563eb;
+    --primary-700: #1d4ed8;
+    --primary-900: #1e3a8a;
+
+    --secondary-50: #ecfdf5;
+    --secondary-100: #d1fae5;
+    --secondary-500: #10b981;
+    --secondary-600: #059669;
+
+    --accent-50: #fffbeb;
+    --accent-100: #fef3c7;
+    --accent-500: #f59e0b;
+    --accent-600: #d97706;
+
+    --danger-50: #fef2f2;
+    --danger-500: #ef4444;
+    --danger-600: #dc2626;
+
+    /* 그라데이션 */
+    --gradient-primary: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    --gradient-blue: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+    --gradient-success: linear-gradient(135deg, #10b981 0%, #059669 100%);
+    --gradient-danger: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+    --gradient-warm: linear-gradient(180deg, #ffffff 0%, #fefce8 100%);
 
     color-scheme: light;
     color: var(--text-primary);
@@ -607,4 +639,156 @@ body {
     display: inline-flex;
     align-items: center;
     gap: 0.25rem;
+}
+
+/* ===================================
+   알림 시스템 애니메이션
+   =================================== */
+
+/* 알림 센터 드롭다운 등장 */
+@keyframes slide-in-top {
+    from {
+        transform: translateY(-10px);
+        opacity: 0;
+    }
+
+    to {
+        transform: translateY(0);
+        opacity: 1;
+    }
+}
+
+.slide-in-top {
+    animation: slide-in-top 0.2s ease-out;
+}
+
+/* 읽지 않은 알림 배지 펄스 */
+@keyframes badge-pulse {
+
+    0%,
+    100% {
+        transform: scale(1);
+        opacity: 1;
+    }
+
+    50% {
+        transform: scale(1.1);
+        opacity: 0.9;
+    }
+}
+
+/* 알림 항목 등장 (개별) */
+@keyframes notification-enter {
+    from {
+        transform: translateX(20px);
+        opacity: 0;
+    }
+
+    to {
+        transform: translateX(0);
+        opacity: 1;
+    }
+}
+
+.notification-item {
+    animation: notification-enter 0.3s ease-out;
+} 
+ 
+/* ===================================
+   디자인 개선 - 마이크로 인터랙션
+   =================================== */
+
+/* 방 선택 애니메이션 */
+@keyframes roomSelect {
+    0% { transform: scale(1); }
+    20% { transform: scale(1.05); }
+    50% { transform: scale(0.95); }
+    100% { transform: scale(1); }
+}
+
+.room-card.selecting {
+    animation: roomSelect 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* 성공 피드백 */
+@keyframes successPulse {
+    0%, 100% { 
+        box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.4);
+        transform: scale(1);
+    }
+    50% { 
+        box-shadow: 0 0 0 15px rgba(16, 185, 129, 0);
+        transform: scale(1.02);
+    }
+}
+
+.feedback-success-pulse {
+    animation: successPulse 0.6s ease-out;
+}
+
+/* 실패/에러 피드백 */
+@keyframes errorShake {
+    0%, 100% { transform: translateX(0); }
+    20%, 60% { transform: translateX(-8px); }
+    40%, 80% { transform: translateX(8px); }
+}
+
+.feedback-error-shake {
+    animation: errorShake 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* 리플 효과 */
+@keyframes ripple {
+    0% { transform: scale(0); opacity: 0.6; }
+    100% { transform: scale(4); opacity: 0; }
+}
+
+.btn-ripple {
+    position: relative;
+    overflow: hidden;
+}
+
+.btn-ripple::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(circle, rgba(255,255,255,0.6) 0%, transparent 70%);
+    transform: scale(0);
+    opacity: 0;
+    pointer-events: none;
+}
+
+.btn-ripple:active::after {
+    animation: ripple 0.6s ease-out;
+}
+
+/* 모달 애니메이션 */
+@keyframes modalFadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+@keyframes modalSlideUp {
+    from { transform: translateY(20px); opacity: 0; }
+    to { transform: translateY(0); opacity: 1; }
+}
+
+.modal-fade-in {
+    animation: modalFadeIn 0.2s ease-out;
+}
+
+.modal-slide-up {
+    animation: modalSlideUp 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* 로딩 스켈레톤 */
+@keyframes shimmer {
+    0% { background-position: -200% 0; }
+    100% { background-position: 200% 0; }
+}
+
+.skeleton-shimmer {
+    background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+    background-size: 200% 100%;
+    animation: shimmer 1.5s infinite;
 }

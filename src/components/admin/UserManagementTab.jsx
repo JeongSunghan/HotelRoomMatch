@@ -270,8 +270,7 @@ export default function UserManagementTab() {
                                     className="w-full px-3 py-2 border border-gray-300 rounded-lg"
                                 >
                                     <option value="no">😴 없음</option>
-                                    <option value="sometimes">😪 가끔</option>
-                                    <option value="yes">😤 자주</option>
+                                    <option value="yes">😤 있음</option>
                                 </select>
                             </div>
 

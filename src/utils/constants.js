@@ -37,14 +37,12 @@ export const GENDER = {
 // ==================== Snoring Options ====================
 export const SNORING = {
     NO: 'no',
-    SOMETIMES: 'sometimes',
     YES: 'yes'
 };
 
 export const SNORING_LABELS = {
     [SNORING.NO]: '😴 없음',
-    [SNORING.SOMETIMES]: '😪 가끔',
-    [SNORING.YES]: '😤 자주'
+    [SNORING.YES]: '😤 있음'
 };
 
 // ==================== Invitation Status ====================

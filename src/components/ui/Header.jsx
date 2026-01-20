@@ -8,7 +8,7 @@ export default function Header({ user, stats, isAdmin, onUserClick }) {
         <header className="card-white rounded-xl p-6 mb-6">
             {/* 타이틀 */}
             <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6">
-                <div>
+                <div className="flex-1">
                     <h1 className="text-2xl md:text-3xl font-bold gradient-text">
                         V-Up 호텔 객실 배정
                     </h1>
@@ -21,6 +21,7 @@ export default function Header({ user, stats, isAdmin, onUserClick }) {
                 {user && (
                     <button
                         onClick={onUserClick}
+                        aria-label={`${user.name}, ${getGenderLabel(user.gender)}, ${user.age}세${user.locked ? `, ${user.selectedRoom}호실 배정됨` : ''}`}
                         className={`
                             flex items-center gap-4 px-5 py-3 rounded-xl border-2 transition-all
                             ${user.gender === 'M'

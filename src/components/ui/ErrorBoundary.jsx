@@ -16,7 +16,7 @@ export default class ErrorBoundary extends Component {
 
     componentDidCatch(error, errorInfo) {
         // 에러 핸들러를 통해 로깅 및 리포팅
-        import('../utils/errorHandler').then(({ analyzeError, ERROR_SEVERITY }) => {
+        import('../../utils/errorHandler').then(({ analyzeError, ERROR_SEVERITY }) => {
             const errorData = analyzeError(error, {
                 location: 'ErrorBoundary',
                 componentStack: errorInfo.componentStack,

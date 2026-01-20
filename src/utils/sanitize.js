@@ -109,7 +109,7 @@ export function sanitizeUserData(userData) {
         residentIdFront: sanitizeNumber(userData.residentIdFront || '').substring(0, 6),
         residentIdBack: sanitizeNumber(userData.residentIdBack || '').substring(0, 7),
         age: userData.age ? parseInt(sanitizeNumber(String(userData.age)), 10) || null : null,
-        snoring: ['yes', 'no', 'sometimes'].includes(userData.snoring) ? userData.snoring : 'no'
+        snoring: ['yes', 'no'].includes(userData.snoring) ? userData.snoring : 'no'
     };
 }
 

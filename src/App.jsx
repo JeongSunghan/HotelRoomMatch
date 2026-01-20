@@ -133,50 +133,51 @@ export default function App() {
     // 내 요청 상태 감지 (Guest)
     const mySentRequest = requests.sent.find(r => r.status === REQUEST_STATUS.PENDING);
 
-    // 요청 처리 결과 감지 Effect
-    useEffect(() => {
-        if (!user) return;
+    // 초대 시스템 Hook
+    const {
+        pendingInvitation,
+        invitationLoading,
+        rejectionNotification,
+        handleRegister,
+        handleAcceptInvitation,
+        handleRejectInvitation,
+        clearRejectionNotification
+    } = useInvitationHandlers(
+        user,
+        registerUser,
+        selectUserRoom,
+        setSelectedFloor,
+        () => closeModal(MODAL_TYPES.REGISTRATION),
+        toast,
+        floors,
+        floorInfo
+    );
 
-        const rejectedReq = requests.sent.find(r => r.status === REQUEST_STATUS.REJECTED);
-        if (rejectedReq) {
-            toast.warning('룸메이트가 요청을 거절했습니다.');
-            notifyRequestRejected();
-            cleanup(rejectedReq.id);
-            // 모달들 닫기
-            setSelectedRoomForConfirm(null);
-            setShowWarningModal(false);
-            setPendingSelection(null);
-        }
+    // 요청 처리 Hook
+    const {
+        handleAcceptRequest,
+        handleRejectRequest
+    } = useRequestHandlers(
+        user,
+        requests,
+        toast,
+        cleanup,
+        acceptRequest,
+        rejectRequest,
+        (room) => openSelectionModal(room),
+        (show) => show ? openModal(MODAL_TYPES.WARNING) : closeModal(MODAL_TYPES.WARNING),
+        setPendingSelection,
+        REQUEST_STATUS
+    );
 
-        const acceptedReq = requests.sent.find(r => r.status === REQUEST_STATUS.ACCEPTED);
-        if (acceptedReq) {
-            toast.success('입장이 승인되었습니다!');
-            notifyRequestAccepted(acceptedReq.toRoomNumber);
-            cleanup(acceptedReq.id);
-            // 모달들 닫기
-            setSelectedRoomForConfirm(null);
-            setShowWarningModal(false);
-            setPendingSelection(null);
-        }
-    }, [requests.sent, user, cleanup, toast]);
-
-    // 초대 시스템 상태
-    const [pendingInvitation, setPendingInvitation] = useState(null);
-    const [invitationLoading, setInvitationLoading] = useState(false);
-    const [rejectionNotification, setRejectionNotification] = useState(null);
-
-    // 방 배정 시 펜딩 초대 리셋
-    useEffect(() => {
-        if (user?.selectedRoom && pendingInvitation) {
-            setPendingInvitation(null);
-        }
-    }, [user?.selectedRoom, pendingInvitation]);
+    // 층 네비게이션 Hook
+    const {
+        highlightedRoom,
+        navigateToRoom
+    } = useFloorNavigation(user, selectedFloor, setSelectedFloor);
 
     // 방 배정 취소 알림 모달
     const [showCancelledModal, setShowCancelledModal] = useState(false);
-
-    // 검색 결과 하이라이트
-    const [highlightedRoom, setHighlightedRoom] = useState(null);
 
     // 사용자 성별에 맞는 기본 층 설정 (초기 진입 시)
     useEffect(() => {
@@ -216,49 +217,6 @@ export default function App() {
         }
     }, [roomGuests, user?.selectedRoom, user?.sessionId, showCancelledModal, roomsLoading]);
 
-    // 기본 층 설정 (사용자 등록 전)
-    useEffect(() => {
-        if (selectedFloor === null) {
-            setSelectedFloor(floors[0]);
-        }
-    }, [selectedFloor, setSelectedFloor]);
-
-    // 페이지 로드 시 대기 중인 초대 확인 (기존 사용자용)
-    useEffect(() => {
-        const checkInvitations = async () => {
-            // 사용자가 로그인되어 있고, 아직 방이 배정되지 않았으며, 이미 확인하지 않은 경우
-            if (user?.name && !user.selectedRoom && !pendingInvitation) {
-                try {
-                    const invitations = await checkPendingInvitations(user.name);
-                    if (invitations.length > 0) {
-                        setPendingInvitation(invitations[0]);
-                    }
-                } catch (error) {
-                    console.error('초대 확인 실패:', error);
-                }
-            }
-        };
-
-        checkInvitations();
-    }, [user?.name, user?.selectedRoom, pendingInvitation]);
-
-    // 내가 보낸 초대 상태 구독 (거절 알림용)
-    useEffect(() => {
-        if (!user?.sessionId) return;
-
-        const unsubscribe = subscribeToMyInvitations(user.sessionId, (myInvitations) => {
-            // 거절된 초대 찾기
-            const rejected = myInvitations.find(inv =>
-                inv.status === 'rejected' && !inv.notified
-            );
-            if (rejected) {
-                setRejectionNotification(rejected);
-            }
-        });
-
-        return () => unsubscribe();
-    }, [user?.sessionId]);
-
     // 통계 계산
     const stats = useMemo(() => {
         return {
@@ -279,66 +237,6 @@ export default function App() {
             </div>
         );
     }
-
-    // 사용자 등록 후 초대 확인
-    const handleRegister = async (userData) => {
-        const newUser = registerUser(userData);
-        setShowRegistrationModal(false);
-
-        // 성별에 맞는 층으로 이동
-        const defaultFloor = floors.find(f => floorInfo[f].gender === newUser.gender);
-        if (defaultFloor) {
-            setSelectedFloor(defaultFloor);
-        }
-
-        // 대기 중인 초대 확인
-        const invitations = await checkPendingInvitations(newUser.name);
-        if (invitations.length > 0) {
-            setPendingInvitation(invitations[0]); // 첫 번째 초대만 처리
-        }
-    };
-
-    // 초대 수락
-    const handleAcceptInvitation = async () => {
-        if (!pendingInvitation || !user) return;
-
-        setInvitationLoading(true);
-        try {
-            const roomNumber = await acceptInvitation(pendingInvitation.id, {
-                name: user.name,
-                company: user.company || '',
-                gender: user.gender,
-                age: user.age,
-                sessionId: user.sessionId,
-                registeredAt: Date.now()
-            });
-
-            // 사용자 상태 업데이트
-            selectUserRoom(roomNumber);
-            setPendingInvitation(null);
-        } catch (error) {
-            toast.error(error.message || '초대 수락에 실패했습니다.');
-        } finally {
-            setInvitationLoading(false);
-        }
-    };
-
-    // 초대 거절
-    const handleRejectInvitation = async () => {
-        if (!pendingInvitation || !user) return;
-
-        setInvitationLoading(true);
-        try {
-            await rejectInvitation(pendingInvitation.id, {
-                sessionId: user.sessionId
-            });
-            setPendingInvitation(null);
-        } catch (error) {
-            // 에러 무시
-        } finally {
-            setInvitationLoading(false);
-        }
-    };
 
     // Admin 로그인
     const handleAdminLogin = async (email, password) => {
@@ -384,17 +282,7 @@ export default function App() {
                                 </p>
                             </div>
                             <button
-                                onClick={async () => {
-                                    // DB에서 초대 삭제 (다시 나타나지 않도록)
-                                    if (rejectionNotification.id && database) {
-                                        try {
-                                            await set(ref(database, `roommateInvitations/${rejectionNotification.id}`), null);
-                                        } catch (e) {
-                                            console.error('Failed to delete invitation:', e);
-                                        }
-                                    }
-                                    setRejectionNotification(null);
-                                }}
+                                onClick={clearRejectionNotification}
                                 className="text-red-500 hover:text-red-700"
                             >
                                 ✕
@@ -407,7 +295,7 @@ export default function App() {
                 <Header
                     user={user}
                     stats={stats}
-                    onUserClick={() => user?.locked && setShowMyRoomModal(true)}
+                    onUserClick={() => user?.locked && openModal(MODAL_TYPES.MY_ROOM)}
                 />
 
                 {/* 미등록 사용자 안내 */}
