@@ -2,6 +2,7 @@ import { useState, useMemo, useEffect, lazy, Suspense } from 'react';
 import Header from './components/ui/Header';
 import FloorSelector from './components/ui/FloorSelector';
 import RoomGrid from './components/room/RoomGrid';
+import UserProfilePanel from './components/ui/UserProfilePanel';
 import { useUser } from './hooks/useUser';
 import { useRooms } from './hooks/useRooms';
 import { useRoomSelection } from './hooks/useRoomSelection';
@@ -181,14 +182,13 @@ export default function App() {
 
     // 사용자 성별에 맞는 기본 층 설정 (초기 진입 시)
     useEffect(() => {
-        if (user?.gender && selectedFloor === null) {
-            const defaultFloor = floors.find(f => floorInfo[f].gender === user.gender);
-            if (defaultFloor) {
-                setSelectedFloor(defaultFloor);
-            } else {
-                setSelectedFloor(floors[0]);
-            }
-        }
+        if (selectedFloor !== null) return;
+
+        const defaultFloor = user?.gender
+            ? floors.find(f => floorInfo[f].gender === user.gender)
+            : null;
+
+        setSelectedFloor(defaultFloor || floors[0]);
     }, [user?.gender, selectedFloor]);
 
     // 로그인 후 추가 정보(성별 등) 누락 시 모달 표시
@@ -293,70 +293,45 @@ export default function App() {
 
                 {/* 헤더 */}
                 <Header
-                    user={user}
                     stats={stats}
-                    onUserClick={() => user?.locked && openModal(MODAL_TYPES.MY_ROOM)}
                 />
 
-                {/* 미등록 사용자 안내 */}
-                {!isRegistered && (
-                    <div className="card-white rounded-xl p-6 text-center mb-6">
-                        <div className="w-14 h-14 bg-slate-800 rounded-full flex items-center justify-center mx-auto mb-3">
-                            <svg className="w-7 h-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
-                            </svg>
-                        </div>
-                        <h2 className="text-lg font-bold text-gray-800 mb-1">객실 배정 등록 요청</h2>
-                        <p className="text-gray-500 text-sm mb-4">
-                            객실 배정을 위해 정보를 입력해주세요.
-                        </p>
-                        <button
-                            onClick={() => setShowRegistrationModal(true)}
-                            className="px-6 py-2.5 btn-primary rounded-lg font-medium text-sm"
-                        >
-                            등록하기
-                        </button>
+                {/* STEP 1-2: User Profile / Room Assignment 영역 분리 */}
+                <div className="grid grid-cols-1 lg:grid-cols-[340px_1fr] gap-6">
+                    {/* User Profile 영역 */}
+                    <div className="space-y-6">
+                        <UserProfilePanel
+                            user={user}
+                            isRegistered={isRegistered}
+                            onRegisterClick={() => setShowRegistrationModal(true)}
+                            onOpenMyRoom={() => user?.locked && openModal(MODAL_TYPES.MY_ROOM)}
+                        />
                     </div>
-                )}
 
-                {/* 선택 완료 안내 */}
-                {user?.locked && (
-                    <div className="success-box mb-6">
-                        <div className="flex items-center gap-4">
-                            <div className="w-12 h-12 bg-emerald-500 rounded-full flex items-center justify-center text-white text-2xl">
-                                ✓
-                            </div>
-                            <div>
-                                <h3 className="font-bold text-emerald-700">객실 선택 완료!</h3>
-                                <p className="text-emerald-600">
-                                    <span className="font-semibold">{user.selectedRoom}호</span>에 배정되었습니다.
-                                </p>
-                            </div>
-                        </div>
+                    {/* Room Assignment 영역 */}
+                    <div className="space-y-6">
+                        <FloorSelector
+                            selectedFloor={selectedFloor}
+                            onSelectFloor={setSelectedFloor}
+                            userGender={user?.gender}
+                            roomTypeFilter={roomTypeFilter}
+                            onRoomTypeFilterChange={setRoomTypeFilter}
+                        />
+
+                        <RoomGrid
+                            selectedFloor={selectedFloor}
+                            userGender={user?.gender}
+                            canSelectSingleRoom={user?.singleRoom === 'Y'}
+                            getRoomStatus={getRoomStatus}
+                            isMyRoom={isMyRoom}
+                            onRoomClick={handleRoomClick}
+                            onSingleRoomClick={() => setShowSingleRoomModal(true)}
+                            canUserSelect={canSelect}
+                            roomTypeFilter={roomTypeFilter}
+                            highlightedRoom={highlightedRoom}
+                        />
                     </div>
-                )}
-
-                {/* 층 선택 탭 */}
-                <FloorSelector
-                    selectedFloor={selectedFloor}
-                    onSelectFloor={setSelectedFloor}
-                    userGender={user?.gender}
-                    roomTypeFilter={roomTypeFilter}
-                    onRoomTypeFilterChange={setRoomTypeFilter}
-                />
-
-                {/* 객실 그리드 */}
-                <RoomGrid
-                    selectedFloor={selectedFloor}
-                    userGender={user?.gender}
-                    getRoomStatus={getRoomStatus}
-                    isMyRoom={isMyRoom}
-                    onRoomClick={handleRoomClick}
-                    onSingleRoomClick={() => setShowSingleRoomModal(true)}
-                    canUserSelect={canSelect}
-                    roomTypeFilter={roomTypeFilter}
-                    highlightedRoom={highlightedRoom}
-                />
+                </div>
 
                 {/* Lazy loaded 모달들 (Suspense 필요) */}
                 <Suspense fallback={<div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30"><div className="animate-spin w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full" /></div>}>
@@ -418,7 +393,7 @@ export default function App() {
                     {selectedRoomForConfirm && user && (
                         <SelectionModal
                             roomNumber={selectedRoomForConfirm}
-                            roomStatus={getRoomStatus(selectedRoomForConfirm, user.gender, false)}
+                            roomStatus={getRoomStatus(selectedRoomForConfirm, user.gender, false, user?.singleRoom === 'Y')}
                             user={user}
                             onConfirm={handleConfirmSelection}
                             onCancel={() => setSelectedRoomForConfirm(null)}

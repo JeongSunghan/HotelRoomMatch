@@ -40,6 +40,9 @@
 - Room Assignment 영역 분리
 - 모바일 기준 세로 플로우 우선 설계
 
+#### Progress
+- [x] STEP 1-2 구현(User Profile 패널 분리 + 2열 레이아웃 적용)
+
 ---
 
 ## PHASE 2. User Logic Update (권한 기반)
