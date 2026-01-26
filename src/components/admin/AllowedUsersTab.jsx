@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo } from 'react';
 import {
     subscribeToAllowedUsers,
     addAllowedUser,
+    updateAllowedUser,
     removeAllowedUser,
     bulkAddAllowedUsers,
     clearAllAllowedUsers
@@ -14,9 +15,13 @@ export default function AllowedUsersTab() {
     const [users, setUsers] = useState([]);
     const [searchQuery, setSearchQuery] = useState('');
     const [showAddModal, setShowAddModal] = useState(false);
+    const [showEditModal, setShowEditModal] = useState(false);
     const [showCsvModal, setShowCsvModal] = useState(false);
     const [newUser, setNewUser] = useState({ name: '', email: '', company: '' });
+    const [editingUser, setEditingUser] = useState(null);
+    const [editForm, setEditForm] = useState({ name: '', email: '', company: '' });
     const [isAdding, setIsAdding] = useState(false);
+    const [isEditing, setIsEditing] = useState(false);
     const [csvData, setCsvData] = useState('');
     const [csvResult, setCsvResult] = useState(null);
 
@@ -104,6 +109,41 @@ export default function AllowedUsersTab() {
             alert('추가 실패: ' + error.message);
         } finally {
             setIsAdding(false);
+        }
+    };
+
+    // 유저 편집 시작
+    const handleEditUser = (user) => {
+        setEditingUser(user);
+        setEditForm({
+            name: user.name || '',
+            email: user.email || '',
+            company: user.company || ''
+        });
+        setShowEditModal(true);
+    };
+
+    // 유저 편집 저장
+    const handleSaveEdit = async () => {
+        if (!editingUser || !editForm.name.trim() || !editForm.email.trim()) return;
+        if (!isValidEmail(editForm.email)) {
+            alert('유효한 이메일 형식이 아닙니다.');
+            return;
+        }
+
+        setIsEditing(true);
+        try {
+            await updateAllowedUser(editingUser.id, {
+                name: editForm.name,
+                email: editForm.email,
+                company: editForm.company
+            });
+            setShowEditModal(false);
+            setEditingUser(null);
+        } catch (error) {
+            alert('수정 실패: ' + error.message);
+        } finally {
+            setIsEditing(false);
         }
     };
 
@@ -316,6 +356,12 @@ export default function AllowedUsersTab() {
                                     </td>
                                     <td className="px-4 py-3 text-center">
                                         <button
+                                            onClick={() => handleEditUser(user)}
+                                            className="text-blue-600 hover:text-blue-800 text-sm mr-3"
+                                        >
+                                            편집
+                                        </button>
+                                        <button
                                             onClick={() => handleRemoveUser(user.id, user.name)}
                                             className="text-red-500 hover:text-red-700 text-sm"
                                         >
@@ -381,6 +427,72 @@ export default function AllowedUsersTab() {
                                 className="flex-1 py-2 bg-blue-600 text-white rounded-lg disabled:opacity-50"
                             >
                                 {isAdding ? '추가 중...' : '추가'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* 유저 편집 모달 */}
+            {showEditModal && editingUser && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
+                    <div className="bg-white rounded-xl p-6 w-full max-w-md">
+                        <h3 className="text-lg font-bold mb-4">사전등록 유저 편집</h3>
+
+                        <div className="space-y-4">
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">이름 *</label>
+                                <input
+                                    type="text"
+                                    value={editForm.name}
+                                    onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
+                                    className="w-full px-3 py-2 border rounded-lg"
+                                    placeholder="홍길동"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">이메일 *</label>
+                                <input
+                                    type="email"
+                                    value={editForm.email}
+                                    onChange={(e) => setEditForm({ ...editForm, email: e.target.value })}
+                                    className="w-full px-3 py-2 border rounded-lg"
+                                    placeholder="user@example.com"
+                                />
+                                {editForm.email !== editingUser.email && (
+                                    <p className="text-xs text-amber-600 mt-1">
+                                        ⚠️ 이메일을 변경하면 사용자가 새 이메일로 로그인해야 합니다.
+                                    </p>
+                                )}
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">소속 (선택)</label>
+                                <input
+                                    type="text"
+                                    value={editForm.company}
+                                    onChange={(e) => setEditForm({ ...editForm, company: e.target.value })}
+                                    className="w-full px-3 py-2 border rounded-lg"
+                                    placeholder="회사명"
+                                />
+                            </div>
+                        </div>
+
+                        <div className="flex gap-3 mt-6">
+                            <button
+                                onClick={() => {
+                                    setShowEditModal(false);
+                                    setEditingUser(null);
+                                }}
+                                className="flex-1 py-2 border border-gray-300 rounded-lg"
+                            >
+                                취소
+                            </button>
+                            <button
+                                onClick={handleSaveEdit}
+                                disabled={!editForm.name.trim() || !editForm.email.trim() || isEditing}
+                                className="flex-1 py-2 bg-blue-600 text-white rounded-lg disabled:opacity-50"
+                            >
+                                {isEditing ? '저장 중...' : '저장'}
                             </button>
                         </div>
                     </div>

@@ -86,6 +86,7 @@ export {
     verifyUser,
     markUserAsRegistered,
     addAllowedUser,
+    updateAllowedUser,
     removeAllowedUser,
     bulkAddAllowedUsers,
     clearAllAllowedUsers

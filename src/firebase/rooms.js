@@ -103,7 +103,21 @@ export async function removeGuestFromRoom(roomNumber, sessionId) {
     }
 
     const updatedGuests = currentGuests.filter(g => g.sessionId !== sessionId);
-    await set(roomRef, updatedGuests);
+    await set(roomRef, updatedGuests.length > 0 ? updatedGuests : null);
+
+    // 방에서 제거된 유저의 selectedRoom과 locked 상태도 함께 초기화
+    const userRef = ref(database, `users/${sessionId}`);
+    const userSnapshot = await get(userRef);
+    const userData = userSnapshot.val();
+
+    if (userData && userData.selectedRoom === roomNumber) {
+        await set(userRef, {
+            ...userData,
+            selectedRoom: null,
+            locked: false,
+            removedAt: Date.now()
+        });
+    }
 
     return true;
 }

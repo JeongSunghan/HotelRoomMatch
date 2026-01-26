@@ -149,18 +149,18 @@ export async function deleteUserCompletely(sessionId, email) {
 
         // 2. 객실에서 제거 (배정되어 있는 경우)
         if (userData && userData.selectedRoom) {
-            const roomRef = ref(database, `rooms/${userData.selectedRoom}`);
-            const roomSnapshot = await get(roomRef);
+            const roomGuestsRef = ref(database, `rooms/${userData.selectedRoom}/guests`);
+            const roomSnapshot = await get(roomGuestsRef);
             const roomData = roomSnapshot.val();
 
-            if (roomData && roomData.guests) {
-                let guests = roomData.guests;
+            if (roomData) {
+                let guests = roomData;
                 if (!Array.isArray(guests)) {
                     guests = Object.values(guests);
                 }
 
                 const filteredGuests = guests.filter(g => g.sessionId !== sessionId);
-                await set(roomRef, filteredGuests.length > 0 ? { guests: filteredGuests } : null);
+                await set(roomGuestsRef, filteredGuests.length > 0 ? filteredGuests : null);
             }
         }
 

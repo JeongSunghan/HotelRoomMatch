@@ -149,6 +149,59 @@ export async function addAllowedUser(userData) {
 }
 
 /**
+ * 사전등록 유저 수정 (관리자용)
+ * @param {string} userId - Base64 인코딩된 사용자 ID (이메일 키)
+ * @param {Object} updates - { name?, email?, company? }
+ */
+export async function updateAllowedUser(userId, updates) {
+    if (!database || !userId) return false;
+
+    const userRef = ref(database, `allowedUsers/${userId}`);
+    const snapshot = await get(userRef);
+    const currentData = snapshot.val();
+
+    if (!currentData) {
+        throw new Error('해당 유저를 찾을 수 없습니다.');
+    }
+
+    // 이메일이 변경되는 경우, 새 키로 데이터 이동
+    if (updates.email && updates.email !== currentData.email) {
+        const newEmail = sanitizeEmail(updates.email);
+        const newUserKey = emailToKey(newEmail);
+
+        if (!newUserKey) {
+            throw new Error('유효하지 않은 이메일 형식입니다.');
+        }
+
+        // 새 키에 데이터 생성
+        const newUserRef = ref(database, `allowedUsers/${newUserKey}`);
+        await set(newUserRef, {
+            ...currentData,
+            name: updates.name?.trim() || currentData.name,
+            email: newEmail,
+            company: updates.company?.trim() || currentData.company,
+            updatedAt: Date.now()
+        });
+
+        // 이전 키 삭제
+        await set(userRef, null);
+
+        return newUserKey;
+    }
+
+    // 이메일 변경이 없는 경우 기존 키에서 업데이트
+    await set(userRef, {
+        ...currentData,
+        name: updates.name?.trim() || currentData.name,
+        email: currentData.email,
+        company: updates.company?.trim() || currentData.company,
+        updatedAt: Date.now()
+    });
+
+    return userId;
+}
+
+/**
  * 사전등록 유저 삭제 (관리자용)
  */
 export async function removeAllowedUser(userId) {
