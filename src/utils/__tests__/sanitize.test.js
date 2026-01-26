@@ -199,22 +199,17 @@ describe('emailToKey', () => {
 
 describe('isValidRoomNumber', () => {
     it('should accept valid room numbers', () => {
-        expect(isValidRoomNumber('901')).toBe(true);  // 9층 남성 2인실
-        expect(isValidRoomNumber('920')).toBe(true);  // 9층 남성 2인실
-        expect(isValidRoomNumber('1001')).toBe(true); // 10층 여성 1인실
-        expect(isValidRoomNumber('1013')).toBe(true); // 10층 여성 1인실
-        expect(isValidRoomNumber('1014')).toBe(true); // 10층 여성 2인실
-        expect(isValidRoomNumber('1026')).toBe(true); // 10층 여성 2인실
-        expect(isValidRoomNumber('1101')).toBe(true); // 11층 남성 1인실
-        expect(isValidRoomNumber('1117')).toBe(true); // 11층 남성 1인실
+        expect(isValidRoomNumber('601')).toBe(true);
+        expect(isValidRoomNumber('701')).toBe(true);
+        expect(isValidRoomNumber('801')).toBe(true);
+        expect(isValidRoomNumber('1001')).toBe(true);
+        expect(isValidRoomNumber('1101')).toBe(true);
+        expect(isValidRoomNumber('1201')).toBe(true);
     });
 
     it('should reject invalid room numbers', () => {
         expect(isValidRoomNumber('101')).toBe(false);  // 1층 (지원 안함)
-        expect(isValidRoomNumber('601')).toBe(false);  // 6층 (더 이상 사용 안함)
-        expect(isValidRoomNumber('701')).toBe(false);  // 7층 (더 이상 사용 안함)
-        expect(isValidRoomNumber('801')).toBe(false);  // 8층 (더 이상 사용 안함)
-        expect(isValidRoomNumber('1201')).toBe(false); // 12층 (더 이상 사용 안함)
+        expect(isValidRoomNumber('501')).toBe(false);  // 5층 (지원 안함)
         expect(isValidRoomNumber('1301')).toBe(false); // 13층 (지원 안함)
         expect(isValidRoomNumber('abc')).toBe(false);
         expect(isValidRoomNumber('')).toBe(false);
@@ -262,7 +257,7 @@ describe('isValidSessionId', () => {
 describe('isSafeFirebasePath', () => {
     it('should accept safe paths', () => {
         expect(isSafeFirebasePath('users/session123')).toBe(true);
-        expect(isSafeFirebasePath('rooms/901')).toBe(true);
+        expect(isSafeFirebasePath('rooms/601')).toBe(true);
     });
 
     it('should reject path traversal', () => {

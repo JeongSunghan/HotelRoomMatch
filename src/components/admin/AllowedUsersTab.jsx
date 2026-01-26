@@ -2,7 +2,6 @@ import { useState, useEffect, useMemo } from 'react';
 import {
     subscribeToAllowedUsers,
     addAllowedUser,
-    updateAllowedUser,
     removeAllowedUser,
     bulkAddAllowedUsers,
     clearAllAllowedUsers
@@ -20,41 +19,6 @@ export default function AllowedUsersTab() {
     const [isAdding, setIsAdding] = useState(false);
     const [csvData, setCsvData] = useState('');
     const [csvResult, setCsvResult] = useState(null);
-    const [selectedIds, setSelectedIds] = useState(new Set());
-
-    // 전체 선택 핸들러
-    const handleSelectAll = (e) => {
-        if (e.target.checked) {
-            setSelectedIds(new Set(filteredUsers.map(u => u.id)));
-        } else {
-            setSelectedIds(new Set());
-        }
-    };
-
-    // 개별 선택 핸들러
-    const handleSelectOne = (id) => {
-        const newSelected = new Set(selectedIds);
-        if (newSelected.has(id)) {
-            newSelected.delete(id);
-        } else {
-            newSelected.add(id);
-        }
-        setSelectedIds(newSelected);
-    };
-
-    // 일괄 삭제 핸들러
-    const handleBulkDelete = async () => {
-        if (selectedIds.size === 0) return;
-        if (!confirm(`선택한 ${selectedIds.size}명의 유저를 삭제하시겠습니까?`)) return;
-
-        try {
-            const promises = Array.from(selectedIds).map(id => removeAllowedUser(id));
-            await Promise.all(promises);
-            setSelectedIds(new Set());
-        } catch (error) {
-            alert('일괄 삭제 중 오류가 발생했습니다: ' + error.message);
-        }
-    };
 
     // 정렬 및 필터 상태
     const [sortBy, setSortBy] = useState('name'); // 'name', 'company', 'status'
@@ -143,51 +107,6 @@ export default function AllowedUsersTab() {
         }
     };
 
-    // 편집 모드 상태
-    const [isEditMode, setIsEditMode] = useState(false);
-    const [editingUserId, setEditingUserId] = useState(null);
-
-    // 편집 시작
-    const handleEditClick = (user) => {
-        setNewUser({
-            name: user.name,
-            email: user.email,
-            company: user.company || '',
-            position: user.position || '',
-            gender: user.gender || '',
-            singleRoom: user.singleRoom || 'N'
-        });
-        setEditingUserId(user.id);
-        setIsEditMode(true);
-        setShowAddModal(true);
-    };
-
-    // 편집 저장
-    const handleUpdateUser = async () => {
-        if (!newUser.name.trim() || !newUser.email.trim()) return;
-
-        setIsAdding(true);
-        try {
-            await updateAllowedUser(editingUserId, newUser);
-            setNewUser({ name: '', email: '', company: '' });
-            setShowAddModal(false);
-            setIsEditMode(false);
-            setEditingUserId(null);
-        } catch (error) {
-            alert('수정 실패: ' + error.message);
-        } finally {
-            setIsAdding(false);
-        }
-    };
-
-    // 모달 닫기 핸들러
-    const handleCloseModal = () => {
-        setShowAddModal(false);
-        setIsEditMode(false);
-        setEditingUserId(null);
-        setNewUser({ name: '', email: '', company: '' });
-    };
-
     // 유저 삭제
     const handleRemoveUser = async (userId, userName) => {
         if (!confirm(`${userName}님을 사전등록 목록에서 삭제하시겠습니까?`)) return;
@@ -199,68 +118,191 @@ export default function AllowedUsersTab() {
         }
     };
 
-    // ... (CSV 파싱 부분 생략)
+    // CSV 파싱 (쉼표 또는 탭 지원)
+    const parseCSV = (text) => {
+        const lines = text.trim().split(/\r?\n/);
+        const users = [];
 
-    // ... (CSV 업로드 부분 생략)
+        // 구분자 자동 감지 (첫 데이터 줄 기준)
+        const firstDataLine = lines.find((line, i) => {
+            const trimmed = line.trim();
+            if (!trimmed) return false;
+            if (i === 0 && (trimmed.includes('이름') || trimmed.toLowerCase().includes('name'))) return false;
+            return true;
+        }) || lines[0];
+        const delimiter = firstDataLine.includes('\t') ? '\t' : ',';
 
-    // ... (전체 삭제 부분 생략)
+        for (let i = 0; i < lines.length; i++) {
+            const line = lines[i].trim();
+            if (!line) continue;
+
+            // 헤더 스킵 (이름, name 포함)
+            if (i === 0 && (line.includes('이름') || line.toLowerCase().includes('name'))) {
+                continue;
+            }
+
+            const parts = line.split(delimiter).map(p => p.trim().replace(/"/g, ''));
+            if (parts.length >= 2) {
+                users.push({
+                    name: parts[0],
+                    email: parts[1],
+                    company: parts[2] || ''
+                });
+            }
+        }
+
+        return users;
+    };
+
+    // CSV 업로드
+    const handleCsvUpload = async () => {
+        const parsedUsers = parseCSV(csvData);
+
+        if (parsedUsers.length === 0) {
+            alert('업로드할 유저가 없습니다.');
+            return;
+        }
+
+        const result = await bulkAddAllowedUsers(parsedUsers);
+        setCsvResult(result);
+    };
+
+    // 전체 삭제
+    const handleClearAll = async () => {
+        if (!confirm('⚠️ 정말로 모든 사전등록 유저를 삭제하시겠습니까?\n\n이 작업은 되돌릴 수 없습니다.')) return;
+        if (!confirm('⚠️ 마지막 확인: 정말 삭제하시겠습니까?')) return;
+
+        try {
+            await clearAllAllowedUsers();
+        } catch (error) {
+            alert('삭제 실패: ' + error.message);
+        }
+    };
 
     return (
         <div className="space-y-4">
-            {/* ... (통계 카드 생략) */}
+            {/* 통계 카드 */}
+            <div className="grid grid-cols-3 gap-4">
+                <div className="bg-white p-4 rounded-lg border border-slate-200 text-center">
+                    <p className="text-2xl font-bold text-slate-700">{stats.total}</p>
+                    <p className="text-sm text-gray-500">전체</p>
+                </div>
+                <div className="bg-white p-4 rounded-lg border border-green-200 text-center">
+                    <p className="text-2xl font-bold text-green-600">{stats.registered}</p>
+                    <p className="text-sm text-gray-500">등록 완료</p>
+                </div>
+                <div className="bg-white p-4 rounded-lg border border-amber-200 text-center">
+                    <p className="text-2xl font-bold text-amber-600">{stats.pending}</p>
+                    <p className="text-sm text-gray-500">미등록</p>
+                </div>
+            </div>
 
-            {/* ... (액션 버튼) */}
+            {/* 액션 버튼 */}
             <div className="flex gap-2 flex-wrap">
                 <button
-                    onClick={() => {
-                        setIsEditMode(false);
-                        setNewUser({ name: '', email: '', company: '' });
-                        setShowAddModal(true);
-                    }}
+                    onClick={() => setShowAddModal(true)}
                     className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium text-sm"
                 >
                     ➕ 개별 추가
                 </button>
-                {/* ... (나머지 버튼들) */}
+                <button
+                    onClick={() => setShowCsvModal(true)}
+                    className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg font-medium text-sm"
+                >
+                    📤 CSV 업로드
+                </button>
+                <button
+                    onClick={handleClearAll}
+                    className="px-4 py-2 bg-red-100 hover:bg-red-200 text-red-700 rounded-lg font-medium text-sm"
+                >
+                    🗑️ 전체 삭제
+                </button>
             </div>
 
-            {/* ... (검색 및 필터 부분 생략) */}
+            {/* 검색 */}
+            <div className="relative">
+                <input
+                    type="text"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    placeholder="이름, 이메일, 회사로 검색..."
+                    className="w-full px-4 py-2 pl-10 border border-gray-300 rounded-lg"
+                />
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">🔍</span>
+            </div>
+
+            {/* 정렬 및 필터 */}
+            <div className="flex flex-wrap gap-2 items-center">
+                {/* 상태 필터 */}
+                <div className="flex rounded-lg border border-gray-300 overflow-hidden text-sm">
+                    <button
+                        onClick={() => setStatusFilter('all')}
+                        className={`px-3 py-1.5 ${statusFilter === 'all' ? 'bg-slate-600 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'}`}
+                    >
+                        전체 ({stats.total})
+                    </button>
+                    <button
+                        onClick={() => setStatusFilter('registered')}
+                        className={`px-3 py-1.5 border-l ${statusFilter === 'registered' ? 'bg-green-600 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'}`}
+                    >
+                        등록 ({stats.registered})
+                    </button>
+                    <button
+                        onClick={() => setStatusFilter('pending')}
+                        className={`px-3 py-1.5 border-l ${statusFilter === 'pending' ? 'bg-amber-500 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'}`}
+                    >
+                        대기 ({stats.pending})
+                    </button>
+                </div>
+
+                {/* 정렬 */}
+                <select
+                    value={sortBy}
+                    onChange={(e) => setSortBy(e.target.value)}
+                    className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm"
+                >
+                    <option value="name">이름순</option>
+                    <option value="company">소속순</option>
+                    <option value="status">상태순</option>
+                </select>
+                <button
+                    onClick={() => setSortOrder(o => o === 'asc' ? 'desc' : 'asc')}
+                    className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm bg-white hover:bg-gray-50"
+                    title={sortOrder === 'asc' ? '오름차순' : '내림차순'}
+                >
+                    {sortOrder === 'asc' ? '↑ 오름' : '↓ 내림'}
+                </button>
+
+                <span className="text-sm text-gray-500 ml-auto">
+                    {filteredUsers.length}명 표시
+                </span>
+            </div>
 
             {/* 유저 목록 */}
             <div className="bg-white rounded-lg border border-slate-200 overflow-hidden">
                 <table className="w-full text-sm">
-                    {/* ... (테이블 헤더 생략) */}
+                    <thead className="bg-slate-50 border-b">
+                        <tr>
+                            <th className="px-4 py-3 text-left font-medium text-gray-700">이름</th>
+                            <th className="px-4 py-3 text-left font-medium text-gray-700">이메일</th>
+                            <th className="px-4 py-3 text-left font-medium text-gray-700">소속</th>
+                            <th className="px-4 py-3 text-center font-medium text-gray-700">상태</th>
+                            <th className="px-4 py-3 text-center font-medium text-gray-700">관리</th>
+                        </tr>
+                    </thead>
                     <tbody className="divide-y">
                         {filteredUsers.length === 0 ? (
                             <tr>
-                                <td colSpan="8" className="px-4 py-8 text-center text-gray-400">
+                                <td colSpan="5" className="px-4 py-8 text-center text-gray-400">
                                     {searchQuery ? '검색 결과가 없습니다.' : '사전등록 유저가 없습니다.'}
                                 </td>
                             </tr>
                         ) : (
                             filteredUsers.map(user => (
                                 <tr key={user.id} className="hover:bg-gray-50">
-                                    {/* ... (데이터 컬럼들) */}
-                                    <td className="px-4 py-3 text-center">
-                                        <input
-                                            type="checkbox"
-                                            checked={selectedIds.has(user.id)}
-                                            onChange={() => handleSelectOne(user.id)}
-                                            className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                                        />
-                                    </td>
-                                    <td className="px-4 py-3">
-                                        <div className="font-medium">{user.name}</div>
-                                        {user.position && <div className="text-xs text-gray-500">{user.position}</div>}
-                                    </td>
+                                    <td className="px-4 py-3 font-medium">{user.name}</td>
                                     <td className="px-4 py-3 text-gray-600">{user.email}</td>
                                     <td className="px-4 py-3 text-gray-600">{user.company || '-'}</td>
-                                    <td className="px-4 py-3 text-center text-gray-600">
-                                        {user.gender === 'M' ? '남성' : user.gender === 'F' ? '여성' : '-'}
-                                    </td>
-                                    <td className="px-4 py-3 text-center text-gray-600">
-                                        {user.singleRoom === 'Y' ? '신청' : '-'}
-                                    </td>
                                     <td className="px-4 py-3 text-center">
                                         {user.registered ? (
                                             <span className="px-2 py-1 bg-green-100 text-green-700 rounded-full text-xs">
@@ -272,13 +314,7 @@ export default function AllowedUsersTab() {
                                             </span>
                                         )}
                                     </td>
-                                    <td className="px-4 py-3 text-center space-x-2">
-                                        <button
-                                            onClick={() => handleEditClick(user)}
-                                            className="text-blue-500 hover:text-blue-700 text-sm"
-                                        >
-                                            수정
-                                        </button>
+                                    <td className="px-4 py-3 text-center">
                                         <button
                                             onClick={() => handleRemoveUser(user.id, user.name)}
                                             className="text-red-500 hover:text-red-700 text-sm"
@@ -293,16 +329,13 @@ export default function AllowedUsersTab() {
                 </table>
             </div>
 
-            {/* 개별 추가/수정 모달 */}
+            {/* 개별 추가 모달 */}
             {showAddModal && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
-                    <div className="bg-white rounded-xl p-6 w-full max-w-md max-h-[90vh] overflow-y-auto">
-                        <h3 className="text-lg font-bold mb-4">
-                            {isEditMode ? '유저 정보 수정' : '사전등록 유저 추가'}
-                        </h3>
+                    <div className="bg-white rounded-xl p-6 w-full max-w-md">
+                        <h3 className="text-lg font-bold mb-4">사전등록 유저 추가</h3>
 
                         <div className="space-y-4">
-                            {/* ... (입력 필드들) */}
                             <div>
                                 <label className="block text-sm font-medium text-gray-700 mb-1">이름 *</label>
                                 <input
@@ -321,72 +354,33 @@ export default function AllowedUsersTab() {
                                     onChange={(e) => setNewUser({ ...newUser, email: e.target.value })}
                                     className="w-full px-3 py-2 border rounded-lg"
                                     placeholder="user@example.com"
-                                    disabled={isEditMode} // 이메일은 수정 불가 (ID 키이므로)
                                 />
-                                {isEditMode && <p className="text-xs text-gray-400 mt-1">이메일은 수정할 수 없습니다.</p>}
                             </div>
-                            <div className="flex gap-3">
-                                <div className="flex-1">
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">소속</label>
-                                    <input
-                                        type="text"
-                                        value={newUser.company || ''}
-                                        onChange={(e) => setNewUser({ ...newUser, company: e.target.value })}
-                                        className="w-full px-3 py-2 border rounded-lg"
-                                        placeholder="회사명"
-                                    />
-                                </div>
-                                <div className="flex-1">
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">직위</label>
-                                    <input
-                                        type="text"
-                                        value={newUser.position || ''}
-                                        onChange={(e) => setNewUser({ ...newUser, position: e.target.value })}
-                                        className="w-full px-3 py-2 border rounded-lg"
-                                        placeholder="직위"
-                                    />
-                                </div>
-                            </div>
-                            <div className="flex gap-3">
-                                <div className="flex-1">
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">성별</label>
-                                    <select
-                                        value={newUser.gender || ''}
-                                        onChange={(e) => setNewUser({ ...newUser, gender: e.target.value })}
-                                        className="w-full px-3 py-2 border rounded-lg"
-                                    >
-                                        <option value="">선택 안함</option>
-                                        <option value="M">남성</option>
-                                        <option value="F">여성</option>
-                                    </select>
-                                </div>
-                                <div className="flex-1">
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">1인실 희망</label>
-                                    <select
-                                        value={newUser.singleRoom || 'N'}
-                                        onChange={(e) => setNewUser({ ...newUser, singleRoom: e.target.value })}
-                                        className="w-full px-3 py-2 border rounded-lg"
-                                    >
-                                        <option value="N">아니오</option>
-                                        <option value="Y">예</option>
-                                    </select>
-                                </div>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">소속 (선택)</label>
+                                <input
+                                    type="text"
+                                    value={newUser.company}
+                                    onChange={(e) => setNewUser({ ...newUser, company: e.target.value })}
+                                    className="w-full px-3 py-2 border rounded-lg"
+                                    placeholder="회사명"
+                                />
                             </div>
                         </div>
 
                         <div className="flex gap-3 mt-6">
                             <button
-                                onClick={handleCloseModal}
+                                onClick={() => setShowAddModal(false)}
                                 className="flex-1 py-2 border border-gray-300 rounded-lg"
                             >
                                 취소
                             </button>
                             <button
-                                onClick={isEditMode ? handleUpdateUser : handleAddUser}
+                                onClick={handleAddUser}
                                 disabled={!newUser.name.trim() || !newUser.email.trim() || isAdding}
                                 className="flex-1 py-2 bg-blue-600 text-white rounded-lg disabled:opacity-50"
                             >
-                                {isAdding ? '저장 중...' : (isEditMode ? '수정' : '추가')}
+                                {isAdding ? '추가 중...' : '추가'}
                             </button>
                         </div>
                     </div>
@@ -401,14 +395,14 @@ export default function AllowedUsersTab() {
 
                         <div className="info-box mb-4">
                             <p className="text-blue-700 text-sm font-medium">📋 CSV 형식</p>
-                            <p className="text-blue-600 text-xs mt-1">소속명, 성명, 직위, 이메일, 1인실 여부, 성별 - 쉼표 또는 탭으로 구분</p>
+                            <p className="text-blue-600 text-xs mt-1">이름, 이메일, 소속(선택) - 쉼표 또는 탭으로 구분</p>
                             <p className="text-blue-500 text-xs">엑셀에서 복사하면 탭으로 자동 인식됩니다.</p>
                         </div>
 
                         <textarea
                             value={csvData}
                             onChange={(e) => setCsvData(e.target.value)}
-                            placeholder="소속명,성명,직위,이메일,1인실 여부,성별&#10;ABC회사,홍길동,부장,hong@example.com,Y,M&#10;XYZ기업,김영희,과장,kim@example.com,N,F"
+                            placeholder="이름,이메일,소속&#10;홍길동,hero@example.com,ABC회사&#10;김철수,chulsoo@test.com,XYZ기업"
                             className="w-full h-40 px-3 py-2 border rounded-lg text-sm font-mono"
                         />
 

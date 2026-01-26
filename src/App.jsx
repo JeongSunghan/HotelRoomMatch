@@ -26,7 +26,6 @@ const JoinRequestModal = lazy(() => import('./components/room/JoinRequestModal')
 const WaitingApprovalModal = lazy(() => import('./components/room/WaitingApprovalModal'));
 const CancelledModal = lazy(() => import('./components/room/CancelledModal'));
 const SingleRoomInfoModal = lazy(() => import('./components/room/SingleRoomInfoModal'));
-const ReservationBlockedModal = lazy(() => import('./components/ui/ReservationBlockedModal'));
 
 
 /**
@@ -72,9 +71,6 @@ export default function App() {
         roomTypeFilter,
         setRoomTypeFilter,
         MODAL_TYPES,
-        // 예약 차단 모달
-        blockedReservation,
-        openReservationBlockedModal,
     } = useUI();
 
     // 개별 모달 상태 (가독성을 위한 alias)
@@ -85,7 +81,6 @@ export default function App() {
     const showSingleRoomModal = modals[MODAL_TYPES.SINGLE_ROOM];
     const showSearchModal = modals[MODAL_TYPES.SEARCH];
     const showWarningModal = modals[MODAL_TYPES.WARNING];
-    const showReservationBlockedModal = modals[MODAL_TYPES.RESERVATION_BLOCKED];
     // Toast 알림
     const toast = useToast();
 
@@ -132,11 +127,7 @@ export default function App() {
         setPendingSelection,
         setShowWarningModal,
         pendingSelection,
-        warningContent,
-        // 예약 차단 모달
-        openReservationBlockedModal,
-        // 자동 취소 타이머용 선택된 방 번호
-        selectedRoomNumber: selectedRoomForConfirm
+        warningContent
     });
 
     // 내 요청 상태 감지 (Guest)
@@ -304,7 +295,7 @@ export default function App() {
                 <Header
                     user={user}
                     stats={stats}
-                    onUserClick={() => user && openModal(MODAL_TYPES.MY_ROOM)}
+                    onUserClick={() => user?.locked && openModal(MODAL_TYPES.MY_ROOM)}
                 />
 
                 {/* 미등록 사용자 안내 */}
@@ -358,7 +349,6 @@ export default function App() {
                 <RoomGrid
                     selectedFloor={selectedFloor}
                     userGender={user?.gender}
-                    user={user} // 유저 정보 전달 (1인실 권한 확인용)
                     getRoomStatus={getRoomStatus}
                     isMyRoom={isMyRoom}
                     onRoomClick={handleRoomClick}
@@ -407,7 +397,7 @@ export default function App() {
                     )}
 
                     {/* 내 방 정보 모달 */}
-                    {showMyRoomModal && user && (
+                    {showMyRoomModal && user?.locked && (
                         <MyRoomModal
                             user={user}
                             roomGuests={roomGuests}
@@ -428,7 +418,7 @@ export default function App() {
                     {selectedRoomForConfirm && user && (
                         <SelectionModal
                             roomNumber={selectedRoomForConfirm}
-                            roomStatus={getRoomStatus(selectedRoomForConfirm, user.gender, false, user.singleRoom === 'Y')}
+                            roomStatus={getRoomStatus(selectedRoomForConfirm, user.gender, false)}
                             user={user}
                             onConfirm={handleConfirmSelection}
                             onCancel={() => setSelectedRoomForConfirm(null)}
@@ -486,13 +476,9 @@ export default function App() {
                         <CancelledModal
                             onRecoverAndReload={async () => {
                                 if (updateUser) {
-                                    // 1. 유저 상태 초기화 (로컬 + DB)
                                     await updateUser({ selectedRoom: null, locked: false });
-                                    // 2. 모달 닫기
-                                    setShowCancelledModal(false);
-                                    // 3. 상태 동기화를 위해 토스트 메시지 표시
-                                    toast.info('상태가 복구되었습니다. 다시 객실을 선택해주세요.');
                                 }
+                                window.location.reload();
                             }}
                         />
                     )}
@@ -517,14 +503,6 @@ export default function App() {
                                     setTimeout(() => setHighlightedRoom(null), 3000);
                                 }
                             }}
-                        />
-                    )}
-
-                    {/* 예약 차단 알림 모달 */}
-                    {showReservationBlockedModal && blockedReservation && (
-                        <ReservationBlockedModal
-                            reservation={blockedReservation}
-                            onClose={() => closeModal(MODAL_TYPES.RESERVATION_BLOCKED)}
                         />
                     )}
                 </Suspense>

@@ -8,7 +8,6 @@ import { getRoomsByFloor, floorInfo } from '../../data/roomData';
 export default function RoomGrid({
     selectedFloor,
     userGender,
-    user,
     getRoomStatus,
     isMyRoom,
     onRoomClick,
@@ -81,16 +80,16 @@ export default function RoomGrid({
                 </div>
             </div>
 
-            {/* 객실 그리드 - 영화관 좌석 스타일 */}
+            {/* 객실 그리드 */}
             {sortedRooms.length > 0 ? (
-                <div className="space-y-3">
+                <div className="space-y-4">
                     {Object.entries(roomsByRow).map(([rowIndex, rooms]) => (
                         <div
                             key={rowIndex}
-                            className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 lg:grid-cols-10 gap-2"
+                            className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3"
                         >
                             {rooms.map(({ roomNumber, roomData }) => {
-                                const status = getRoomStatus(roomNumber, userGender, isAdmin, user?.singleRoom === 'Y');
+                                const status = getRoomStatus(roomNumber, userGender, isAdmin);
                                 const isThisMyRoom = isMyRoom(roomNumber);
                                 const canSelect = canUserSelect && status.canSelect && !isThisMyRoom;
 

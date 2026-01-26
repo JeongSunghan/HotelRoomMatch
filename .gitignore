@@ -32,7 +32,6 @@ yarn-error.log*
 *.sln
 *.sw?
 *.swp
-*.json
 
 # OS generated files
 .DS_Store

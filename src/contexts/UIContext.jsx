@@ -17,7 +17,6 @@ const MODAL_TYPES = {
     CANCELLED: 'cancelled',
     INVITATIONS: 'invitations',
     SELECTION: 'selection',  // 방 선택 확인 모달
-    RESERVATION_BLOCKED: 'reservationBlocked', // 예약 중인 방 클릭 시
 };
 
 const initialModalState = {
@@ -30,7 +29,6 @@ const initialModalState = {
     [MODAL_TYPES.CANCELLED]: false,
     [MODAL_TYPES.INVITATIONS]: false,
     [MODAL_TYPES.SELECTION]: false,
-    [MODAL_TYPES.RESERVATION_BLOCKED]: false,
 };
 
 export function UIProvider({ children }) {
@@ -43,9 +41,6 @@ export function UIProvider({ children }) {
     // 경고 모달 관련 상태
     const [warningContent, setWarningContent] = useState([]);
     const [pendingSelection, setPendingSelection] = useState(null);
-
-    // 예약 차단 모달 상태
-    const [blockedReservation, setBlockedReservation] = useState(null);
 
     // 층 선택 상태
     const [selectedFloor, setSelectedFloor] = useState(null);
@@ -65,9 +60,6 @@ export function UIProvider({ children }) {
             if (data.warnings) setWarningContent(data.warnings);
             if (data.pendingSelection) setPendingSelection(data.pendingSelection);
         }
-        if (modalName === MODAL_TYPES.RESERVATION_BLOCKED && data?.reservation) {
-            setBlockedReservation(data.reservation);
-        }
     }, []);
 
     // 모달 닫기
@@ -82,9 +74,6 @@ export function UIProvider({ children }) {
             setWarningContent([]);
             setPendingSelection(null);
         }
-        if (modalName === MODAL_TYPES.RESERVATION_BLOCKED) {
-            setBlockedReservation(null);
-        }
     }, []);
 
     // 모든 모달 닫기
@@ -93,13 +82,6 @@ export function UIProvider({ children }) {
         setWarningContent([]);
         setPendingSelection(null);
         setSelectedRoomNumber(null);
-        setBlockedReservation(null);
-    }, []);
-
-    // 예약 차단 모달 열기 (편의 함수)
-    const openReservationBlockedModal = useCallback((reservation) => {
-        setBlockedReservation(reservation);
-        setModals(prev => ({ ...prev, [MODAL_TYPES.RESERVATION_BLOCKED]: true }));
     }, []);
 
     // 방 선택 (Selection 모달 열기)
@@ -124,10 +106,6 @@ export function UIProvider({ children }) {
         setWarningContent,
         pendingSelection,
         setPendingSelection,
-
-        // 예약 차단 모달 관련
-        blockedReservation,
-        openReservationBlockedModal,
 
         // 층/필터 상태
         selectedFloor,

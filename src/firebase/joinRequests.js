@@ -70,9 +70,9 @@ export function subscribeToJoinRequests(mySessionId, callback) {
 
 /**
  * 입실 요청 수락 (Transaction으로 안전하게 처리)
- * 1. 방에 게스트 추가
- * 2. 게스트의 users 정보 업데이트 (selectedRoom, locked)
- * 3. 요청 상태 accepted로 변경
+ * 1. 요청 상태 accepted로 변경
+ * 2. 방에 게스트 추가
+ * 3. 요청 데이터 삭제 (또는 히스토리 보존 위해 남겨둘 수도 있음 -> 여기선 즉시 삭제하지 않고 accepted로 둠)
  */
 export async function acceptJoinRequest(requestId, requestData) {
     if (!database) return;
@@ -92,22 +92,17 @@ export async function acceptJoinRequest(requestId, requestData) {
             if (currentGuests.some(g => g.sessionId === requestData.fromUserId)) return;
 
             // 게스트 추가
+            // (주의: requestData에는 user full info가 없을 수 있음. 
+            // 생성 시 전체 정보를 넣거나, 여기서 다시 DB 조회해야 하는데
+            // createJoinRequest 할 때 guestInfo 전체를 넣는 것이 좋음)
             return [...currentGuests, requestData.guestInfo];
         });
 
-        // 2. 게스트의 users 정보 업데이트 (locked: true, selectedRoom)
-        const guestUserRef = ref(database, `users/${requestData.fromUserId}`);
-        await update(guestUserRef, {
-            selectedRoom: requestData.toRoomNumber,
-            locked: true,
-            selectedAt: Date.now()
-        });
-
-        // 3. 요청 상태 업데이트
+        // 2. 요청 상태 업데이트
         const reqRef = ref(database, `join_requests/${requestId}`);
         await update(reqRef, { status: REQUEST_STATUS.ACCEPTED });
 
-        // 4. 로그 남기기
+        // 3. 로그 남기기
         await logGuestAdd(
             requestData.toRoomNumber,
             requestData.guestInfo,

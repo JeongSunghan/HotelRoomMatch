@@ -16,52 +16,11 @@ export async function saveUser(sessionId, userData) {
     return true;
 }
 
-/**
- * 사용자 정보 업데이트 (일반 사용자용)
- * users와 rooms 모두 동기화
- * @param {string} sessionId - 유저 세션 ID
- * @param {Object} updates - 업데이트할 필드들
- * @returns {Promise<boolean>}
- */
 export async function updateUser(sessionId, updates) {
     if (!database) return false;
 
-    // 1. users/{sessionId} 업데이트
     const userRef = ref(database, `users/${sessionId}`);
-    const userSnapshot = await get(userRef);
-    const userData = userSnapshot.val();
-
-    if (!userData) return false;
-
-    await update(userRef, {
-        ...updates,
-        updatedAt: Date.now()
-    });
-
-    // 2. 유저가 객실에 배정되어 있다면 rooms/{roomNumber}/guests도 업데이트
-    if (userData.selectedRoom) {
-        const roomRef = ref(database, `rooms/${userData.selectedRoom}`);
-        const roomSnapshot = await get(roomRef);
-        const roomData = roomSnapshot.val();
-
-        if (roomData && roomData.guests) {
-            let guests = roomData.guests;
-            if (!Array.isArray(guests)) {
-                guests = Object.values(guests);
-            }
-
-            // 해당 유저의 게스트 정보 찾아서 업데이트
-            const updatedGuests = guests.map(guest => {
-                if (guest.sessionId === sessionId) {
-                    return { ...guest, ...updates };
-                }
-                return guest;
-            });
-
-            await update(roomRef, { guests: updatedGuests });
-        }
-    }
-
+    await update(userRef, updates);
     return true;
 }
 

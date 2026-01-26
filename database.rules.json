@@ -31,7 +31,7 @@
                 ".validate": "newData.hasChildren(['inviterSessionId', 'inviteeName', 'roomNumber', 'status'])"
             }
         },
-        "joinRequests": {
+        "join_requests": {
             ".read": "auth != null",
             ".write": "auth != null",
             "$requestId": {

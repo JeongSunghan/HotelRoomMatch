@@ -1,6 +1,6 @@
 /**
  * CSV 파싱 유틸리티
- * output.json 형식 지원: 소속명 | 성명 | 직위 | 이메일 | 1인실 여부 | 성별
+ * 쉼표(,) 또는 탭(\t) 구분자 지원
  */
 
 /**
@@ -19,16 +19,16 @@ export function parseCSV(csvText) {
     const delimiter = firstLine.includes('\t') ? '\t' : ',';
 
     // 헤더 파싱 (첫 줄)
-    const headers = parseCSVLine(firstLine, delimiter).map(h => h.trim());
+    const headers = parseCSVLine(firstLine, delimiter).map(h => h.trim().toLowerCase());
 
     // 필수 헤더 확인
-    const requiredHeaders = ['성명', '이메일', '성별'];
-    const missingHeaders = requiredHeaders.filter(required =>
-        !headers.some(h => h === required || h.toLowerCase() === required.toLowerCase())
+    const requiredHeaders = ['이름', 'name'];
+    const hasNameHeader = headers.some(h =>
+        requiredHeaders.includes(h) || h === '이름' || h === 'name'
     );
 
-    if (missingHeaders.length > 0) {
-        throw new Error(`CSV에 필수 열이 없습니다: ${missingHeaders.join(', ')}`);
+    if (!hasNameHeader) {
+        throw new Error('CSV에 "이름" 또는 "name" 열이 필요합니다.');
     }
 
     // 데이터 파싱
@@ -44,24 +44,19 @@ export function parseCSV(csvText) {
             row[header] = values[idx]?.trim() || '';
         });
 
-        // 필드 매핑 (output.json 형식)
-        const name = row['성명'] || row['이름'] || row['name'] || '';
-        const email = row['이메일'] || row['email'] || '';
-        const company = row['소속명'] || row['소속'] || row['회사'] || row['company'] || '';
-        const position = row['직위'] || row['position'] || '';
-        const gender = normalizeGender(row['성별'] || row['gender'] || '');
-        const singleRoom = normalizeSingleRoom(row['1인실 여부'] || row['1인실'] || '');
+        // 필수 필드 매핑
+        const name = row['이름'] || row['name'] || '';
+        const email = row['이메일'] || row['email'] || ''; // 이메일 필드 추가
 
-        if (!name || !email || !gender) continue;
+        if (!name) continue;
 
         data.push({
             name,
-            email,
-            company,
-            position,
-            gender,
-            singleRoom,
-            // roomNumber는 자동 할당되므로 제거
+            email: email, // 이메일
+            company: row['소속'] || row['회사'] || row['company'] || '',
+            gender: normalizeGender(row['성별'] || row['gender'] || ''),
+            age: parseInt(row['출생연도'] || row['나이'] || row['age'] || row['birthyear']) || null,
+            roomNumber: row['방번호'] || row['room'] || row['roomnumber'] || ''
         });
     }
 
@@ -106,19 +101,9 @@ function normalizeGender(value) {
 }
 
 /**
- * 1인실 여부 정규화
- */
-function normalizeSingleRoom(value) {
-    const v = value.toUpperCase().trim();
-    if (v === 'Y' || v === 'YES' || v === '예' || v === '1인실') return true;
-    if (v === 'N' || v === 'NO' || v === '아니오' || v === '2인실') return false;
-    return false; // 기본값은 2인실
-}
-
-/**
  * 업로드 데이터 유효성 검사
  * @param {Array<Object>} data - 파싱된 데이터
- * @param {Object} roomData - 방 정보 (사용 안함, 자동 할당)
+ * @param {Object} roomData - 방 정보
  * @returns {{valid: Array, errors: Array}}
  */
 export function validateUploadData(data, roomData) {
@@ -131,21 +116,31 @@ export function validateUploadData(data, roomData) {
 
         // 이름 필수
         if (!row.name) {
-            rowErrors.push('성명이 없습니다.');
+            rowErrors.push('이름이 없습니다.');
         }
 
-        // 이메일 필수
-        if (!row.email) {
-            rowErrors.push('이메일이 없습니다.');
-        } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(row.email)) {
+        // 방번호 필수 (만약 방 배정 CSV라면)
+        if (row.roomNumber) {
+            if (!roomData[row.roomNumber]) {
+                rowErrors.push(`${row.roomNumber}호는 존재하지 않는 방입니다.`);
+            }
+        }
+
+        // 이메일 유효성 (Optional일 수도 있지만 Admin 등록용이라면 필수)
+        if (row.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(row.email)) {
             rowErrors.push('이메일 형식이 올바르지 않습니다.');
         }
 
-        // 성별 필수
-        if (!row.gender) {
-            rowErrors.push('성별이 없습니다.');
-        } else if (row.gender !== 'M' && row.gender !== 'F') {
-            rowErrors.push('성별은 M 또는 F여야 합니다.');
+        // 성별 체크 (방과 매칭)
+        if (row.roomNumber && roomData[row.roomNumber]) {
+            const room = roomData[row.roomNumber];
+            if (row.gender && row.gender !== room.gender) {
+                rowErrors.push(`성별(${row.gender})이 방(${room.gender})과 맞지 않습니다.`);
+            }
+            // 성별이 없으면 방 성별로 자동 설정
+            if (!row.gender) {
+                row.gender = room.gender;
+            }
         }
 
         if (rowErrors.length > 0) {
@@ -162,8 +157,7 @@ export function validateUploadData(data, roomData) {
  * 샘플 CSV 템플릿 생성
  */
 export function generateCSVTemplate() {
-    const header = '소속명,성명,직위,이메일,1인실 여부,성별';
-    const sample1 = 'ABC회사,홍길동,부장,hong@example.com,Y,M';
-    const sample2 = 'XYZ그룹,김영희,과장,kim@example.com,N,F';
-    return `${header}\n${sample1}\n${sample2}`;
+    const header = '이름,이메일,소속';
+    const sample = '홍길동,user@example.com,ABC회사';
+    return `${header}\n${sample}`;
 }
