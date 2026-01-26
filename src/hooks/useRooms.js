@@ -9,6 +9,7 @@ import { subscribeToRooms, isFirebaseInitialized, selectRoom as firebaseSelectRo
 
 export function useRooms() {
     const [roomGuests, setRoomGuests] = useState({});
+    const [roomReservations, setRoomReservations] = useState({});
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState(null);
 
@@ -16,14 +17,20 @@ export function useRooms() {
         if (isFirebaseInitialized()) {
             const unsubscribe = subscribeToRooms((data) => {
                 const guests = {};
+                const reservations = {};
                 for (const [roomNumber, roomInfo] of Object.entries(data)) {
                     let guestList = roomInfo.guests || [];
                     if (guestList && !Array.isArray(guestList)) {
                         guestList = Object.values(guestList);
                     }
                     guests[roomNumber] = guestList;
+
+                    if (roomInfo.reservation) {
+                        reservations[roomNumber] = roomInfo.reservation;
+                    }
                 }
                 setRoomGuests(guests);
+                setRoomReservations(reservations);
                 setIsLoading(false);
             });
             return () => unsubscribe();
@@ -46,7 +53,7 @@ export function useRooms() {
         }
     }, [roomGuests]);
 
-    const getRoomStatus = useCallback((roomNumber, userGender, isAdmin = false) => {
+    const getRoomStatus = useCallback((roomNumber, userGender, isAdmin = false, canSelectSingleRoom = false, mySessionId = null) => {
         const room = roomData[roomNumber];
         if (!room) {
             return { status: 'unknown', canSelect: false, guests: [], isFull: false };
@@ -67,20 +74,53 @@ export function useRooms() {
             capacity: room.capacity,
             type: room.type,
             roomGender: room.gender,
-            roomType: room.roomType
+            roomType: room.roomType,
+            reservation: roomReservations[roomNumber] || null
         };
 
         if (room.gender !== userGender) {
             return { ...result, status: 'wrong-gender', canSelect: false };
         }
 
-        // 1인실 - 완전 잠금 (관리자 직접 데이터 입력)
+        // PHASE 3: reserved 상태 (60초 임시 예약)
+        // - guests가 0명일 때만 의미 있음
+        if (guestCount === 0 && result.reservation?.expiresAt) {
+            const now = Date.now();
+            const expiresAt = Number(result.reservation.expiresAt);
+            const reservedBy = result.reservation.reservedBy;
+            const isActive = expiresAt > now;
+            const isMine = isActive && mySessionId && reservedBy === mySessionId;
+
+            if (isActive) {
+                // 다른 유저가 예약 중이면 선택 불가
+                if (!isAdmin && !isMine) {
+                    return {
+                        ...result,
+                        status: 'reserved',
+                        canSelect: false,
+                        reservedRemainingMs: expiresAt - now,
+                    };
+                }
+
+                // 내가 예약 중(또는 admin)인 경우: 선택 진행 가능
+                return {
+                    ...result,
+                    status: 'reserved',
+                    canSelect: true,
+                    reservedRemainingMs: expiresAt - now,
+                };
+            }
+        }
+
+        // 1인실: allowedUsers.singleRoom === 'Y' 인 유저만 선택 가능
         if (room.capacity === 1) {
             if (guestCount === 0) {
+                if (isAdmin || canSelectSingleRoom) {
+                    return { ...result, status: 'empty', canSelect: true, isLocked: false };
+                }
                 return { ...result, status: 'locked', canSelect: false, isLocked: true };
-            } else {
-                return { ...result, status: 'full', canSelect: false };
             }
+            return { ...result, status: 'full', canSelect: false };
         }
 
         if (room.capacity === 2) {
@@ -100,7 +140,7 @@ export function useRooms() {
         }
 
         return { ...result, status: 'full', canSelect: false };
-    }, [roomGuests]);
+    }, [roomGuests, roomReservations]);
 
     const addGuestToRoom = useCallback(async (roomNumber, guestData) => {
         const room = roomData[roomNumber];

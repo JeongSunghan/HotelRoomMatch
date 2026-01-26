@@ -21,6 +21,9 @@ const RoomCard = memo(function RoomCard({
         // - available : 선택 가능
         // - occupied  : 배정 완료
         // - reserved  : 잠금/접근 불가(권한/성별 포함)
+        if (status.status === 'reserved') {
+            return { key: 'reserved', label: '예약중', icon: '⏳', tone: 'amber' };
+        }
         if (isMyRoom) {
             return { key: 'occupied', label: '내 방', icon: '✓', tone: 'emerald' };
         }
@@ -44,6 +47,8 @@ const RoomCard = memo(function RoomCard({
                 return 'bg-blue-100 text-blue-700 border-blue-200';
             case 'pink':
                 return 'bg-pink-100 text-pink-700 border-pink-200';
+            case 'amber':
+                return 'bg-amber-100 text-amber-700 border-amber-200';
             default:
                 return 'bg-slate-100 text-slate-700 border-slate-200';
         }
@@ -78,6 +83,9 @@ const RoomCard = memo(function RoomCard({
                     ? 'bg-blue-100 border-2 border-blue-500'
                     : 'bg-pink-100 border-2 border-pink-500';
 
+            case 'reserved':
+                return 'bg-amber-50 border-2 border-amber-400 hover:border-amber-500';
+
             case 'wrong-gender':
                 return 'bg-gray-100 border border-gray-300 opacity-60';
 
@@ -87,16 +95,16 @@ const RoomCard = memo(function RoomCard({
     }, [isMyRoom, isLocked, status.status, roomGender]);
 
     // 클릭 가능 여부
-    const isClickable = canSelect || isAdmin || isLocked;
+    const isClickable = canSelect || isAdmin || isLocked || status.status === 'reserved';
 
     // 클릭 핸들러 - 메모이제이션
     const handleClick = useCallback(() => {
         if (isLocked) {
             onSingleRoomClick?.(roomNumber);
-        } else if (canSelect || isAdmin) {
+        } else if (canSelect || isAdmin || status.status === 'reserved') {
             onClick(roomNumber);
         }
-    }, [isLocked, canSelect, isAdmin, onClick, onSingleRoomClick, roomNumber]);
+    }, [isLocked, canSelect, isAdmin, onClick, onSingleRoomClick, roomNumber, status.status]);
 
     // 키보드 핸들러 - 접근성 개선
     const handleKeyDown = useCallback((e) => {

@@ -10,7 +10,7 @@ export { isFirebaseInitialized, database, ref, onValue, set, update, get } from 
 export { adminSignIn, adminSignOut, subscribeToAuthState } from './auth';
 
 // Rooms
-export { subscribeToRooms, selectRoom, removeGuestFromRoom, checkGuestInRoom, updateGuestInfo, checkDuplicateName } from './rooms';
+export { subscribeToRooms, selectRoom, reserveRoom, releaseRoomReservation, removeGuestFromRoom, checkGuestInRoom, updateGuestInfo, checkDuplicateName, syncRoomsFromStaticRoomData } from './rooms';
 
 // Users
 export {
@@ -86,7 +86,9 @@ export {
     verifyUser,
     markUserAsRegistered,
     addAllowedUser,
+    updateAllowedUser,
     removeAllowedUser,
+    bulkRemoveAllowedUsers,
     bulkAddAllowedUsers,
     clearAllAllowedUsers
 } from './allowedUsers';

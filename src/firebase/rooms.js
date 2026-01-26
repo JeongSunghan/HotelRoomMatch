@@ -1,8 +1,11 @@
 /**
  * Firebase 객실 관련 모듈
  */
-import { database, ref, onValue, set, get, runTransaction } from './config';
+import { database, ref, onValue, set, get, runTransaction, update } from './config';
 import { isValidRoomNumber, isValidSessionId } from '../utils/sanitize';
+import { roomData as staticRoomData } from '../data/roomData';
+
+const RESERVATION_TTL_MS = 60 * 1000;
 
 export function subscribeToRooms(callback) {
     if (!database) {
@@ -42,12 +45,28 @@ export async function selectRoom(roomNumber, guestData, maxCapacity = 2, roomGen
         throw new Error('성별이 맞지 않는 객실입니다.');
     }
 
+    // 1-1. 임시 예약(reserved) 검증 (서버 측)
+    // 왜: UI 차단은 편의일 뿐이고, 최종 확정 시 DB에서도 충돌을 막아야 함.
+    {
+        const reservationRef = ref(database, `rooms/${roomNumber}/reservation`);
+        const snap = await get(reservationRef);
+        const r = snap.val();
+        const now = Date.now();
+        if (r?.expiresAt && Number(r.expiresAt) > now && r.reservedBy && r.reservedBy !== guestData.sessionId) {
+            const remainingSec = Math.max(1, Math.ceil((Number(r.expiresAt) - now) / 1000));
+            throw new Error(`다른 사용자가 객실을 선택 중입니다. (${remainingSec}초 후 재시도)`);
+        }
+    }
+
     // 2. 이미 다른 방에 배정되어 있는지 확인 (서버 측)
     const allRoomsRef = ref(database, 'rooms');
     const allRoomsSnapshot = await get(allRoomsRef);
     const allRooms = allRoomsSnapshot.val() || {};
+    const allowedRoomSet = new Set(Object.keys(staticRoomData));
 
     for (const [existingRoom, roomInfo] of Object.entries(allRooms)) {
+        // 왜: roomData에서 제외된(구버전) 객실이 DB에 남아있어도 신규 배정을 막지 않도록 필터링
+        if (!allowedRoomSet.has(String(existingRoom))) continue;
         let guests = roomInfo.guests || [];
         if (!Array.isArray(guests)) {
             guests = Object.values(guests);
@@ -88,7 +107,129 @@ export async function selectRoom(roomNumber, guestData, maxCapacity = 2, roomGen
         }
     });
 
+    // 4. 확정 성공 시 예약 해제(베스트 에포트)
+    try {
+        await set(ref(database, `rooms/${roomNumber}/reservation`), null);
+    } catch (_) {
+        // ignore
+    }
+
     return true;
+}
+
+/**
+ * 60초 임시 예약(reserved) 생성
+ * - rooms/{roomNumber}/reservation 에 transaction으로 설정
+ * - 이미 다른 사람이 예약 중이면 실패
+ *
+ * @returns {Promise<{ok: boolean, reservation?: {reservedBy: string, reservedAt: number, expiresAt: number}}>}
+ */
+export async function reserveRoom(roomNumber, sessionId, ttlMs = RESERVATION_TTL_MS) {
+    if (!database) throw new Error('Firebase not initialized');
+
+    if (!isValidRoomNumber(String(roomNumber))) {
+        throw new Error('유효하지 않은 방 번호입니다.');
+    }
+    if (!isValidSessionId(String(sessionId))) {
+        throw new Error('유효하지 않은 세션입니다.');
+    }
+
+    const now = Date.now();
+    const expiresAt = now + ttlMs;
+    const reservationRef = ref(database, `rooms/${roomNumber}/reservation`);
+
+    const tx = await runTransaction(reservationRef, (current) => {
+        if (current?.expiresAt && Number(current.expiresAt) > now && current.reservedBy && current.reservedBy !== sessionId) {
+            return; // abort
+        }
+        return {
+            reservedBy: sessionId,
+            reservedAt: now,
+            expiresAt,
+        };
+    });
+
+    if (!tx.committed) {
+        // 현재 예약 정보 조회(안내용)
+        const snap = await get(reservationRef);
+        const r = snap.val();
+        return { ok: false, reservation: r || undefined };
+    }
+
+    return { ok: true, reservation: { reservedBy: sessionId, reservedAt: now, expiresAt } };
+}
+
+/**
+ * 임시 예약 해제
+ * - 예약자가 본인(sessionId)일 때만 삭제
+ */
+export async function releaseRoomReservation(roomNumber, sessionId) {
+    if (!database) return false;
+
+    const reservationRef = ref(database, `rooms/${roomNumber}/reservation`);
+    const snap = await get(reservationRef);
+    const r = snap.val();
+
+    if (r?.reservedBy && r.reservedBy !== sessionId) {
+        return false;
+    }
+
+    await set(reservationRef, null);
+    return true;
+}
+
+/**
+ * roomData 기준으로 rooms 노드를 정리/생성 (관리자용)
+ * - 누락된 방: rooms/{roomId}/guests = [] 생성
+ * - roomData에 없는 방: guests가 비어있으면 rooms/{roomId} 삭제
+ *
+ * @returns {Promise<{created: number, deletedEmpty: number, skippedWithGuests: number}>}
+ */
+export async function syncRoomsFromStaticRoomData() {
+    if (!database) throw new Error('Firebase not initialized');
+
+    const allowed = new Set(Object.keys(staticRoomData));
+    const roomsRef = ref(database, 'rooms');
+    const snapshot = await get(roomsRef);
+    const current = snapshot.val() || {};
+
+    let created = 0;
+    let deletedEmpty = 0;
+    let skippedWithGuests = 0;
+
+    const updates = {};
+
+    // create/ensure
+    for (const roomId of allowed) {
+        const existing = current[roomId];
+        if (!existing) {
+            updates[`${roomId}/guests`] = [];
+            created++;
+            continue;
+        }
+        if (!Object.prototype.hasOwnProperty.call(existing, 'guests')) {
+            updates[`${roomId}/guests`] = [];
+        }
+    }
+
+    // delete obsolete (empty only)
+    for (const [roomId, roomInfo] of Object.entries(current)) {
+        if (allowed.has(String(roomId))) continue;
+        const guests = roomInfo?.guests;
+        const list = Array.isArray(guests) ? guests : Object.values(guests || {});
+        if (list.length === 0) {
+            updates[String(roomId)] = null;
+            deletedEmpty++;
+        } else {
+            skippedWithGuests++;
+        }
+    }
+
+    if (Object.keys(updates).length > 0) {
+        await update(roomsRef, updates);
+    }
+
+    return { created, deletedEmpty, skippedWithGuests };
 }
 
 export async function removeGuestFromRoom(roomNumber, sessionId) {

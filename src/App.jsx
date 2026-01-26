@@ -115,7 +115,8 @@ export default function App() {
     const {
         handleRoomClick,
         handleConfirmSelection,
-        handleWarningConfirmed
+        handleWarningConfirmed,
+        handleCancelSelection
     } = useRoomSelection({
         user,
         roomGuests,
@@ -127,6 +128,9 @@ export default function App() {
         setWarningContent,
         setPendingSelection,
         setShowWarningModal,
+        onRoomReserved: ({ roomNumber, remainingSec }) => {
+            toast.warning(`${roomNumber}호는 다른 사용자가 선택 중입니다. (${remainingSec}초 후 재시도)`);
+        },
         pendingSelection,
         warningContent
     });
@@ -322,6 +326,7 @@ export default function App() {
                             selectedFloor={selectedFloor}
                             userGender={user?.gender}
                             canSelectSingleRoom={user?.singleRoom === 'Y'}
+                            mySessionId={user?.sessionId}
                             getRoomStatus={getRoomStatus}
                             isMyRoom={isMyRoom}
                             onRoomClick={handleRoomClick}
@@ -393,10 +398,10 @@ export default function App() {
                     {selectedRoomForConfirm && user && (
                         <SelectionModal
                             roomNumber={selectedRoomForConfirm}
-                            roomStatus={getRoomStatus(selectedRoomForConfirm, user.gender, false, user?.singleRoom === 'Y')}
+                            roomStatus={getRoomStatus(selectedRoomForConfirm, user.gender, false, user?.singleRoom === 'Y', user?.sessionId)}
                             user={user}
                             onConfirm={handleConfirmSelection}
-                            onCancel={() => setSelectedRoomForConfirm(null)}
+                            onCancel={() => handleCancelSelection(selectedRoomForConfirm)}
                         />
                     )}
 

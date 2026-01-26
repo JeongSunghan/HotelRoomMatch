@@ -4,6 +4,8 @@ import { checkCompatibility } from '../utils/matchingUtils';
 import { sanitizeName } from '../utils/sanitize';
 import {
     createRoommateInvitation,
+    reserveRoom,
+    releaseRoomReservation,
     logGuestAdd
 } from '../firebase/index';
 import { useToast } from '../components/ui/Toast';
@@ -23,6 +25,7 @@ export function useRoomSelection({
     setWarningContent,
     setPendingSelection,
     setShowWarningModal,
+    onRoomReserved,
     pendingSelection,
     warningContent
 }) {
@@ -49,8 +52,26 @@ export function useRoomSelection({
             return;
         }
 
-        setSelectedRoomForConfirm(roomNumber);
-    }, [user, setShowRegistrationModal, setSelectedRoomForConfirm]);
+        // PHASE 3: 60초 임시 예약(reserved) 선점
+        (async () => {
+            try {
+                const r = await reserveRoom(roomNumber, user.sessionId);
+                if (!r.ok) {
+                    const expiresAt = r.reservation?.expiresAt ? Number(r.reservation.expiresAt) : null;
+                    const remainingSec = expiresAt ? Math.max(1, Math.ceil((expiresAt - Date.now()) / 1000)) : null;
+                    if (onRoomReserved && remainingSec) {
+                        onRoomReserved({ roomNumber, remainingSec });
+                    } else {
+                        toast.warning(remainingSec ? `다른 사용자가 선택 중입니다. (${remainingSec}초 후 재시도)` : '다른 사용자가 선택 중입니다.');
+                    }
+                    return;
+                }
+                setSelectedRoomForConfirm(roomNumber);
+            } catch (e) {
+                toast.error(e?.message || '예약 처리 중 오류가 발생했습니다.');
+            }
+        })();
+    }, [user, setShowRegistrationModal, setSelectedRoomForConfirm, toast, onRoomReserved]);
 
     // 실제 객실 배정 실행
     const performSelection = useCallback(async (roomNumber, roommateInfo = {}, warningDetails = null) => {
@@ -58,6 +79,9 @@ export function useRoomSelection({
             await addGuestToRoom(roomNumber, {
                 name: user.name,
                 company: user.company || '',
+                position: user.position || '',
+                email: user.email || '',
+                singleRoom: user.singleRoom || 'N',
                 gender: user.gender,
                 age: user.age,
                 sessionId: user.sessionId,
@@ -71,7 +95,9 @@ export function useRoomSelection({
                 sessionId: user.sessionId
             }, 'user', warningDetails);
 
-            if (roommateInfo.hasRoommate && roommateInfo.roommateName) {
+            // 1인실에서는 룸메이트/초대 기능을 노출하지 않음
+            const room = roomData[roomNumber];
+            if (room?.capacity === 2 && roommateInfo.hasRoommate && roommateInfo.roommateName) {
                 await createRoommateInvitation(
                     { ...user, roomNumber },
                     sanitizeName(roommateInfo.roommateName)
@@ -81,12 +107,35 @@ export function useRoomSelection({
             selectUserRoom(roomNumber);
             setSelectedRoomForConfirm(null);
             setPendingSelection(null);
+
+            // 확정 후 예약 해제(베스트 에포트)
+            await releaseRoomReservation(roomNumber, user.sessionId);
         } catch (error) {
             toast.error(error.message || '객실 선택에 실패했습니다.');
             setSelectedRoomForConfirm(null);
             setPendingSelection(null);
+
+            // 실패 시 예약 해제(베스트 에포트)
+            try {
+                await releaseRoomReservation(roomNumber, user.sessionId);
+            } catch (_) {
+                // ignore
+            }
         }
     }, [user, addGuestToRoom, selectUserRoom, setSelectedRoomForConfirm, setPendingSelection, toast]);
+
+    // 선택 모달 취소(예약 해제 포함)
+    const handleCancelSelection = useCallback(async (roomNumber) => {
+        if (user?.sessionId && roomNumber) {
+            try {
+                await releaseRoomReservation(roomNumber, user.sessionId);
+            } catch (_) {
+                // ignore
+            }
+        }
+        setSelectedRoomForConfirm(null);
+        setPendingSelection(null);
+    }, [user?.sessionId, setSelectedRoomForConfirm, setPendingSelection]);
 
     // 객실 선택 확정 (매칭 검증 포함)
     const handleConfirmSelection = useCallback(async (roomNumber, roommateInfo = {}) => {
@@ -162,6 +211,7 @@ export function useRoomSelection({
         handleRoomClick,
         performSelection,
         handleConfirmSelection,
-        handleWarningConfirmed
+        handleWarningConfirmed,
+        handleCancelSelection
     };
 }

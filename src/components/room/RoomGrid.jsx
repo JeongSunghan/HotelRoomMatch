@@ -8,6 +8,8 @@ import { getRoomsByFloor, floorInfo } from '../../data/roomData';
 export default function RoomGrid({
     selectedFloor,
     userGender,
+    canSelectSingleRoom = false,
+    mySessionId = null,
     getRoomStatus,
     isMyRoom,
     onRoomClick,
@@ -89,7 +91,7 @@ export default function RoomGrid({
                             className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3"
                         >
                             {rooms.map(({ roomNumber, roomData }) => {
-                                const status = getRoomStatus(roomNumber, userGender, isAdmin);
+                                const status = getRoomStatus(roomNumber, userGender, isAdmin, canSelectSingleRoom, mySessionId);
                                 const isThisMyRoom = isMyRoom(roomNumber);
                                 const canSelect = canUserSelect && status.canSelect && !isThisMyRoom;
 
