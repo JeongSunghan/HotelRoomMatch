@@ -2,7 +2,7 @@
  * Firebase 사전등록 유저 관리 모듈
  * 이메일 기반 유저 검증 (Phase 10)
  */
-import { database, ref, onValue, set, get, push } from './config';
+import { database, ref, onValue, set, get, push, update } from './config';
 import { emailToKey, sanitizeEmail, isValidEmail } from '../utils/sanitize';
 
 /**
@@ -146,6 +146,30 @@ export async function addAllowedUser(userData) {
     });
 
     return userKey;
+}
+
+/**
+ * 사전등록 유저 정보 수정 (관리자용)
+ * @param {string} userId - 유저 ID (Base64 Key)
+ * @param {Object} updates - { name?, email?, company? }
+ */
+export async function updateAllowedUser(userId, updates) {
+    if (!database || !userId) return false;
+
+    const userRef = ref(database, `allowedUsers/${userId}`);
+    const snapshot = await get(userRef);
+
+    if (!snapshot.exists()) return false;
+
+    const updateData = {};
+    if (updates.name !== undefined) updateData.name = updates.name?.trim() || '';
+    if (updates.company !== undefined) updateData.company = updates.company?.trim() || '';
+    if (updates.email !== undefined) updateData.email = sanitizeEmail(updates.email);
+
+    updateData.updatedAt = Date.now();
+
+    await update(userRef, updateData);
+    return true;
 }
 
 /**
