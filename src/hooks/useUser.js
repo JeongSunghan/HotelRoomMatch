@@ -21,6 +21,13 @@ export function useUser() {
     const [isAdmin, setIsAdmin] = useState(false);
     const [adminUser, setAdminUser] = useState(null);
     const [isLoading, setIsLoading] = useState(true);
+    const latestUserRef = useRef(null);
+
+    // 왜: Realtime 구독 콜백이 과거의 user 값을 캡처하면(closure) 변경 감지가 틀어져
+    //     취소/복구 시 상태가 계속 되돌아가거나 불필요한 setState 반복이 발생할 수 있다.
+    useEffect(() => {
+        latestUserRef.current = user;
+    }, [user]);
 
     // Firebase Auth 상태 구독 (Admin)
     useEffect(() => {
@@ -84,6 +91,9 @@ export function useUser() {
                                     name: userData.name,
                                     email: userData.email, // 이메일 저장
                                     company: userData.company,
+                                    position: userData.position,
+                                    gender: userData.gender,
+                                    singleRoom: userData.singleRoom, // 'Y' | 'N'
                                     // 이미 등록된 상태였는데 복구 실패했다면 일단 locked 풀어줌 (재입력 유도)
                                     locked: false,
                                     selectedRoom: null,
@@ -254,19 +264,27 @@ export function useUser() {
                     return;
                 }
 
+                const current = latestUserRef.current;
+                if (!current) {
+                    // 현재 user가 없는데 dbUser가 있다면(드물지만) db 기준으로 복구
+                    localStorage.setItem(STORAGE_KEY, JSON.stringify(dbUser));
+                    setUser(dbUser);
+                    return;
+                }
+
                 // 로컬 상태와 DB 상태 비교하여 변경사항 있으면 동기화
                 const hasChanges =
-                    dbUser.name !== user.name ||
-                    dbUser.gender !== user.gender ||
-                    dbUser.age !== user.age ||
-                    dbUser.snoring !== user.snoring ||
-                    dbUser.company !== user.company ||
-                    dbUser.selectedRoom !== user.selectedRoom ||
-                    dbUser.locked !== user.locked;
+                    dbUser.name !== current.name ||
+                    dbUser.gender !== current.gender ||
+                    dbUser.age !== current.age ||
+                    dbUser.snoring !== current.snoring ||
+                    dbUser.company !== current.company ||
+                    dbUser.selectedRoom !== current.selectedRoom ||
+                    dbUser.locked !== current.locked;
 
                 if (hasChanges) {
                     debug.log('관리자 변경사항 감지 - 동기화');
-                    const updatedUser = { ...user, ...dbUser };
+                    const updatedUser = { ...current, ...dbUser };
                     localStorage.setItem(STORAGE_KEY, JSON.stringify(updatedUser));
                     setUser(updatedUser);
                 }

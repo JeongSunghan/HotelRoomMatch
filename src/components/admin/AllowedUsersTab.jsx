@@ -2,7 +2,9 @@ import { useState, useEffect, useMemo } from 'react';
 import {
     subscribeToAllowedUsers,
     addAllowedUser,
+    updateAllowedUser,
     removeAllowedUser,
+    bulkRemoveAllowedUsers,
     bulkAddAllowedUsers,
     clearAllAllowedUsers
 } from '../../firebase/index';
@@ -15,10 +17,13 @@ export default function AllowedUsersTab() {
     const [searchQuery, setSearchQuery] = useState('');
     const [showAddModal, setShowAddModal] = useState(false);
     const [showCsvModal, setShowCsvModal] = useState(false);
-    const [newUser, setNewUser] = useState({ name: '', email: '', company: '' });
+    const [editingUser, setEditingUser] = useState(null);
+    const [editUserForm, setEditUserForm] = useState({ name: '', email: '', company: '', position: '', singleRoom: 'N', gender: '' });
+    const [newUser, setNewUser] = useState({ name: '', email: '', company: '', position: '', singleRoom: 'N', gender: '' });
     const [isAdding, setIsAdding] = useState(false);
     const [csvData, setCsvData] = useState('');
     const [csvResult, setCsvResult] = useState(null);
+    const [selectedIds, setSelectedIds] = useState(() => new Set());
 
     // 정렬 및 필터 상태
     const [sortBy, setSortBy] = useState('name'); // 'name', 'company', 'status'
@@ -39,7 +44,8 @@ export default function AllowedUsersTab() {
             const matchesSearch = !query ||
                 user.name?.toLowerCase().includes(query) ||
                 user.email?.toLowerCase().includes(query) ||
-                user.company?.toLowerCase().includes(query);
+                user.company?.toLowerCase().includes(query) ||
+                user.position?.toLowerCase().includes(query);
 
             // 상태 필터
             const matchesStatus =
@@ -94,11 +100,15 @@ export default function AllowedUsersTab() {
             alert('유효한 이메일 형식이 아닙니다.');
             return;
         }
+        if (!newUser.gender) {
+            alert('성별을 선택해주세요.');
+            return;
+        }
 
         setIsAdding(true);
         try {
             await addAllowedUser(newUser);
-            setNewUser({ name: '', email: '', company: '' });
+            setNewUser({ name: '', email: '', company: '', position: '', singleRoom: 'N', gender: '' });
             setShowAddModal(false);
         } catch (error) {
             alert('추가 실패: ' + error.message);
@@ -118,7 +128,103 @@ export default function AllowedUsersTab() {
         }
     };
 
-    // CSV 파싱 (쉼표 또는 탭 지원)
+    // 다중 선택 토글
+    const toggleSelect = (userId) => {
+        setSelectedIds(prev => {
+            const next = new Set(prev);
+            if (next.has(userId)) next.delete(userId);
+            else next.add(userId);
+            return next;
+        });
+    };
+
+    const clearSelection = () => setSelectedIds(new Set());
+
+    const isAllFilteredSelected = filteredUsers.length > 0 && filteredUsers.every(u => selectedIds.has(u.id));
+
+    const toggleSelectAllFiltered = () => {
+        setSelectedIds(prev => {
+            const next = new Set(prev);
+            const allSelected = filteredUsers.length > 0 && filteredUsers.every(u => next.has(u.id));
+            if (allSelected) {
+                filteredUsers.forEach(u => next.delete(u.id));
+            } else {
+                filteredUsers.forEach(u => next.add(u.id));
+            }
+            return next;
+        });
+    };
+
+    const handleBulkDelete = async () => {
+        const ids = Array.from(selectedIds);
+        if (ids.length === 0) return;
+
+        const ok = confirm(
+            `선택한 ${ids.length}명을 사전등록 목록에서 삭제하시겠습니까?\n\n` +
+            `삭제 후에는 해당 이메일로 로그인할 수 없습니다.`
+        );
+        if (!ok) return;
+
+        setIsAdding(true);
+        try {
+            const result = await bulkRemoveAllowedUsers(ids);
+            clearSelection();
+            alert(`삭제 완료: ${result.success}명 / 실패: ${result.failed}명`);
+        } catch (error) {
+            alert('선택 삭제 실패: ' + (error?.message || String(error)));
+        } finally {
+            setIsAdding(false);
+        }
+    };
+
+    // 유저 편집 시작
+    const handleEditUser = (user) => {
+        setEditingUser(user);
+        setEditUserForm({
+            name: user.name || '',
+            email: user.email || '',
+            company: user.company || '',
+            position: user.position || '',
+            singleRoom: user.singleRoom || 'N',
+            gender: user.gender || ''
+        });
+    };
+
+    // 유저 편집 저장
+    const handleSaveEditUser = async () => {
+        if (!editingUser) return;
+        if (!editUserForm.name.trim() || !editUserForm.email.trim()) {
+            alert('이름과 이메일은 필수입니다.');
+            return;
+        }
+        if (!isValidEmail(editUserForm.email)) {
+            alert('유효한 이메일 형식이 아닙니다.');
+            return;
+        }
+        if (!editUserForm.gender) {
+            alert('성별을 선택해주세요.');
+            return;
+        }
+
+        setIsAdding(true);
+        try {
+            await updateAllowedUser(editingUser.id, {
+                name: editUserForm.name,
+                email: editUserForm.email,
+                company: editUserForm.company,
+                position: editUserForm.position,
+                singleRoom: editUserForm.singleRoom,
+                gender: editUserForm.gender
+            });
+            setEditingUser(null);
+        } catch (error) {
+            alert('수정 실패: ' + error.message);
+        } finally {
+            setIsAdding(false);
+        }
+    };
+
+            // CSV 파싱 (쉼표 또는 탭 지원)
     const parseCSV = (text) => {
         const lines = text.trim().split(/\r?\n/);
         const users = [];
@@ -127,7 +233,18 @@ export default function AllowedUsersTab() {
         const firstDataLine = lines.find((line, i) => {
             const trimmed = line.trim();
             if (!trimmed) return false;
-            if (i === 0 && (trimmed.includes('이름') || trimmed.toLowerCase().includes('name'))) return false;
+            // 헤더일 수 있는 라인은 제외
+            if (i === 0 && (
+                trimmed.includes('이름') ||
+                trimmed.includes('성명') ||
+                trimmed.toLowerCase().includes('name') ||
+                trimmed.includes('이메일') ||
+                trimmed.toLowerCase().includes('email') ||
+                trimmed.includes('소속') ||
+                trimmed.includes('직위') ||
+                trimmed.includes('1인실') ||
+                trimmed.includes('성별')
+            )) return false;
             return true;
         }) || lines[0];
         const delimiter = firstDataLine.includes('\t') ? '\t' : ',';
@@ -136,17 +253,45 @@ export default function AllowedUsersTab() {
             const line = lines[i].trim();
             if (!line) continue;
 
-            // 헤더 스킵 (이름, name 포함)
-            if (i === 0 && (line.includes('이름') || line.toLowerCase().includes('name'))) {
+            // 헤더 스킵 (output.json/엑셀 헤더 포함)
+            if (i === 0 && (
+                line.includes('이름') ||
+                line.includes('성명') ||
+                line.toLowerCase().includes('name') ||
+                line.includes('이메일') ||
+                line.toLowerCase().includes('email') ||
+                line.includes('소속') ||
+                line.includes('직위') ||
+                line.includes('1인실') ||
+                line.includes('성별')
+            )) {
                 continue;
             }
 
             const parts = line.split(delimiter).map(p => p.trim().replace(/"/g, ''));
-            if (parts.length >= 2) {
+
+            // 지원 포맷 1) 기존: 이름, 이메일, 소속(선택)
+            if (parts.length >= 2 && parts.length < 6) {
                 users.push({
                     name: parts[0],
                     email: parts[1],
-                    company: parts[2] || ''
+                    company: parts[2] || '',
+                    position: parts[3] || '',
+                    singleRoom: parts[4] || 'N',
+                    gender: parts[5] || ''
+                });
+                continue;
+            }
+
+            // 지원 포맷 2) output.json/엑셀: 소속명, 성명, 직위, 이메일, 1인실 여부, 성별
+            if (parts.length >= 6) {
+                users.push({
+                    company: parts[0] || '',
+                    name: parts[1] || '',
+                    position: parts[2] || '',
+                    email: parts[3] || '',
+                    singleRoom: parts[4] || 'N',
+                    gender: parts[5] || ''
                 });
             }
         }
@@ -210,6 +355,21 @@ export default function AllowedUsersTab() {
                     className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg font-medium text-sm"
                 >
                     📤 CSV 업로드
+                </button>
+                <button
+                    onClick={handleBulkDelete}
+                    disabled={selectedIds.size === 0 || isAdding}
+                    className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg font-medium text-sm disabled:opacity-50"
+                    title={selectedIds.size === 0 ? '삭제할 대상을 선택하세요' : '선택한 항목을 일괄 삭제합니다'}
+                >
+                    🧹 선택 삭제 ({selectedIds.size})
+                </button>
+                <button
+                    onClick={clearSelection}
+                    disabled={selectedIds.size === 0}
+                    className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg font-medium text-sm disabled:opacity-50"
+                >
+                    선택 해제
                 </button>
                 <button
                     onClick={handleClearAll}
@@ -283,9 +443,20 @@ export default function AllowedUsersTab() {
                 <table className="w-full text-sm">
                     <thead className="bg-slate-50 border-b">
                         <tr>
-                            <th className="px-4 py-3 text-left font-medium text-gray-700">이름</th>
-                            <th className="px-4 py-3 text-left font-medium text-gray-700">이메일</th>
+                            <th className="px-4 py-3 text-center font-medium text-gray-700">
+                                <input
+                                    type="checkbox"
+                                    checked={isAllFilteredSelected}
+                                    onChange={toggleSelectAllFiltered}
+                                    aria-label="현재 목록 전체 선택"
+                                />
+                            </th>
                             <th className="px-4 py-3 text-left font-medium text-gray-700">소속</th>
+                            <th className="px-4 py-3 text-left font-medium text-gray-700">성명</th>
+                            <th className="px-4 py-3 text-left font-medium text-gray-700">직위</th>
+                            <th className="px-4 py-3 text-left font-medium text-gray-700">이메일</th>
+                            <th className="px-4 py-3 text-center font-medium text-gray-700">1인실</th>
+                            <th className="px-4 py-3 text-center font-medium text-gray-700">성별</th>
                             <th className="px-4 py-3 text-center font-medium text-gray-700">상태</th>
                             <th className="px-4 py-3 text-center font-medium text-gray-700">관리</th>
                         </tr>
@@ -293,16 +464,35 @@ export default function AllowedUsersTab() {
                     <tbody className="divide-y">
                         {filteredUsers.length === 0 ? (
                             <tr>
-                                <td colSpan="5" className="px-4 py-8 text-center text-gray-400">
+                                <td colSpan="9" className="px-4 py-8 text-center text-gray-400">
                                     {searchQuery ? '검색 결과가 없습니다.' : '사전등록 유저가 없습니다.'}
                                 </td>
                             </tr>
                         ) : (
                             filteredUsers.map(user => (
                                 <tr key={user.id} className="hover:bg-gray-50">
-                                    <td className="px-4 py-3 font-medium">{user.name}</td>
-                                    <td className="px-4 py-3 text-gray-600">{user.email}</td>
+                                    <td className="px-4 py-3 text-center">
+                                        <input
+                                            type="checkbox"
+                                            checked={selectedIds.has(user.id)}
+                                            onChange={() => toggleSelect(user.id)}
+                                            aria-label={`${user.name} 선택`}
+                                        />
+                                    </td>
                                     <td className="px-4 py-3 text-gray-600">{user.company || '-'}</td>
+                                    <td className="px-4 py-3 font-medium">{user.name}</td>
+                                    <td className="px-4 py-3 text-gray-600">{user.position || '-'}</td>
+                                    <td className="px-4 py-3 text-gray-600">{user.email}</td>
+                                    <td className="px-4 py-3 text-center">
+                                        <span className={`px-2 py-1 rounded-full text-xs ${user.singleRoom === 'Y' ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-600'}`}>
+                                            {user.singleRoom === 'Y' ? 'Y' : 'N'}
+                                        </span>
+                                    </td>
+                                    <td className="px-4 py-3 text-center">
+                                        <span className={`px-2 py-1 rounded-full text-xs ${user.gender === 'M' ? 'bg-blue-100 text-blue-700' : 'bg-pink-100 text-pink-700'}`}>
+                                            {user.gender || '-'}
+                                        </span>
+                                    </td>
                                     <td className="px-4 py-3 text-center">
                                         {user.registered ? (
                                             <span className="px-2 py-1 bg-green-100 text-green-700 rounded-full text-xs">
@@ -316,6 +506,12 @@ export default function AllowedUsersTab() {
                                     </td>
                                     <td className="px-4 py-3 text-center">
                                         <button
+                                            onClick={() => handleEditUser(user)}
+                                            className="text-blue-600 hover:text-blue-800 text-sm mr-3"
+                                        >
+                                            편집
+                                        </button>
+                                        <button
                                             onClick={() => handleRemoveUser(user.id, user.name)}
                                             className="text-red-500 hover:text-red-700 text-sm"
                                         >
@@ -328,6 +524,106 @@ export default function AllowedUsersTab() {
                     </tbody>
                 </table>
             </div>
+
+            {/* 편집 모달 */}
+            {editingUser && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
+                    <div className="bg-white rounded-xl p-6 w-full max-w-md">
+                        <h3 className="text-lg font-bold mb-1">사전등록 유저 수정</h3>
+                        <p className="text-xs text-gray-500 mb-4">
+                            {editingUser.registered
+                                ? '⚠️ 등록 완료 유저는 이메일 변경이 제한됩니다.'
+                                : '이메일을 변경하면 Key가 바뀌어 새로 저장됩니다.'}
+                        </p>
+
+                        <div className="space-y-4">
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">이름 *</label>
+                                <input
+                                    type="text"
+                                    value={editUserForm.name}
+                                    onChange={(e) => setEditUserForm({ ...editUserForm, name: e.target.value })}
+                                    className="w-full px-3 py-2 border rounded-lg"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">소속</label>
+                                <input
+                                    type="text"
+                                    value={editUserForm.company}
+                                    onChange={(e) => setEditUserForm({ ...editUserForm, company: e.target.value })}
+                                    className="w-full px-3 py-2 border rounded-lg"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">직위</label>
+                                <input
+                                    type="text"
+                                    value={editUserForm.position}
+                                    onChange={(e) => setEditUserForm({ ...editUserForm, position: e.target.value })}
+                                    className="w-full px-3 py-2 border rounded-lg"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">이메일 *</label>
+                                <input
+                                    type="email"
+                                    value={editUserForm.email}
+                                    onChange={(e) => setEditUserForm({ ...editUserForm, email: e.target.value })}
+                                    className="w-full px-3 py-2 border rounded-lg"
+                                    disabled={!!editingUser.registered}
+                                />
+                                {editingUser.registered && (
+                                    <p className="text-xs text-amber-600 mt-1">
+                                        등록 완료된 유저는 이메일 변경이 불가합니다.
+                                    </p>
+                                )}
+                            </div>
+                            <div className="grid grid-cols-2 gap-3">
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">1인실 여부</label>
+                                    <select
+                                        value={editUserForm.singleRoom}
+                                        onChange={(e) => setEditUserForm({ ...editUserForm, singleRoom: e.target.value })}
+                                        className="w-full px-3 py-2 border rounded-lg"
+                                    >
+                                        <option value="N">N</option>
+                                        <option value="Y">Y</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">성별 *</label>
+                                    <select
+                                        value={editUserForm.gender}
+                                        onChange={(e) => setEditUserForm({ ...editUserForm, gender: e.target.value })}
+                                        className="w-full px-3 py-2 border rounded-lg"
+                                    >
+                                        <option value="">선택</option>
+                                        <option value="M">M</option>
+                                        <option value="F">F</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="flex gap-3 mt-6">
+                            <button
+                                onClick={() => setEditingUser(null)}
+                                className="flex-1 py-2 border border-gray-300 rounded-lg"
+                            >
+                                취소
+                            </button>
+                            <button
+                                onClick={handleSaveEditUser}
+                                disabled={isAdding}
+                                className="flex-1 py-2 bg-blue-600 text-white rounded-lg disabled:opacity-50"
+                            >
+                                {isAdding ? '저장 중...' : '저장'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {/* 개별 추가 모달 */}
             {showAddModal && (
@@ -357,7 +653,7 @@ export default function AllowedUsersTab() {
                                 />
                             </div>
                             <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">소속 (선택)</label>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">소속</label>
                                 <input
                                     type="text"
                                     value={newUser.company}
@@ -365,6 +661,41 @@ export default function AllowedUsersTab() {
                                     className="w-full px-3 py-2 border rounded-lg"
                                     placeholder="회사명"
                                 />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">직위</label>
+                                <input
+                                    type="text"
+                                    value={newUser.position}
+                                    onChange={(e) => setNewUser({ ...newUser, position: e.target.value })}
+                                    className="w-full px-3 py-2 border rounded-lg"
+                                    placeholder="매니저"
+                                />
+                            </div>
+                            <div className="grid grid-cols-2 gap-3">
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">1인실 여부</label>
+                                    <select
+                                        value={newUser.singleRoom}
+                                        onChange={(e) => setNewUser({ ...newUser, singleRoom: e.target.value })}
+                                        className="w-full px-3 py-2 border rounded-lg"
+                                    >
+                                        <option value="N">N</option>
+                                        <option value="Y">Y</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">성별 *</label>
+                                    <select
+                                        value={newUser.gender}
+                                        onChange={(e) => setNewUser({ ...newUser, gender: e.target.value })}
+                                        className="w-full px-3 py-2 border rounded-lg"
+                                    >
+                                        <option value="">선택</option>
+                                        <option value="M">M</option>
+                                        <option value="F">F</option>
+                                    </select>
+                                </div>
                             </div>
                         </div>
 
@@ -377,7 +708,7 @@ export default function AllowedUsersTab() {
                             </button>
                             <button
                                 onClick={handleAddUser}
-                                disabled={!newUser.name.trim() || !newUser.email.trim() || isAdding}
+                                disabled={!newUser.name.trim() || !newUser.email.trim() || !newUser.gender || isAdding}
                                 className="flex-1 py-2 bg-blue-600 text-white rounded-lg disabled:opacity-50"
                             >
                                 {isAdding ? '추가 중...' : '추가'}
@@ -395,14 +726,14 @@ export default function AllowedUsersTab() {
 
                         <div className="info-box mb-4">
                             <p className="text-blue-700 text-sm font-medium">📋 CSV 형식</p>
-                            <p className="text-blue-600 text-xs mt-1">이름, 이메일, 소속(선택) - 쉼표 또는 탭으로 구분</p>
+                            <p className="text-blue-600 text-xs mt-1">소속명, 성명, 직위, 이메일, 1인실 여부(Y/N), 성별(M/F) - 쉼표 또는 탭으로 구분</p>
                             <p className="text-blue-500 text-xs">엑셀에서 복사하면 탭으로 자동 인식됩니다.</p>
                         </div>
 
                         <textarea
                             value={csvData}
                             onChange={(e) => setCsvData(e.target.value)}
-                            placeholder="이름,이메일,소속&#10;홍길동,hero@example.com,ABC회사&#10;김철수,chulsoo@test.com,XYZ기업"
+                            placeholder="소속명,성명,직위,이메일,1인실 여부,성별&#10;글로넷벤처파트너스(주),김동용,매니저,daily1994@naver.com,Y,M&#10;무직,김재경,없음,kjkkjm95@gmail.com,N,F"
                             className="w-full h-40 px-3 py-2 border rounded-lg text-sm font-mono"
                         />
 

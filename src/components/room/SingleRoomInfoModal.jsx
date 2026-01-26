@@ -17,8 +17,7 @@ export default function SingleRoomInfoModal({ onClose }) {
                     1인실 안내
                 </h2>
                 <p className="text-gray-600 mb-6">
-                    1인실은 별도 홈페이지에서 신청 후<br />
-                    관리자가 직접 추가합니다.
+                    1인실은 <strong>사전 신청자(allowedUsers의 1인실 여부=Y)</strong>만 선택할 수 있습니다.
                 </p>
                 <button
                     onClick={onClose}

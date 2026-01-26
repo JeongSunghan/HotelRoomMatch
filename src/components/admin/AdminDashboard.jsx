@@ -9,6 +9,7 @@ import {
     clearUserSession,
     updateUser,
     checkGuestInRoom,
+    syncRoomsFromStaticRoomData,
     subscribeToInquiries,
     replyToInquiry,
     deleteInquiry,
@@ -259,6 +260,19 @@ export default function AdminDashboard({
                         <div className="flex justify-between items-center">
                             <h2 className="text-2xl font-bold text-gray-800">객실 관리</h2>
                             <div className="flex gap-2">
+                                <button
+                                    onClick={async () => {
+                                        try {
+                                            const r = await syncRoomsFromStaticRoomData();
+                                            toast.success(`DB 동기화 완료: 생성 ${r.created} / 빈방삭제 ${r.deletedEmpty} / 유지(투숙중) ${r.skippedWithGuests}`);
+                                        } catch (e) {
+                                            toast.error('DB 동기화 실패: ' + (e?.message || String(e)));
+                                        }
+                                    }}
+                                    className="px-4 py-2 bg-slate-700 text-white rounded-lg hover:bg-slate-800 transition-colors text-sm font-medium"
+                                >
+                                    🧱 DB 동기화
+                                </button>
                                 <button
                                     onClick={() => setShowCsvModal(true)}
                                     className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium"

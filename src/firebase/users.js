@@ -2,6 +2,7 @@
  * Firebase 사용자 관련 모듈
  */
 import { database, ref, onValue, set, update, get } from './config';
+import { emailToKey, sanitizeEmail } from '../utils/sanitize';
 
 export async function saveUser(sessionId, userData) {
     if (!database) return false;
@@ -149,19 +150,18 @@ export async function deleteUserCompletely(sessionId, email) {
 
         // 2. 객실에서 제거 (배정되어 있는 경우)
         if (userData && userData.selectedRoom) {
-            const roomRef = ref(database, `rooms/${userData.selectedRoom}`);
-            const roomSnapshot = await get(roomRef);
-            const roomData = roomSnapshot.val();
+            // ⚠️ rooms/{roomId} 전체를 덮어쓰면(validate 실패 + 메타데이터 소실) permission-denied가 발생할 수 있음
+            // guests 하위 경로만 안전하게 수정한다.
+            const guestsRef = ref(database, `rooms/${userData.selectedRoom}/guests`);
+            const roomGuestsSnapshot = await get(guestsRef);
+            let guests = roomGuestsSnapshot.val() || [];
 
-            if (roomData && roomData.guests) {
-                let guests = roomData.guests;
-                if (!Array.isArray(guests)) {
-                    guests = Object.values(guests);
-                }
-
-                const filteredGuests = guests.filter(g => g.sessionId !== sessionId);
-                await set(roomRef, filteredGuests.length > 0 ? { guests: filteredGuests } : null);
+            if (guests && !Array.isArray(guests)) {
+                guests = Object.values(guests);
             }
+
+            const filteredGuests = guests.filter(g => g.sessionId !== sessionId);
+            await set(guestsRef, filteredGuests.length > 0 ? filteredGuests : null);
         }
 
         // 3. users/{sessionId} 삭제
@@ -169,7 +169,7 @@ export async function deleteUserCompletely(sessionId, email) {
 
         // 4. allowedUsers에서 registered 상태 초기화 (재가입 가능하도록)
         if (email) {
-            const emailKey = btoa(email.toLowerCase()).replace(/=/g, '');
+            const emailKey = emailToKey(sanitizeEmail(email));
             const allowedUserRef = ref(database, `allowedUsers/${emailKey}`);
             const allowedSnapshot = await get(allowedUserRef);
             const allowedData = allowedSnapshot.val();
@@ -187,7 +187,7 @@ export async function deleteUserCompletely(sessionId, email) {
 
         // 5. otp_requests 삭제 (있을 경우)
         if (email) {
-            const emailKey = btoa(email.toLowerCase()).replace(/=/g, '');
+            const emailKey = emailToKey(sanitizeEmail(email));
             const otpRef = ref(database, `otp_requests/${emailKey}`);
             await set(otpRef, null);
         }
@@ -204,13 +204,14 @@ export async function deleteUserCompletely(sessionId, email) {
         }
 
         // 7. 해당 유저와 관련된 입실 요청 삭제
-        const requestsRef = ref(database, 'joinRequests');
+        // 실제 모듈/룰 경로는 join_requests 이므로 해당 경로를 사용해야 permission-denied가 나지 않는다.
+        const requestsRef = ref(database, 'join_requests');
         const reqSnapshot = await get(requestsRef);
         const requests = reqSnapshot.val() || {};
 
         for (const [id, req] of Object.entries(requests)) {
             if (req.fromUserId === sessionId || req.toUserId === sessionId) {
-                await set(ref(database, `joinRequests/${id}`), null);
+                await set(ref(database, `join_requests/${id}`), null);
             }
         }
 

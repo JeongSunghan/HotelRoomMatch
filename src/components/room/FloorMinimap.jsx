@@ -4,6 +4,7 @@
  */
 import { useMemo } from 'react';
 import { roomData } from '../../data/roomData';
+import { floorInfo } from '../../data/roomData';
 
 export default function FloorMinimap({
     selectedFloor,
@@ -81,7 +82,9 @@ export default function FloorMinimap({
                     {selectedFloor}층 미니맵
                 </h3>
                 <span className="text-xs text-gray-500">
-                    {selectedFloor % 2 === 0 ? '👨 남성 전용' : '👩 여성 전용'}
+                    {(floorInfo?.[selectedFloor]?.gender || roomData?.[String(selectedFloor * 100)]?.gender) === 'M'
+                        ? '👨 남성 전용'
+                        : '👩 여성 전용'}
                 </span>
             </div>
 
@@ -92,7 +95,7 @@ export default function FloorMinimap({
                     {topRow.map(room => {
                         const { status, gender } = getRoomStatus(room);
                         const colorClass = getRoomColor(status, gender);
-                        const guests = roomGuests[room.number] || [];
+                        const guests = roomGuests[String(room.number)] || [];
 
                         return (
                             <button
@@ -137,7 +140,7 @@ export default function FloorMinimap({
                     {bottomRow.map(room => {
                         const { status, gender } = getRoomStatus(room);
                         const colorClass = getRoomColor(status, gender);
-                        const guests = roomGuests[room.number] || [];
+                        const guests = roomGuests[String(room.number)] || [];
 
                         return (
                             <button

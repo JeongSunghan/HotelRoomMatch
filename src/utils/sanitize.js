@@ -161,8 +161,9 @@ export function isValidRoomNumber(roomNumber) {
         return false;
     }
 
-    // 3자리: 6xx, 7xx, 8xx / 4자리: 10xx, 11xx, 12xx
-    return /^([678]\d{2}|1[012]\d{2})$/.test(roomNumber);
+    // 3자리: 6xx, 7xx, 8xx, 9xx / 4자리: 10xx, 11xx, 12xx
+    // 왜: 9층(9xx) 객실이 추가됨
+    return /^([6-9]\d{2}|1[012]\d{2})$/.test(roomNumber);
 }
 
 /**

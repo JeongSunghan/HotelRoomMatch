@@ -187,7 +187,15 @@ export default function RegistrationModal({ onClose }) {
             // users/{sessionId} 경로에 저장해야 함.
             const userRef = ref(database, `users/${sessionId}`);
             await update(userRef, {
+                // 왜: users/{sessionId}가 없으면 rules validate를 통과하지 못하므로
+                //     최소 필수 프로필을 같이 저장해 활성유저/관리자 화면과 동기화한다.
+                sessionId,
+                name: userData.name || '',
                 email: email,
+                company: userData.company || '',
+                position: userData.position || '',
+                gender: userData.gender || '',
+                singleRoom: userData.singleRoom || 'N',
                 passKey: passKey,
                 passKeyExpires: expiryDate,
                 lastLoginAt: Date.now()
@@ -199,6 +207,9 @@ export default function RegistrationModal({ onClose }) {
                 name: userData.name,
                 email: email,
                 company: userData.company,
+                position: userData.position,
+                gender: userData.gender,
+                singleRoom: userData.singleRoom || 'N',
                 passKey: passKey,
                 passKeyExpires: expiryDate,
                 locked: !!userData.registered, // 기존 등록 여부

@@ -2,8 +2,20 @@
  * Firebase 사전등록 유저 관리 모듈
  * 이메일 기반 유저 검증 (Phase 10)
  */
-import { database, ref, onValue, set, get, push } from './config';
+import { database, ref, onValue, set, get, push, update } from './config';
 import { emailToKey, sanitizeEmail, isValidEmail } from '../utils/sanitize';
+
+function normalizeSingleRoom(value) {
+    if (value === true) return 'Y';
+    if (value === false) return 'N';
+    const v = String(value || '').trim().toUpperCase();
+    return v === 'Y' ? 'Y' : 'N';
+}
+
+function normalizeGender(value) {
+    const v = String(value || '').trim().toUpperCase();
+    return v === 'M' || v === 'F' ? v : '';
+}
 
 /**
  * 사전등록 유저 목록 구독 (실시간)
@@ -138,9 +150,13 @@ export async function addAllowedUser(userData) {
     const userRef = ref(database, `allowedUsers/${userKey}`);
 
     await set(userRef, {
+        // output.json 기준 필드: 소속명|성명|직위|이메일|1인실 여부|성별
         name: userData.name?.trim() || '',
-        email: email,
+        email,
         company: userData.company?.trim() || '',
+        position: userData.position?.trim() || '',
+        singleRoom: normalizeSingleRoom(userData.singleRoom),
+        gender: normalizeGender(userData.gender),
         registered: false,
         createdAt: Date.now()
     });
@@ -162,6 +178,122 @@ export async function removeAllowedUser(userId) {
 }
 
 /**
+ * 사전등록 유저 일괄 삭제 (관리자용)
+ * - allowedUsers/{id} 를 update로 null 처리 (멀티 로케이션 업데이트)
+ *
+ * @param {string[]} userIds
+ * @returns {Promise<{success: number, failed: number}>}
+ */
+export async function bulkRemoveAllowedUsers(userIds) {
+    if (!database || !Array.isArray(userIds) || userIds.length === 0) {
+        return { success: 0, failed: 0 };
+    }
+
+    // 중복 제거 + 빈 값 제거
+    const ids = Array.from(new Set(userIds.filter(Boolean)));
+    if (ids.length === 0) return { success: 0, failed: 0 };
+
+    try {
+        const allowedUsersRef = ref(database, 'allowedUsers');
+        const updates = {};
+        for (const id of ids) {
+            updates[id] = null;
+        }
+
+        await update(allowedUsersRef, updates);
+        return { success: ids.length, failed: 0 };
+    } catch (e) {
+        // 부분 실패 수 계산은 서버에서 알기 어려워 전체 실패로 처리
+        return { success: 0, failed: ids.length };
+    }
+}
+
+/**
+ * 사전등록 유저 수정 (관리자용)
+ * - name/company는 update로 부분 수정
+ * - email 변경은 key가 바뀌므로(=emailToKey) 미등록 유저에 한해 "새 키로 생성 + 기존 키 삭제"로 처리
+ *
+ * @param {string} userId - allowedUsers의 key
+ * @param {{name?: string, email?: string, company?: string}} updates
+ * @returns {Promise<string|false>} 최종 userId (email 변경 시 키가 바뀔 수 있음)
+ */
+export async function updateAllowedUser(userId, updates) {
+    if (!database || !userId) return false;
+
+    const userRef = ref(database, `allowedUsers/${userId}`);
+    const snapshot = await get(userRef);
+    const existing = snapshot.val();
+
+    if (!existing) {
+        throw new Error('사전등록 유저를 찾을 수 없습니다.');
+    }
+
+    const nextName = typeof updates?.name === 'string' ? updates.name.trim() : existing.name;
+    const nextCompany = typeof updates?.company === 'string' ? updates.company.trim() : existing.company;
+    const nextPosition = typeof updates?.position === 'string' ? updates.position.trim() : existing.position;
+    const nextSingleRoom =
+        updates?.singleRoom !== undefined ? normalizeSingleRoom(updates.singleRoom) : normalizeSingleRoom(existing.singleRoom);
+    const nextGender =
+        updates?.gender !== undefined ? normalizeGender(updates.gender) : normalizeGender(existing.gender);
+
+    // 이메일 변경(=키 변경) 처리
+    if (typeof updates?.email === 'string') {
+        const nextEmail = sanitizeEmail(updates.email);
+        if (!isValidEmail(nextEmail)) {
+            throw new Error('유효한 이메일 형식이 아닙니다.');
+        }
+
+        // 이메일이 변경된 경우에만 key 변경 시도
+        if (nextEmail !== existing.email) {
+            if (existing.registered) {
+                // 왜: registeredUid / registeredSessionId 참조 무결성 깨질 수 있어 금지
+                throw new Error('등록 완료된 유저는 이메일을 변경할 수 없습니다.');
+            }
+
+            const newKey = emailToKey(nextEmail);
+            if (!newKey) {
+                throw new Error('유효한 이메일 형식이 아닙니다.');
+            }
+
+            const newRef = ref(database, `allowedUsers/${newKey}`);
+            const newSnap = await get(newRef);
+            if (newKey !== userId && newSnap.exists()) {
+                throw new Error('이미 존재하는 이메일입니다.');
+            }
+
+            await set(newRef, {
+                ...existing,
+                name: nextName,
+                email: nextEmail,
+                company: nextCompany || '',
+                position: nextPosition || '',
+                singleRoom: nextSingleRoom,
+                gender: nextGender,
+                updatedAt: Date.now(),
+            });
+
+            if (newKey !== userId) {
+                await set(userRef, null);
+            }
+
+            return newKey;
+        }
+    }
+
+    // 일반 부분 수정
+    await update(userRef, {
+        name: nextName,
+        company: nextCompany || '',
+        position: nextPosition || '',
+        singleRoom: nextSingleRoom,
+        gender: nextGender,
+        updatedAt: Date.now(),
+    });
+
+    return userId;
+}
+
+/**
  * 사전등록 유저 일괄 추가 (CSV 업로드용)
  * @param {Array} users - [{ name, email, company? }, ...]
  */
@@ -173,13 +305,27 @@ export async function bulkAddAllowedUsers(users) {
 
     for (const user of users) {
         try {
-            if (user.email) {
-                const result = await addAllowedUser(user);
-                if (result) success++;
-                else failed++;
-            } else {
+            const email = sanitizeEmail(user?.email);
+            const gender = normalizeGender(user?.gender);
+            const name = typeof user?.name === 'string' ? user.name.trim() : '';
+
+            // output.json 스키마 기준: 이메일/성명/성별은 필수
+            if (!email || !isValidEmail(email) || !name || !gender) {
                 failed++;
+                continue;
             }
+
+            const result = await addAllowedUser({
+                company: user?.company,
+                name,
+                position: user?.position,
+                email,
+                singleRoom: user?.singleRoom,
+                gender,
+            });
+
+            if (result) success++;
+            else failed++;
         } catch (error) {
             failed++;
         }

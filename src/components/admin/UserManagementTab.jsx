@@ -38,6 +38,7 @@ export default function UserManagementTab() {
             user.name?.toLowerCase().includes(term) ||
             user.email?.toLowerCase().includes(term) ||
             user.company?.toLowerCase().includes(term) ||
+            user.position?.toLowerCase().includes(term) ||
             user.selectedRoom?.toString().includes(term)
         );
     });
@@ -50,7 +51,10 @@ export default function UserManagementTab() {
             gender: user.gender || 'M',
             age: user.age || '',
             snoring: user.snoring || 'no',
-            company: user.company || ''
+            company: user.company || '',
+            position: user.position || '',
+            singleRoom: user.singleRoom || 'N',
+            email: user.email || ''
         });
     };
 
@@ -65,7 +69,10 @@ export default function UserManagementTab() {
                 gender: editForm.gender,
                 age: editForm.age ? parseInt(editForm.age) : null,
                 snoring: editForm.snoring,
-                company: editForm.company.trim()
+                company: editForm.company.trim(),
+                position: (editForm.position || '').trim(),
+                singleRoom: editForm.singleRoom || 'N',
+                // email은 key가 아니므로 표시만 하고 변경은 막는다(혼선 방지).
             };
 
             await adminUpdateUser(editingUser.sessionId, updates);
@@ -118,7 +125,7 @@ export default function UserManagementTab() {
                 <div className="w-full sm:w-64">
                     <input
                         type="text"
-                        placeholder="이름, 이메일, 회사, 객실번호..."
+                        placeholder="소속, 성명, 직위, 이메일, 객실번호..."
                         value={searchTerm}
                         onChange={(e) => setSearchTerm(e.target.value)}
                         className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
@@ -131,12 +138,12 @@ export default function UserManagementTab() {
                 <table className="min-w-full divide-y divide-gray-200">
                     <thead className="bg-gray-50">
                         <tr>
-                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">이름</th>
+                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">소속</th>
+                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">성명</th>
+                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">직위</th>
                             <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">이메일</th>
-                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">회사</th>
+                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">1인실 여부</th>
                             <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">성별</th>
-                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">나이</th>
-                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">코골이</th>
                             <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">객실</th>
                             <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">액션</th>
                         </tr>
@@ -151,18 +158,16 @@ export default function UserManagementTab() {
                         ) : (
                             filteredUsers.map((user) => (
                                 <tr key={user.sessionId} className="hover:bg-gray-50">
-                                    <td className="px-4 py-3 text-sm font-medium text-gray-900">{user.name}</td>
-                                    <td className="px-4 py-3 text-sm text-gray-500">{user.email}</td>
                                     <td className="px-4 py-3 text-sm text-gray-500">{user.company || '-'}</td>
+                                    <td className="px-4 py-3 text-sm font-medium text-gray-900">{user.name}</td>
+                                    <td className="px-4 py-3 text-sm text-gray-500">{user.position || '-'}</td>
+                                    <td className="px-4 py-3 text-sm text-gray-500">{user.email || '-'}</td>
+                                    <td className="px-4 py-3 text-sm text-gray-500">{user.singleRoom === 'Y' ? 'Y' : 'N'}</td>
                                     <td className="px-4 py-3 text-sm">
                                         <span className={`px-2 py-1 rounded-full text-xs ${user.gender === 'M' ? 'bg-blue-100 text-blue-800' : 'bg-pink-100 text-pink-800'
                                             }`}>
                                             {genderLabel(user.gender)}
                                         </span>
-                                    </td>
-                                    <td className="px-4 py-3 text-sm text-gray-500">{user.age || '-'}</td>
-                                    <td className="px-4 py-3 text-sm text-gray-500">
-                                        {SNORING_LABELS[user.snoring] || '-'}
                                     </td>
                                     <td className="px-4 py-3 text-sm">
                                         {user.selectedRoom ? (
@@ -207,6 +212,17 @@ export default function UserManagementTab() {
                         </p>
 
                         <div className="space-y-4">
+                            {/* 소속 */}
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">소속</label>
+                                <input
+                                    type="text"
+                                    value={editForm.company}
+                                    onChange={(e) => setEditForm({ ...editForm, company: e.target.value })}
+                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                                />
+                            </div>
+
                             {/* 이름 */}
                             <div>
                                 <label className="block text-sm font-medium text-gray-700 mb-1">이름</label>
@@ -214,6 +230,17 @@ export default function UserManagementTab() {
                                     type="text"
                                     value={editForm.name}
                                     onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
+                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                                />
+                            </div>
+
+                            {/* 직위 */}
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">직위</label>
+                                <input
+                                    type="text"
+                                    value={editForm.position}
+                                    onChange={(e) => setEditForm({ ...editForm, position: e.target.value })}
                                     className="w-full px-3 py-2 border border-gray-300 rounded-lg"
                                 />
                             </div>
@@ -248,41 +275,17 @@ export default function UserManagementTab() {
                                 </p>
                             </div>
 
-                            {/* 나이 */}
+                            {/* 1인실 여부 */}
                             <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">나이</label>
-                                <input
-                                    type="number"
-                                    value={editForm.age}
-                                    onChange={(e) => setEditForm({ ...editForm, age: e.target.value })}
-                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                                    min="0"
-                                    max="100"
-                                />
-                            </div>
-
-                            {/* 코골이 */}
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">코골이</label>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">1인실 여부</label>
                                 <select
-                                    value={editForm.snoring}
-                                    onChange={(e) => setEditForm({ ...editForm, snoring: e.target.value })}
+                                    value={editForm.singleRoom}
+                                    onChange={(e) => setEditForm({ ...editForm, singleRoom: e.target.value })}
                                     className="w-full px-3 py-2 border border-gray-300 rounded-lg"
                                 >
-                                    <option value="no">😴 없음</option>
-                                    <option value="yes">😤 있음</option>
+                                    <option value="N">N</option>
+                                    <option value="Y">Y</option>
                                 </select>
-                            </div>
-
-                            {/* 회사 */}
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">회사</label>
-                                <input
-                                    type="text"
-                                    value={editForm.company}
-                                    onChange={(e) => setEditForm({ ...editForm, company: e.target.value })}
-                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                                />
                             </div>
                         </div>
 
