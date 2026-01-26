@@ -5,16 +5,26 @@
  */
 import { useState, useEffect, useCallback } from 'react';
 import { roomData } from '../data/roomData';
-import { subscribeToRooms, isFirebaseInitialized, selectRoom as firebaseSelectRoom, removeGuestFromRoom as firebaseRemoveGuest } from '../firebase/index';
+import {
+    subscribeToRooms,
+    isFirebaseInitialized,
+    selectRoom as firebaseSelectRoom,
+    removeGuestFromRoom as firebaseRemoveGuest,
+    // 예약 시스템 추가
+    cleanupExpiredReservations,
+    subscribeToAllReservations
+} from '../firebase/index';
 
 export function useRooms() {
     const [roomGuests, setRoomGuests] = useState({});
+    const [reservations, setReservations] = useState({}); // 예약 상태 추가
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState(null);
 
+    // 객실 데이터 구독
     useEffect(() => {
         if (isFirebaseInitialized()) {
-            const unsubscribe = subscribeToRooms((data) => {
+            const unsubscribeRooms = subscribeToRooms((data) => {
                 const guests = {};
                 for (const [roomNumber, roomInfo] of Object.entries(data)) {
                     let guestList = roomInfo.guests || [];
@@ -26,7 +36,22 @@ export function useRooms() {
                 setRoomGuests(guests);
                 setIsLoading(false);
             });
-            return () => unsubscribe();
+
+            // 예약 상태 구독 추가
+            const unsubscribeReservations = subscribeToAllReservations((data) => {
+                setReservations(data);
+            });
+
+            // 만료된 예약 주기적 정리 (2분마다)
+            const cleanupInterval = setInterval(() => {
+                cleanupExpiredReservations().catch(console.error);
+            }, 2 * 60 * 1000);
+
+            return () => {
+                unsubscribeRooms();
+                unsubscribeReservations();
+                clearInterval(cleanupInterval);
+            };
         } else {
             const savedGuests = localStorage.getItem('vup58_room_guests');
             if (savedGuests) {
@@ -46,7 +71,7 @@ export function useRooms() {
         }
     }, [roomGuests]);
 
-    const getRoomStatus = useCallback((roomNumber, userGender, isAdmin = false) => {
+    const getRoomStatus = useCallback((roomNumber, userGender, isAdmin = false, singleRoomApproved = false) => {
         const room = roomData[roomNumber];
         if (!room) {
             return { status: 'unknown', canSelect: false, guests: [], isFull: false };
@@ -60,6 +85,10 @@ export function useRooms() {
         const guestCount = guests.length;
         const isFull = guestCount >= room.capacity;
 
+        // 예약 정보 추가
+        const reservation = reservations[roomNumber];
+        const isReserved = !!reservation;
+
         const result = {
             guests,
             guestCount,
@@ -67,16 +96,21 @@ export function useRooms() {
             capacity: room.capacity,
             type: room.type,
             roomGender: room.gender,
-            roomType: room.roomType
+            roomType: room.roomType,
+            reservation, // 예약 정보 포함
+            isReserved   // 예약 여부 포함
         };
 
         if (room.gender !== userGender) {
             return { ...result, status: 'wrong-gender', canSelect: false };
         }
 
-        // 1인실 - 완전 잠금 (관리자 직접 데이터 입력)
+        // 1인실 - 권한 있는 유저 또는 관리자만 선택 가능
         if (room.capacity === 1) {
             if (guestCount === 0) {
+                if (singleRoomApproved || isAdmin) {
+                    return { ...result, status: 'empty', canSelect: true };
+                }
                 return { ...result, status: 'locked', canSelect: false, isLocked: true };
             } else {
                 return { ...result, status: 'full', canSelect: false };
@@ -100,7 +134,7 @@ export function useRooms() {
         }
 
         return { ...result, status: 'full', canSelect: false };
-    }, [roomGuests]);
+    }, [roomGuests, reservations]);
 
     const addGuestToRoom = useCallback(async (roomNumber, guestData) => {
         const room = roomData[roomNumber];
@@ -173,6 +207,7 @@ export function useRooms() {
 
     return {
         roomGuests,
+        reservations, // 외부 노출
         isLoading,
         error,
         getRoomStatus,

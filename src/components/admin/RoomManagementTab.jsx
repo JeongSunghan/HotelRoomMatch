@@ -1,143 +1,205 @@
-import { useState } from 'react';
+import { useState, useReducer } from 'react';
 import { getGenderLabel } from '../../utils/genderUtils';
 import { updateGuestInfo, checkDuplicateName, logGuestAdd, logGuestEdit } from '../../firebase/index';
 
 // /admin 경로에서만 로깅 허용
 const isAdminPath = () => window.location.pathname.includes('/admin');
 
+// ============================================
+// useReducer로 모달 상태 통합
+// ============================================
+
+const MODAL_ACTIONS = {
+    OPEN_ADD: 'OPEN_ADD',
+    OPEN_EDIT: 'OPEN_EDIT',
+    CLOSE: 'CLOSE',
+    UPDATE_FORM: 'UPDATE_FORM',
+    SET_SUBMITTING: 'SET_SUBMITTING',
+    RESET_FORM: 'RESET_FORM'
+};
+
+const initialModalState = {
+    isOpen: false,
+    mode: null, // 'add' | 'edit'
+    room: null,
+    guest: null, // edit 모드에서만 사용
+    formData: { name: '', company: '', age: '', snoring: 'no' },
+    isSubmitting: false
+};
+
+function modalReducer(state, action) {
+    switch (action.type) {
+        case MODAL_ACTIONS.OPEN_ADD:
+            return {
+                ...initialModalState,
+                isOpen: true,
+                mode: 'add',
+                room: action.room
+            };
+        case MODAL_ACTIONS.OPEN_EDIT:
+            return {
+                ...initialModalState,
+                isOpen: true,
+                mode: 'edit',
+                room: action.room,
+                guest: action.guest,
+                formData: {
+                    name: action.guest.name || '',
+                    company: action.guest.company || '',
+                    age: action.guest.age || '',
+                    snoring: action.guest.snoring || 'no'
+                }
+            };
+        case MODAL_ACTIONS.CLOSE:
+            return initialModalState;
+        case MODAL_ACTIONS.UPDATE_FORM:
+            return {
+                ...state,
+                formData: { ...state.formData, [action.field]: action.value }
+            };
+        case MODAL_ACTIONS.SET_SUBMITTING:
+            return { ...state, isSubmitting: action.value };
+        case MODAL_ACTIONS.RESET_FORM:
+            return { ...state, formData: { name: '', company: '', age: '', snoring: 'no' } };
+        default:
+            return state;
+    }
+}
+
 /**
  * 객실 관리 탭 컴포넌트
+ * Refactored: 10개 useState → 1개 useReducer
  */
 export default function RoomManagementTab({
     assignedRooms,
     onRemoveGuest,
     onAddGuest
 }) {
-    // 유저 등록 모달 상태
-    const [showAddModal, setShowAddModal] = useState(false);
-    const [selectedRoom, setSelectedRoom] = useState(null);
-    const [newGuest, setNewGuest] = useState({ name: '', company: '', age: '' });
-    const [isAdding, setIsAdding] = useState(false);
+    // 단일 useReducer로 모든 모달 상태 관리
+    const [modal, dispatch] = useReducer(modalReducer, initialModalState);
 
-    // 유저 수정 모달 상태
-    const [showEditModal, setShowEditModal] = useState(false);
-    const [editingGuest, setEditingGuest] = useState(null);
-    const [editData, setEditData] = useState({ name: '', company: '', age: '' });
-    const [isEditing, setIsEditing] = useState(false);
-
-    // 유저 등록 모달 열기
+    // 모달 열기 핸들러
     const handleOpenAddModal = (room) => {
-        setSelectedRoom(room);
-        setNewGuest({ name: '', company: '', age: '' });
-        setShowAddModal(true);
+        dispatch({ type: MODAL_ACTIONS.OPEN_ADD, room });
     };
 
-    // 유저 수정 모달 열기
     const handleOpenEditModal = (room, guest) => {
-        setSelectedRoom(room);
-        setEditingGuest(guest);
-        setEditData({
-            name: guest.name || '',
-            company: guest.company || '',
-            age: guest.age || ''
-        });
-        setShowEditModal(true);
+        dispatch({ type: MODAL_ACTIONS.OPEN_EDIT, room, guest });
+    };
+
+    const handleCloseModal = () => {
+        dispatch({ type: MODAL_ACTIONS.CLOSE });
+    };
+
+    const handleFormChange = (field, value) => {
+        dispatch({ type: MODAL_ACTIONS.UPDATE_FORM, field, value });
     };
 
     // 중복 이름 체크 후 등록
     const handleAddGuest = async () => {
-        if (!newGuest.name.trim()) {
+        if (!modal.formData.name.trim()) {
             alert('이름을 입력해주세요.');
             return;
         }
 
-        setIsAdding(true);
+        dispatch({ type: MODAL_ACTIONS.SET_SUBMITTING, value: true });
         try {
             // 중복 이름 체크
-            const { isDuplicate, roomNumber } = await checkDuplicateName(newGuest.name.trim());
+            const { isDuplicate, roomNumber } = await checkDuplicateName(modal.formData.name.trim());
             if (isDuplicate) {
                 const proceed = window.confirm(
                     `⚠️ 동일한 이름이 ${roomNumber}호에 이미 존재합니다.\n\n그래도 등록하시겠습니까?`
                 );
                 if (!proceed) {
-                    setIsAdding(false);
+                    dispatch({ type: MODAL_ACTIONS.SET_SUBMITTING, value: false });
                     return;
                 }
             }
 
             const guestData = {
-                name: newGuest.name.trim(),
-                company: newGuest.company.trim(),
-                gender: selectedRoom.gender,
-                age: newGuest.age ? parseInt(newGuest.age) : null,
+                name: modal.formData.name.trim(),
+                company: modal.formData.company.trim(),
+                gender: modal.room.gender,
+                age: modal.formData.age ? parseInt(modal.formData.age) : null,
+                snoring: modal.formData.snoring,
                 sessionId: `admin-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
                 registeredAt: Date.now(),
                 registeredByAdmin: true
             };
 
-            await onAddGuest(selectedRoom.roomNumber, guestData);
+            await onAddGuest(modal.room.roomNumber, guestData);
 
             // 히스토리 로깅 (관리자 경로에서만)
             if (isAdminPath()) {
-                await logGuestAdd(selectedRoom.roomNumber, guestData, 'admin');
+                await logGuestAdd(modal.room.roomNumber, guestData, 'admin');
             }
 
-            setShowAddModal(false);
-            setSelectedRoom(null);
+            handleCloseModal();
         } catch (error) {
             alert('등록에 실패했습니다: ' + error.message);
         } finally {
-            setIsAdding(false);
+            dispatch({ type: MODAL_ACTIONS.SET_SUBMITTING, value: false });
         }
     };
 
     // 유저 정보 수정 처리
     const handleEditGuest = async () => {
-        if (!editData.name.trim()) {
+        if (!modal.formData.name.trim()) {
             alert('이름을 입력해주세요.');
             return;
         }
 
-        setIsEditing(true);
+        dispatch({ type: MODAL_ACTIONS.SET_SUBMITTING, value: true });
         try {
             // 중복 이름 체크 (자기 자신 제외)
             const { isDuplicate, roomNumber } = await checkDuplicateName(
-                editData.name.trim(),
-                editingGuest.sessionId
+                modal.formData.name.trim(),
+                modal.guest.sessionId
             );
             if (isDuplicate) {
                 const proceed = window.confirm(
                     `⚠️ 동일한 이름이 ${roomNumber}호에 이미 존재합니다.\n\n그래도 수정하시겠습니까?`
                 );
                 if (!proceed) {
-                    setIsEditing(false);
+                    dispatch({ type: MODAL_ACTIONS.SET_SUBMITTING, value: false });
                     return;
                 }
             }
 
-            await updateGuestInfo(selectedRoom.roomNumber, editingGuest.sessionId, {
-                name: editData.name.trim(),
-                company: editData.company.trim(),
-                age: editData.age ? parseInt(editData.age) : null
+            await updateGuestInfo(modal.room.roomNumber, modal.guest.sessionId, {
+                name: modal.formData.name.trim(),
+                company: modal.formData.company.trim(),
+                age: modal.formData.age ? parseInt(modal.formData.age) : null,
+                snoring: modal.formData.snoring
             });
 
             // 히스토리 로깅 (관리자 경로에서만)
             if (isAdminPath()) {
-                await logGuestEdit(selectedRoom.roomNumber, editingGuest, {
-                    name: editData.name.trim(),
-                    company: editData.company.trim()
+                await logGuestEdit(modal.room.roomNumber, modal.guest, {
+                    name: modal.formData.name.trim(),
+                    company: modal.formData.company.trim(),
+                    snoring: modal.formData.snoring
                 });
             }
 
-            setShowEditModal(false);
-            setEditingGuest(null);
-            setSelectedRoom(null);
+            handleCloseModal();
         } catch (error) {
             alert('수정에 실패했습니다: ' + error.message);
         } finally {
-            setIsEditing(false);
+            dispatch({ type: MODAL_ACTIONS.SET_SUBMITTING, value: false });
         }
     };
+
+    // 폼 제출 핸들러 (모드에 따라 분기)
+    const handleSubmit = () => {
+        if (modal.mode === 'add') {
+            handleAddGuest();
+        } else if (modal.mode === 'edit') {
+            handleEditGuest();
+        }
+    };
+
+    const snoringLabels = { 'no': '코골이X', 'yes': '코골이O' };
 
     if (assignedRooms.length === 0) {
         return (
@@ -219,10 +281,14 @@ export default function RoomManagementTab({
                                                 title="클릭하여 수정"
                                             >
                                                 <div>
-                                                    <span className="font-medium">{guest.name}</span>
-                                                    {guest.company && (
-                                                        <span className="text-xs ml-1 opacity-70">({guest.company})</span>
-                                                    )}
+                                                    <span className="font-medium mr-1">{guest.name}</span>
+                                                    <span className="text-xs opacity-70">
+                                                        {[
+                                                            guest.company,
+                                                            guest.age ? `${guest.age}세` : null,
+                                                            guest.snoring === 'yes' ? '코골이' : null
+                                                        ].filter(Boolean).join(', ')}
+                                                    </span>
                                                     {guest.registeredByAdmin && (
                                                         <span className="text-xs ml-1 opacity-50">[관리자]</span>
                                                     )}
@@ -261,16 +327,16 @@ export default function RoomManagementTab({
                 ))}
             </div>
 
-            {/* 유저 등록 모달 */}
-            {showAddModal && selectedRoom && (
+            {/* 통합 모달 (등록/수정) */}
+            {modal.isOpen && modal.room && (
                 <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
-                    <div className="absolute inset-0 bg-black/50" onClick={() => setShowAddModal(false)} />
+                    <div className="absolute inset-0 bg-black/50" onClick={handleCloseModal} />
                     <div className="relative bg-white rounded-xl p-6 w-full max-w-md shadow-2xl">
                         <h3 className="text-lg font-bold text-gray-800 mb-4">
-                            🏨 {selectedRoom.capacity === 1 ? '1인실' : '2인실'} 유저 등록
+                            {modal.mode === 'add' ? '🏨 유저 등록' : '✏️ 유저 정보 수정'}
                         </h3>
                         <p className="text-sm text-gray-600 mb-4">
-                            <strong>{selectedRoom.roomNumber}호</strong> ({selectedRoom.roomType}) - {getGenderLabel(selectedRoom.gender)} 전용
+                            <strong>{modal.room.roomNumber}호</strong> ({modal.room.roomType}) - {getGenderLabel(modal.room.gender)} 전용
                         </p>
 
                         <div className="space-y-4">
@@ -280,8 +346,8 @@ export default function RoomManagementTab({
                                 </label>
                                 <input
                                     type="text"
-                                    value={newGuest.name}
-                                    onChange={(e) => setNewGuest({ ...newGuest, name: e.target.value })}
+                                    value={modal.formData.name}
+                                    onChange={(e) => handleFormChange('name', e.target.value)}
                                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                                     placeholder="이름 입력"
                                     autoFocus
@@ -294,119 +360,64 @@ export default function RoomManagementTab({
                                 </label>
                                 <input
                                     type="text"
-                                    value={newGuest.company}
-                                    onChange={(e) => setNewGuest({ ...newGuest, company: e.target.value })}
+                                    value={modal.formData.company}
+                                    onChange={(e) => handleFormChange('company', e.target.value)}
                                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                                     placeholder="소속/회사"
                                 />
                             </div>
 
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">
-                                    출생연도 (선택)
-                                </label>
-                                <input
-                                    type="number"
-                                    value={newGuest.age}
-                                    onChange={(e) => setNewGuest({ ...newGuest, age: e.target.value })}
-                                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                                    placeholder="예: 1990"
-                                    min="1900"
-                                    max="2010"
-                                />
+                            <div className="flex gap-4">
+                                <div className="flex-1">
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                                        출생연도 (선택)
+                                    </label>
+                                    <input
+                                        type="number"
+                                        value={modal.formData.age}
+                                        onChange={(e) => handleFormChange('age', e.target.value)}
+                                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                        placeholder="예: 1990"
+                                        min="1900"
+                                        max="2010"
+                                    />
+                                </div>
+                                <div className="flex-1">
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                                        코골이 여부
+                                    </label>
+                                    <select
+                                        value={modal.formData.snoring}
+                                        onChange={(e) => handleFormChange('snoring', e.target.value)}
+                                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                    >
+                                        <option value="no">없음</option>
+                                        <option value="yes">있음</option>
+                                    </select>
+                                </div>
                             </div>
                         </div>
 
                         <div className="flex gap-3 mt-6">
                             <button
-                                onClick={() => setShowAddModal(false)}
+                                onClick={handleCloseModal}
                                 className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg font-medium hover:bg-gray-50 transition-colors"
-                                disabled={isAdding}
+                                disabled={modal.isSubmitting}
                             >
                                 취소
                             </button>
                             <button
-                                onClick={handleAddGuest}
-                                disabled={isAdding || !newGuest.name.trim()}
-                                className="flex-1 px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-white rounded-lg font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                onClick={handleSubmit}
+                                disabled={modal.isSubmitting || !modal.formData.name.trim()}
+                                className={`flex-1 px-4 py-2 text-white rounded-lg font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${modal.mode === 'add'
+                                    ? 'bg-emerald-500 hover:bg-emerald-600'
+                                    : 'bg-blue-500 hover:bg-blue-600'
+                                    }`}
                             >
-                                {isAdding ? '등록 중...' : '등록하기'}
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            )}
-
-            {/* 유저 수정 모달 */}
-            {showEditModal && selectedRoom && editingGuest && (
-                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
-                    <div className="absolute inset-0 bg-black/50" onClick={() => setShowEditModal(false)} />
-                    <div className="relative bg-white rounded-xl p-6 w-full max-w-md shadow-2xl">
-                        <h3 className="text-lg font-bold text-gray-800 mb-4">
-                            ✏️ 유저 정보 수정
-                        </h3>
-                        <p className="text-sm text-gray-600 mb-4">
-                            <strong>{selectedRoom.roomNumber}호</strong> ({selectedRoom.roomType}) - {getGenderLabel(selectedRoom.gender)} 전용
-                        </p>
-
-                        <div className="space-y-4">
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">
-                                    이름 <span className="text-red-500">*</span>
-                                </label>
-                                <input
-                                    type="text"
-                                    value={editData.name}
-                                    onChange={(e) => setEditData({ ...editData, name: e.target.value })}
-                                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                                    placeholder="이름 입력"
-                                    autoFocus
-                                />
-                            </div>
-
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">
-                                    소속 (선택)
-                                </label>
-                                <input
-                                    type="text"
-                                    value={editData.company}
-                                    onChange={(e) => setEditData({ ...editData, company: e.target.value })}
-                                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                                    placeholder="소속/회사"
-                                />
-                            </div>
-
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">
-                                    출생연도 (선택)
-                                </label>
-                                <input
-                                    type="number"
-                                    value={editData.age}
-                                    onChange={(e) => setEditData({ ...editData, age: e.target.value })}
-                                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                                    placeholder="예: 1990"
-                                    min="1900"
-                                    max="2010"
-                                />
-                            </div>
-                        </div>
-
-                        <div className="flex gap-3 mt-6">
-                            <button
-                                onClick={() => setShowEditModal(false)}
-                                className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg font-medium hover:bg-gray-50 transition-colors"
-                                disabled={isEditing}
-                            >
-                                취소
-                            </button>
-                            <button
-                                onClick={handleEditGuest}
-                                disabled={isEditing || !editData.name.trim()}
-                                className="flex-1 px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                            >
-                                {isEditing ? '수정 중...' : '수정하기'}
+                                {modal.isSubmitting
+                                    ? (modal.mode === 'add' ? '등록 중...' : '수정 중...')
+                                    : (modal.mode === 'add' ? '등록하기' : '수정하기')
+                                }
                             </button>
                         </div>
                     </div>

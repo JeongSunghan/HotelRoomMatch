@@ -148,8 +148,8 @@ export function emailToKey(email) {
 
 /**
  * 방번호 형식 검증 (경로 traversal 방지)
- * 유효한 형식: 3-4자리 숫자 (예: 601, 701, 801, 1001, 1101, 1201)
- * 지원 층: 6, 7, 8, 10, 11, 12층
+ * 유효한 형식: 3-4자리 숫자 (예: 901, 1001, 1014, 1101)
+ * 지원 층: 9, 10, 11층
  * @param {string} roomNumber - 방 번호
  * @returns {boolean} 유효 여부
  */
@@ -161,8 +161,8 @@ export function isValidRoomNumber(roomNumber) {
         return false;
     }
 
-    // 3자리: 6xx, 7xx, 8xx / 4자리: 10xx, 11xx, 12xx
-    return /^([678]\d{2}|1[012]\d{2})$/.test(roomNumber);
+    // 3자리: 9xx / 4자리: 10xx, 11xx
+    return /^(9\d{2}|1[01]\d{2})$/.test(roomNumber);
 }
 
 /**

@@ -190,7 +190,8 @@ export default function RegistrationModal({ onClose }) {
                 email: email,
                 passKey: passKey,
                 passKeyExpires: expiryDate,
-                lastLoginAt: Date.now()
+                lastLoginAt: Date.now(),
+                singleRoom: userData.singleRoom || 'N'
             });
 
             // 5. 로컬 스토리지 저장 (세션 복구용)
@@ -199,6 +200,7 @@ export default function RegistrationModal({ onClose }) {
                 name: userData.name,
                 email: email,
                 company: userData.company,
+                singleRoom: userData.singleRoom || 'N',
                 passKey: passKey,
                 passKeyExpires: expiryDate,
                 locked: !!userData.registered, // 기존 등록 여부

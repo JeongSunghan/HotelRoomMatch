@@ -84,6 +84,7 @@ export function useUser() {
                                     name: userData.name,
                                     email: userData.email, // 이메일 저장
                                     company: userData.company,
+                                    singleRoom: userData.singleRoom || 'N',
                                     // 이미 등록된 상태였는데 복구 실패했다면 일단 locked 풀어줌 (재입력 유도)
                                     locked: false,
                                     selectedRoom: null,
@@ -302,6 +303,7 @@ export function useUser() {
             gender,
             age: age || null,
             snoring: snoring || 'no',
+            singleRoom: userData.singleRoom || 'N', // 1인실 권한 추가
             // residentIdFront는 보안상 저장하지 않음
             registeredAt: Date.now(),
             selectedRoom: null,
@@ -327,10 +329,7 @@ export function useUser() {
             locked: true
         };
 
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(updatedUser));
-        setUser(updatedUser);
-
-        // DB 동기화
+        // DB 동기화 먼저 (Race condition 방지)
         if (user.sessionId) {
             await dbUpdateUser(user.sessionId, {
                 selectedRoom: roomNumber,
@@ -338,6 +337,9 @@ export function useUser() {
                 locked: true
             });
         }
+
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(updatedUser));
+        setUser(updatedUser);
 
         return updatedUser;
     }, [user]);
@@ -353,13 +355,13 @@ export function useUser() {
             ...newData
         };
 
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(updatedUser));
-        setUser(updatedUser);
-
-        // DB 동기화
+        // DB 동기화 먼저 (Race condition 방지)
         if (user.sessionId) {
             await dbUpdateUser(user.sessionId, newData);
         }
+
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(updatedUser));
+        setUser(updatedUser);
 
         return updatedUser;
     }, [user]);

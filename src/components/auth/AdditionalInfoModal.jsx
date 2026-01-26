@@ -1,48 +1,46 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { validateResidentId, getGenderLabel, getAgeFromResidentId } from '../../utils/genderUtils';
 
+/**
+ * 추가 정보 입력 모달
+ * Refactored: detectedGender, detectedAge를 useMemo 파생 상태로 변경 (7 → 5 useState)
+ */
 export default function AdditionalInfoModal({ user, onUpdate, onClose }) {
     const [residentIdFront, setResidentIdFront] = useState('');
     const [residentIdBack, setResidentIdBack] = useState('');
     const [snoring, setSnoring] = useState(null);
     const [ageTolerance, setAgeTolerance] = useState(5);
     const [error, setError] = useState('');
-    const [detectedGender, setDetectedGender] = useState(null);
-    const [detectedAge, setDetectedAge] = useState(null);
 
-    // 주민번호 뒷자리 입력 시 성별/나이 감지
-    const handleBackDigitChange = (value) => {
-        const digit = value.slice(0, 1);
-        setResidentIdBack(digit);
-
-        if (digit && residentIdFront.length === 6) {
-            const result = validateResidentId(residentIdFront, digit);
-            if (result.valid) {
-                setDetectedGender(result.gender);
-                setDetectedAge(getAgeFromResidentId(residentIdFront, digit));
-                setError('');
-            } else {
-                setDetectedGender(null);
-                setDetectedAge(null);
-            }
-        } else {
-            setDetectedGender(null);
-            setDetectedAge(null);
+    // 파생 상태: 주민번호에서 성별/나이 자동 계산 (useState 2개 제거)
+    const { detectedGender, detectedAge } = useMemo(() => {
+        if (residentIdFront.length !== 6 || !residentIdBack) {
+            return { detectedGender: null, detectedAge: null };
         }
-    };
 
-    // 앞자리 입력 시에도 나이 재계산
+        const result = validateResidentId(residentIdFront, residentIdBack);
+        if (!result.valid) {
+            return { detectedGender: null, detectedAge: null };
+        }
+
+        return {
+            detectedGender: result.gender,
+            detectedAge: getAgeFromResidentId(residentIdFront, residentIdBack)
+        };
+    }, [residentIdFront, residentIdBack]);
+
+    // 앞자리 입력 핸들러
     const handleFrontChange = (value) => {
         const cleaned = value.replace(/\D/g, '').slice(0, 6);
         setResidentIdFront(cleaned);
+        setError(''); // 입력 시 에러 초기화
+    };
 
-        if (cleaned.length === 6 && residentIdBack) {
-            const result = validateResidentId(cleaned, residentIdBack);
-            if (result.valid) {
-                setDetectedGender(result.gender);
-                setDetectedAge(getAgeFromResidentId(cleaned, residentIdBack));
-            }
-        }
+    // 뒷자리 첫번째 숫자 입력 핸들러
+    const handleBackDigitChange = (value) => {
+        const digit = value.replace(/\D/g, '').slice(0, 1);
+        setResidentIdBack(digit);
+        setError(''); // 입력 시 에러 초기화
     };
 
     const handleSubmit = (e) => {
@@ -110,7 +108,7 @@ export default function AdditionalInfoModal({ user, onUpdate, onClose }) {
                                 <input
                                     type="text"
                                     value={residentIdBack}
-                                    onChange={(e) => handleBackDigitChange(e.target.value.replace(/\D/g, ''))}
+                                    onChange={(e) => handleBackDigitChange(e.target.value)}
                                     placeholder="●"
                                     maxLength={1}
                                     className="w-10 text-center bg-transparent border-none focus:outline-none focus:ring-0"
@@ -149,8 +147,26 @@ export default function AdditionalInfoModal({ user, onUpdate, onClose }) {
                                 코골이 여부 <span className="text-red-500">*</span>
                             </label>
                             <div className="grid grid-cols-2 gap-2">
-                                <button type="button" onClick={() => setSnoring('no')} className={`py-3 px-4 rounded-lg border-2 font-medium text-sm transition-all ${snoring === 'no' ? 'border-emerald-500 bg-emerald-50 text-emerald-700' : 'border-gray-200 hover:border-gray-300'}`}>😴 없음</button>
-                                <button type="button" onClick={() => setSnoring('yes')} className={`py-3 px-4 rounded-lg border-2 font-medium text-sm transition-all ${snoring === 'yes' ? 'border-red-500 bg-red-50 text-red-700' : 'border-gray-200 hover:border-gray-300'}`}>😤 있음</button>
+                                <button
+                                    type="button"
+                                    onClick={() => setSnoring('no')}
+                                    className={`py-3 px-4 rounded-lg border-2 font-medium text-sm transition-all ${snoring === 'no'
+                                            ? 'border-emerald-500 bg-emerald-50 text-emerald-700'
+                                            : 'border-gray-200 hover:border-gray-300'
+                                        }`}
+                                >
+                                    😴 없음
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => setSnoring('yes')}
+                                    className={`py-3 px-4 rounded-lg border-2 font-medium text-sm transition-all ${snoring === 'yes'
+                                            ? 'border-red-500 bg-red-50 text-red-700'
+                                            : 'border-gray-200 hover:border-gray-300'
+                                        }`}
+                                >
+                                    😤 있음
+                                </button>
                             </div>
                         </div>
                     )}
@@ -164,15 +180,36 @@ export default function AdditionalInfoModal({ user, onUpdate, onClose }) {
                                     <span className="text-sm text-gray-600">내 나이 {detectedAge}세 기준</span>
                                     <span className="text-lg font-bold text-blue-600">±{ageTolerance}세</span>
                                 </div>
-                                <input type="range" min="0" max="10" value={ageTolerance} onChange={(e) => setAgeTolerance(parseInt(e.target.value))} className="w-full h-2 bg-blue-200 rounded-lg appearance-none cursor-pointer" />
-                                <div className="flex justify-between text-xs text-gray-400 mt-1"><span>동갑만</span><span>±5세</span><span>±10세</span></div>
+                                <input
+                                    type="range"
+                                    min="0"
+                                    max="10"
+                                    value={ageTolerance}
+                                    onChange={(e) => setAgeTolerance(parseInt(e.target.value))}
+                                    className="w-full h-2 bg-blue-200 rounded-lg appearance-none cursor-pointer"
+                                />
+                                <div className="flex justify-between text-xs text-gray-400 mt-1">
+                                    <span>동갑만</span>
+                                    <span>±5세</span>
+                                    <span>±10세</span>
+                                </div>
                             </div>
                         </div>
                     )}
 
-                    {error && <div className="p-4 bg-red-50 border border-red-200 border-l-4 border-l-red-500 rounded-lg"><p className="text-red-700 text-sm">{error}</p></div>}
+                    {error && (
+                        <div className="p-4 bg-red-50 border border-red-200 border-l-4 border-l-red-500 rounded-lg">
+                            <p className="text-red-700 text-sm">{error}</p>
+                        </div>
+                    )}
 
-                    <button type="submit" disabled={!detectedGender} className="w-full py-4 btn-primary rounded-xl font-bold text-lg shadow-lg disabled:opacity-50 mt-4">확인 및 입장</button>
+                    <button
+                        type="submit"
+                        disabled={!detectedGender}
+                        className="w-full py-4 btn-primary rounded-xl font-bold text-lg shadow-lg disabled:opacity-50 mt-4"
+                    >
+                        확인 및 입장
+                    </button>
                 </form>
             </div>
         </div>

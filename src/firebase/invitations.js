@@ -2,7 +2,7 @@
  * Firebase 룸메이트 초대 관련 모듈
  */
 import { database, ref, onValue, set, update, get } from './config';
-import { selectRoom } from './rooms';
+import { selectRoom, releaseRoomReservation } from './rooms';
 import { INVITATION_EXPIRY_MS } from '../utils/constants';
 
 /**
@@ -62,6 +62,8 @@ export async function cleanupUserInvitations(sessionId) {
         // 해당 유저가 보낸 pending 초대 삭제
         if (invitation.inviterSessionId === sessionId && invitation.status === 'pending') {
             await set(ref(database, `roommateInvitations/${id}`), null);
+            // 예약 슬롯 해제
+            await releaseRoomReservation(invitation.roomNumber, sessionId).catch(() => { });
         }
     }
 }
@@ -81,6 +83,11 @@ export async function checkPendingInvitations(userName) {
         // 24시간 지난 pending 초대는 만료 처리
         if (invitation.status === 'pending' && invitation.createdAt && (now - invitation.createdAt) > INVITATION_EXPIRY_MS) {
             set(ref(database, `roommateInvitations/${id}`), null).catch(() => { });
+
+            // 만료 시 예약 슬롯 해제
+            if (invitation.roomNumber && invitation.inviterSessionId) {
+                releaseRoomReservation(invitation.roomNumber, invitation.inviterSessionId).catch(() => { });
+            }
             continue;
         }
 
@@ -152,7 +159,10 @@ export async function acceptInvitation(invitationId, acceptorData, roomGender = 
         acceptorSessionId: acceptorData.sessionId
     });
 
-    // 6. 방 선택 (selectRoom에서 추가 검증 수행)
+    // 6. 예약 슬롯 해제 (초대자의 예약을 해제)
+    await releaseRoomReservation(invitation.roomNumber, invitation.inviterSessionId).catch(() => { });
+
+    // 7. 방 선택 (selectRoom에서 추가 검증 수행)
     await selectRoom(invitation.roomNumber, acceptorData, 2, roomGender);
     return invitation.roomNumber;
 }
@@ -161,6 +171,8 @@ export async function rejectInvitation(invitationId, rejectorData) {
     if (!database) return false;
 
     const invitationRef = ref(database, `roommateInvitations/${invitationId}`);
+    const snapshot = await get(invitationRef);
+    const invitation = snapshot.val(); // 초대 정보 가져오기
 
     await update(invitationRef, {
         status: 'rejected',
@@ -168,6 +180,11 @@ export async function rejectInvitation(invitationId, rejectorData) {
         rejectorSessionId: rejectorData.sessionId,
         notified: false // 초대자에게 알림 필요
     });
+
+    // 예약 슬롯 해제 (거절 시에도 슬롯 풀어야 함)
+    if (invitation) {
+        await releaseRoomReservation(invitation.roomNumber, invitation.inviterSessionId).catch(() => { });
+    }
 
     return true;
 }
@@ -179,6 +196,14 @@ export async function markInvitationNotified(invitationId) {
     if (!database) return false;
 
     const invitationRef = ref(database, `roommateInvitations/${invitationId}`);
+
+    // 알림 확인 시 예약 해제 한 번 더 시도 (안전장치)
+    const snapshot = await get(invitationRef);
+    const invitation = snapshot.val();
+    if (invitation) {
+        await releaseRoomReservation(invitation.roomNumber, invitation.inviterSessionId).catch(() => { });
+    }
+
     await update(invitationRef, { notified: true });
     return true;
 }
@@ -231,5 +256,9 @@ export async function cancelInvitation(invitationId, inviterSessionId) {
 
     // 초대 삭제
     await set(invitationRef, null);
+
+    // 예약 슬롯 해제
+    await releaseRoomReservation(invitation.roomNumber, inviterSessionId).catch(() => { });
+
     return true;
 }

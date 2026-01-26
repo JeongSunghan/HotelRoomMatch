@@ -1,6 +1,7 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { roomData } from '../../data/roomData';
 import { getGenderLabel } from '../../utils/genderUtils';
+import { RESERVATION_TIMEOUT } from '../../firebase/index';
 
 /**
  * 객실 선택 확인 모달 - 룸메이트 선택 기능 추가
@@ -16,6 +17,23 @@ export default function SelectionModal({
     const [hasRoommate, setHasRoommate] = useState(null); // null, 'yes', 'no'
     const [roommateName, setRoommateName] = useState('');
     const [roommateCompany, setRoommateCompany] = useState('');
+    // 타이머 상태 (초 단위)
+    const [timeLeft, setTimeLeft] = useState(Math.floor(RESERVATION_TIMEOUT.SELECTION / 1000));
+
+    // 타이머 효과
+    useEffect(() => {
+        const timer = setInterval(() => {
+            setTimeLeft((prev) => {
+                if (prev <= 1) {
+                    clearInterval(timer);
+                    return 0;
+                }
+                return prev - 1;
+            });
+        }, 1000);
+
+        return () => clearInterval(timer);
+    }, []);
 
     if (!room) return null;
 
@@ -44,12 +62,19 @@ export default function SelectionModal({
 
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-            <div className="absolute inset-0 modal-overlay" onClick={onCancel} />
+            {/* 배경 클릭 닫기 방지 (onClick 제거) */}
+            <div className="absolute inset-0 modal-overlay" />
 
             <div className="relative modal-card rounded-xl p-6 w-full max-w-md max-h-[90vh] overflow-y-auto">
-                <h2 className="text-xl font-bold text-gray-800 text-center mb-5">
-                    객실 선택 확인
-                </h2>
+                <div className="text-center mb-5">
+                    <h2 className="text-xl font-bold text-gray-800 inline-block">
+                        객실 선택 확인
+                    </h2>
+                    {/* 타이머 표시 */}
+                    <div className="mt-2 inline-block ml-3 px-2 py-0.5 bg-red-100 text-red-600 text-xs font-bold rounded-full animate-pulse">
+                        {timeLeft}초 남음
+                    </div>
+                </div>
 
                 {/* 객실 정보 */}
                 <div className="bg-gray-50 rounded-lg p-5 mb-5">

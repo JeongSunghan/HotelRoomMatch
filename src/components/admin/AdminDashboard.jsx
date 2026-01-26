@@ -123,8 +123,14 @@ export default function AdminDashboard({
     const handleResolveRequest = async (request) => {
         try {
             if (request.type === 'cancel' && request.currentRoom && request.sessionId) {
-                await onRemoveGuest(request.currentRoom, request.sessionId);
-                // await clearUserSession(request.sessionId);
+                // 1. 방에서 제거 (무조건 시도하여 좀비 게스트 방지)
+                try {
+                    await onRemoveGuest(request.currentRoom, request.sessionId);
+                } catch (e) {
+                    console.warn('방에서 제거 실패 (이미 없을 수 있음):', e);
+                }
+
+                // 2. 유저 상태 초기화 (방 배정 해제)
                 await updateUser(request.sessionId, { selectedRoom: null, locked: false });
             }
             else if (request.type === 'change' && request.currentRoom && request.targetRoom && request.sessionId) {

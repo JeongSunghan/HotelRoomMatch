@@ -141,6 +141,9 @@ export async function addAllowedUser(userData) {
         name: userData.name?.trim() || '',
         email: email,
         company: userData.company?.trim() || '',
+        position: userData.position?.trim() || '',
+        gender: userData.gender?.trim() || '',
+        singleRoom: userData.singleRoom?.trim() || '',
         registered: false,
         createdAt: Date.now()
     });
@@ -157,6 +160,23 @@ export async function removeAllowedUser(userId) {
     // userId는 이미 Base64 Key라고 가정
     const userRef = ref(database, `allowedUsers/${userId}`);
     await set(userRef, null);
+
+    return true;
+}
+
+/**
+ * 사전등록 유저 정보 수정 (관리자용)
+ * @param {string} userId - 유저 ID (Hash)
+ * @param {Object} updates - 수정할 데이터
+ */
+export async function updateAllowedUser(userId, updates) {
+    if (!database || !userId) return false;
+
+    const userRef = ref(database, `allowedUsers/${userId}`);
+    await update(userRef, {
+        ...updates,
+        updatedAt: Date.now()
+    });
 
     return true;
 }

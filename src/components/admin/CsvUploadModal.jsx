@@ -131,7 +131,7 @@ export default function CsvUploadModal({ onUpload, onClose }) {
                                 CSV 파일을 드래그하거나 클릭하여 선택
                             </p>
                             <p className="text-sm text-gray-400">
-                                필수 열: 이름, 방번호 / 선택 열: 소속, 성별, 출생연도
+                                필수 열: 성명, 이메일, 성별 / 선택 열: 소속명, 직위, 1인실 여부
                             </p>
                             <input
                                 ref={fileInputRef}
@@ -191,22 +191,30 @@ export default function CsvUploadModal({ onUpload, onClose }) {
                                         <thead className="bg-gray-100 sticky top-0">
                                             <tr>
                                                 <th className="px-3 py-2 text-left">이름</th>
+                                                <th className="px-3 py-2 text-left">이메일</th>
                                                 <th className="px-3 py-2 text-left">소속</th>
+                                                <th className="px-3 py-2 text-left">직위</th>
                                                 <th className="px-3 py-2 text-left">성별</th>
-                                                <th className="px-3 py-2 text-left">방</th>
+                                                <th className="px-3 py-2 text-left">1인실</th>
                                             </tr>
                                         </thead>
                                         <tbody>
                                             {validData.map((row, idx) => (
                                                 <tr key={idx} className="border-t">
                                                     <td className="px-3 py-2">{row.name}</td>
+                                                    <td className="px-3 py-2 text-sm text-gray-500">{row.email}</td>
                                                     <td className="px-3 py-2 text-gray-500">{row.company || '-'}</td>
+                                                    <td className="px-3 py-2 text-gray-500">{row.position || '-'}</td>
                                                     <td className="px-3 py-2">
                                                         <span className={row.gender === 'M' ? 'text-blue-600' : 'text-pink-600'}>
                                                             {getGenderLabel(row.gender)}
                                                         </span>
                                                     </td>
-                                                    <td className="px-3 py-2 font-medium">{row.roomNumber}호</td>
+                                                    <td className="px-3 py-2">
+                                                        <span className={row.singleRoom ? 'text-green-600' : 'text-gray-500'}>
+                                                            {row.singleRoom ? '1인실' : '2인실'}
+                                                        </span>
+                                                    </td>
                                                 </tr>
                                             ))}
                                         </tbody>
