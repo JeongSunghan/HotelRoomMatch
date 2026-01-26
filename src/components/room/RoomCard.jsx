@@ -16,6 +16,39 @@ const RoomCard = memo(function RoomCard({
 }) {
     const { guests, guestCount, capacity, roomType, roomGender, isLocked } = status;
 
+    const uiStatus = useMemo(() => {
+        // update.md(PHASE 1 / STEP 1-1) 기준 "표준 상태"를 UI 레벨에서만 우선 적용
+        // - available : 선택 가능
+        // - occupied  : 배정 완료
+        // - reserved  : 잠금/접근 불가(권한/성별 포함)
+        if (isMyRoom) {
+            return { key: 'occupied', label: '내 방', icon: '✓', tone: 'emerald' };
+        }
+        if (status.status === 'full' || guestCount >= capacity) {
+            return { key: 'occupied', label: '배정 완료', icon: '■', tone: roomGender === 'M' ? 'blue' : 'pink' };
+        }
+        if (isLocked || status.status === 'wrong-gender') {
+            return { key: 'reserved', label: '선택 불가', icon: '🔒', tone: 'slate' };
+        }
+        if (canSelect || isAdmin) {
+            return { key: 'available', label: '선택 가능', icon: '○', tone: roomGender === 'M' ? 'blue' : 'pink' };
+        }
+        return { key: 'reserved', label: '대기', icon: '…', tone: 'slate' };
+    }, [isMyRoom, status.status, guestCount, capacity, isLocked, canSelect, isAdmin, roomGender]);
+
+    const statusChipClass = useMemo(() => {
+        switch (uiStatus.tone) {
+            case 'emerald':
+                return 'bg-emerald-100 text-emerald-700 border-emerald-200';
+            case 'blue':
+                return 'bg-blue-100 text-blue-700 border-blue-200';
+            case 'pink':
+                return 'bg-pink-100 text-pink-700 border-pink-200';
+            default:
+                return 'bg-slate-100 text-slate-700 border-slate-200';
+        }
+    }, [uiStatus.tone]);
+
     // 상태별 스타일 결정 - 메모이제이션
     const cardStyle = useMemo(() => {
         // 내가 선택한 방
@@ -94,15 +127,15 @@ const RoomCard = memo(function RoomCard({
             aria-label={ariaLabel}
             aria-disabled={!isClickable}
             className={`
-                room-card p-4 rounded-lg cursor-pointer
+                room-card h-[148px] p-3 rounded-lg cursor-pointer flex flex-col
                 ${cardStyle}
-                ${!isClickable && 'cursor-not-allowed'}
+                ${!isClickable && 'cursor-not-allowed disabled'}
                 ${isHighlighted && 'ring-4 ring-yellow-400 ring-offset-2 animate-pulse shadow-lg shadow-yellow-200'}
             `}
         >
-            {/* 방 번호 */}
-            <div className="flex items-center justify-between mb-2">
-                <span className="text-lg font-bold text-gray-800">{roomNumber}</span>
+            {/* 헤더: 방번호 + 타입 (고정 높이) */}
+            <div className="flex items-center justify-between">
+                <span className="text-lg font-bold text-gray-800 leading-none">{roomNumber}</span>
                 {/* 타입 배지 */}
                 <span className={`
                     text-xs px-2 py-0.5 rounded-full font-medium
@@ -113,25 +146,25 @@ const RoomCard = memo(function RoomCard({
             </div>
 
             {/* 객실 타입 */}
-            <p className="text-xs text-gray-500 mb-2">{roomType}</p>
+            <p className="text-[11px] text-gray-500 mt-1 truncate">{roomType}</p>
 
-            {/* 투숙객 목록 */}
-            <div className="min-h-[2.5rem]">
+            {/* 투숙객 목록 (고정 영역) */}
+            <div className="mt-2 flex-1 overflow-hidden">
                 {guests.length > 0 ? (
                     <div className="space-y-1">
                         {guests.map((guest, idx) => (
                             <div
                                 key={idx}
                                 className={`
-                                    text-sm px-2 py-1 rounded font-medium flex items-center justify-between
+                                    text-[12px] px-2 py-1 rounded font-medium flex items-center justify-between gap-2
                                     ${guest.gender === 'M' ? 'bg-blue-100 text-blue-800' : 'bg-pink-100 text-pink-800'}
                                 `}
                             >
-                                <span>
+                                <span className="truncate">
                                     {guest.name}
-                                    {guest.company && <span className="text-xs ml-1 opacity-70">({guest.company})</span>}
+                                    {guest.company && <span className="text-[11px] ml-1 opacity-70">({guest.company})</span>}
                                 </span>
-                                <div className="flex items-center gap-1">
+                                <div className="flex items-center gap-1 shrink-0">
                                     {/* 코골이 상태 표시 */}
                                     {guest.snoring === 'yes' && <span title="코골이 심함">😫</span>}
                                     {guest.snoring === 'no' && <span title="코골이 없음">😴</span>}
@@ -144,37 +177,23 @@ const RoomCard = memo(function RoomCard({
                         ))}
                     </div>
                 ) : (
-                    <p className="text-xs text-gray-500 italic">
-                        {isLocked ? '1인실 (잠금)' : '빈 방'}
-                    </p>
+                    <div className="h-full flex items-center">
+                        <p className="text-[12px] text-gray-500 italic">
+                            {isLocked ? '잠금' : '빈 방'}
+                        </p>
+                    </div>
                 )}
             </div>
 
             {/* 상태 인디케이터 */}
-            <div className="flex items-center justify-between mt-2 pt-2 border-t border-gray-200">
-                <span className="text-xs text-gray-500">
+            <div className="mt-2 pt-2 border-t border-gray-200 flex items-center justify-between">
+                <span className="text-[11px] text-gray-600">
                     {guestCount}/{capacity}
                 </span>
-
-                {/* 1인실 잠금 표시 */}
-                {isLocked && (
-                    <span className="text-xs text-gray-500 font-medium">🔒 잠금</span>
-                )}
-
-                {/* 선택 불가 표시 */}
-                {status.status === 'wrong-gender' && (
-                    <span className="text-sm text-gray-500">🔒</span>
-                )}
-
-                {/* 내 방 표시 */}
-                {isMyRoom && (
-                    <span className="text-xs text-emerald-600 font-medium">✓ 내 방</span>
-                )}
-
-                {/* 선택 가능 표시 */}
-                {canSelect && !isMyRoom && !isLocked && (
-                    <span className="text-xs text-blue-600 font-medium">선택 가능</span>
-                )}
+                <span className={`text-[11px] px-2 py-0.5 rounded-full border font-semibold ${statusChipClass}`}>
+                    <span className="mr-1">{uiStatus.icon}</span>
+                    {uiStatus.label}
+                </span>
             </div>
         </div>
     );

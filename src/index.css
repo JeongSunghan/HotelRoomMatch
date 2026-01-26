@@ -148,6 +148,11 @@ body {
     border-color: rgba(37, 99, 235, 0.3);
 }
 
+/* STEP 1-1: disabled(선택 불가) 상태는 hover/transform이 적용되지 않도록 고정 */
+.room-card.disabled {
+    transform: none !important;
+}
+
 /* 선택된 방 - 부드러운 떠오름 애니메이션 */
 @keyframes float {
 
@@ -692,7 +697,8 @@ body {
 
 .notification-item {
     animation: notification-enter 0.3s ease-out;
-} 
+}
+ 
  
 /* ===================================
    디자인 개선 - 마이크로 인터랙션
