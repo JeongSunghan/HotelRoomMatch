@@ -20,6 +20,16 @@ async function ensureAnonymousAuth() {
     }
 }
 
+async function ensureRoomGuestsNode(roomNumber) {
+    const guestsRef = ref(database, `rooms/${roomNumber}/guests`);
+    const snap = await get(guestsRef);
+    if (!snap.exists()) {
+        // 왜: rooms/$roomId/.validate가 "guests 존재"를 요구하는 환경에서
+        //     reservation/pending만 먼저 쓰면 permission_denied가 발생할 수 있다.
+        await set(guestsRef, []);
+    }
+}
+
 export function subscribeToRooms(callback) {
     if (!database) {
         callback({});
@@ -180,6 +190,14 @@ export async function reserveRoom(roomNumber, sessionId, ttlMs = RESERVATION_TTL
     } catch (authError) {
         const { handleFirebaseError } = await import('../utils/errorHandler');
         handleFirebaseError(authError, { context: 'reserveRoom.ensureAuth', showToast: true, rethrow: true });
+    }
+
+    // rooms/{roomNumber}가 아직 생성되지 않은 경우(초기 DB sync 전)에도 예약이 가능하도록 보정
+    try {
+        await ensureRoomGuestsNode(String(roomNumber));
+    } catch (e) {
+        const { handleFirebaseError } = await import('../utils/errorHandler');
+        handleFirebaseError(e, { context: 'reserveRoom.ensureRoomGuestsNode', showToast: true, rethrow: true });
     }
 
     const now = Date.now();

@@ -19,6 +19,7 @@ const FIREBASE_ERROR_MESSAGES = {
     // Database 에러
     'permission-denied': '권한이 없습니다. 로그인이 필요합니다.',
     'PERMISSION_DENIED': '권한이 없습니다. 로그인이 필요합니다.',
+    'permission_denied': '권한이 없습니다. 로그인이 필요합니다. (Realtime DB Rules 배포/권한을 확인해주세요.)',
     'unavailable': '서버에 연결할 수 없습니다. 네트워크를 확인해주세요.',
     'network-request-failed': '네트워크 연결을 확인해주세요.',
 
@@ -44,8 +45,18 @@ export const ERROR_SEVERITY = {
  * @returns {Object} 에러 정보 객체
  */
 export function analyzeError(error, context = {}) {
-    const errorCode = error?.code || error?.name || 'unknown';
+    const rawCode = error?.code || error?.name || 'unknown';
     const errorMessage = error?.message || '알 수 없는 오류가 발생했습니다.';
+
+    // RTDB transaction 에러는 code 없이 message만 내려오는 경우가 있음 (예: permission_denied)
+    // - 일반 Error(message)까지 전부 code로 취급하면 UX가 망가지므로,
+    //   "알려진 Firebase 코드"에 해당할 때만 message를 code로 승격한다.
+    const knownCodes = FIREBASE_ERROR_MESSAGES;
+    const normalizedMessageCode = (typeof errorMessage === 'string' && Object.prototype.hasOwnProperty.call(knownCodes, errorMessage))
+        ? errorMessage
+        : null;
+
+    const errorCode = (rawCode === 'Error' && normalizedMessageCode) ? normalizedMessageCode : rawCode;
 
     // Firebase 에러 코드 매칭
     const userMessage = FIREBASE_ERROR_MESSAGES[errorCode] || errorMessage;
