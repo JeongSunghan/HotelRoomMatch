@@ -23,6 +23,7 @@ import InquiryManagement from './InquiryManagement';
 import CsvUploadModal from './CsvUploadModal';
 import HistoryTab from './HistoryTab';
 import DeadlineSettings from './DeadlineSettings';
+import AgeLimitSettings from './AgeLimitSettings';
 import AllowedUsersTab from './AllowedUsersTab';
 import UserManagementTab from './UserManagementTab';
 import { useConfirm } from '../ui/ConfirmModal';
@@ -245,6 +246,9 @@ export default function AdminDashboard({
 
             {/* 마감 설정 */}
             <DeadlineSettings />
+
+            {/* 나이 제한 설정 */}
+            <AgeLimitSettings />
         </div>
     );
 

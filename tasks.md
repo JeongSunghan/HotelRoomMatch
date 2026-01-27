@@ -47,6 +47,10 @@
 - [x] OTP/인증 안정화: otp_requests 키 통일(emailToKey) + deletedAt 계정 OTP 발급/검증 차단(삭제 후에도 메일 발송되는 문제 방지)
 - [x] RTDB Rules(auth != null) 준수 강화: 공통 ensureAnonymousAuth(authGuard) 도입 + 모든 read/write/subscribe 전에 auth 확보하도록 Firebase 모듈 정리(permission_denied 안정화)
 
+### Bugfix (2026-01-27)
+- [x] 특이 케이스: locked=true 이지만 selectedRoom=null 인 경우 방 선택이 막히는 문제 완화(선택 차단 조건을 selectedRoom 기준으로 정리)
+- [x] 관리자 설정: 나이 제한(ageMin/ageMax) 설정 추가 + AdditionalInfoModal에서 범위 검증 적용
+
 ### User logic / Admin page (2026-01-26)
 - [x] allowedUsers.singleRoom === 'Y' 인 유저는 1인실 선택 가능 (비신청자는 기존 안내 모달 유지)
 - [x] 1인실 선택/배정 UI에서 룸메이트 관련 옵션/초대 로직 비활성화(숨김/가드)

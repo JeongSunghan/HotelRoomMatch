@@ -38,7 +38,10 @@ export default function UserProfilePanel({
     }
 
     // 등록 사용자
-    const isLocked = !!user?.locked;
+    // 왜: locked 플래그가 "등록 완료"와 혼용되면(특이 케이스) UI가 '배정 완료'로 오인할 수 있다.
+    //     실제 배정 여부는 selectedRoom 존재 여부로 판단한다.
+    const isAssigned = !!user?.selectedRoom;
+    const isLocked = !!(user?.locked && user?.selectedRoom);
     const gender = user?.gender;
     const genderLabel = gender ? getGenderLabel(gender) : '미입력';
     const singleRoomLabel = user?.singleRoom === 'Y' ? 'Y' : 'N';
@@ -47,7 +50,7 @@ export default function UserProfilePanel({
         <section className="card-white rounded-xl p-6 space-y-4">
             <div className="flex items-center justify-between">
                 <h2 className="text-sm font-semibold text-gray-700">User Profile</h2>
-                {isLocked ? (
+                {isAssigned ? (
                     <span className="text-xs px-2 py-1 rounded-full bg-emerald-100 text-emerald-700 font-semibold">
                         ✓ 배정 완료
                     </span>
@@ -111,12 +114,14 @@ export default function UserProfilePanel({
             </div>
 
             {/* 배정 정보 */}
-            {isLocked ? (
+            {isAssigned ? (
                 <div className="space-y-3">
                     <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-lg">
                         <p className="text-sm text-emerald-800 font-semibold">배정 객실</p>
                         <p className="text-2xl font-bold text-emerald-700 mt-1">{user?.selectedRoom}호</p>
-                        <p className="text-xs text-emerald-700 mt-1">내 방 정보를 확인하거나 취소/변경 요청을 보낼 수 있습니다.</p>
+                        <p className="text-xs text-emerald-700 mt-1">
+                            {isLocked ? '내 방 정보를 확인하거나 취소/변경 요청을 보낼 수 있습니다.' : '배정 정보 동기화 중입니다. 잠시 후 다시 시도해주세요.'}
+                        </p>
                     </div>
                     <button
                         onClick={onOpenMyRoom}

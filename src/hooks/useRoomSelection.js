@@ -40,7 +40,9 @@ export function useRoomSelection({
         }
 
         // 2. 이미 방 배정됨 확인
-        if (user.locked || user.selectedRoom) {
+        // 왜: locked=true는 "등록 완료"로 잘못 설정될 수 있으므로(특이 케이스),
+        //     실제 방 배정 여부는 selectedRoom을 기준으로 차단한다.
+        if (user.selectedRoom) {
             console.warn('보안: 이미 배정된 유저가 방 클릭 시도');
             return;
         }
@@ -152,7 +154,7 @@ export function useRoomSelection({
         if (!user) return;
 
         // 이미 배정됨 재검증
-        if (user.locked || user.selectedRoom) {
+        if (user.selectedRoom) {
             toast.warning('이미 객실이 배정되어 있습니다.');
             setSelectedRoomForConfirm(null);
             return;
