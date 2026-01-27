@@ -279,6 +279,76 @@ export function subscribeToMyInvitations(sessionId, callback) {
 }
 
 /**
+ * 받은 초대 실시간 구독 (onValue 사용)
+ * @param {string} userName - 초대 받은 사용자 이름
+ * @param {Function} callback - 초대 목록이 변경될 때 호출되는 콜백 (pendingInvitations[])
+ * @returns {Function} 구독 해제 함수
+ */
+export function subscribeToReceivedInvitations(userName, callback) {
+    if (!database) {
+        callback([]);
+        return () => { };
+    }
+
+    const invitationsRef = ref(database, 'roommateInvitations');
+
+    let unsubscribe = () => { };
+    let cancelled = false;
+    let notified = false;
+
+    ensureAnonymousAuth({ context: 'subscribeToReceivedInvitations.ensureAuth', showToast: false, rethrow: false })
+        .then(() => {
+            if (cancelled) return;
+            unsubscribe = onValue(
+                invitationsRef,
+                (snapshot) => {
+                    const data = snapshot.val() || {};
+                    const pendingInvitations = [];
+                    const now = Date.now();
+
+                    for (const [id, invitation] of Object.entries(data)) {
+                        // 만료된 pending 초대는 자동 정리
+                        if (invitation.status === 'pending' && invitation.createdAt && (now - invitation.createdAt) > INVITATION_EXPIRY_MS) {
+                            set(ref(database, `roommateInvitations/${id}`), null).catch(() => { });
+                            clearRoomPending(invitation.roomNumber, id).catch(() => { });
+                            continue;
+                        }
+
+                        // 완료된 초대(accepted/rejected)는 24시간 후 자동 삭제
+                        if ((invitation.status === 'accepted' || invitation.status === 'rejected') && invitation.createdAt) {
+                            const completedAt = invitation.acceptedAt || invitation.rejectedAt || invitation.createdAt;
+                            if ((now - completedAt) > INVITATION_EXPIRY_MS) {
+                                set(ref(database, `roommateInvitations/${id}`), null).catch(() => { });
+                                continue;
+                            }
+                        }
+
+                        // 내가 받은 pending 초대만 필터링
+                        if (invitation.inviteeName === userName.trim() && invitation.status === 'pending') {
+                            pendingInvitations.push({ id, ...invitation });
+                        }
+                    }
+
+                    callback(pendingInvitations);
+                },
+                (error) => {
+                    if (notified) return;
+                    notified = true;
+                    import('../utils/errorHandler')
+                        .then(({ handleFirebaseError }) => handleFirebaseError(error, { context: 'subscribeToReceivedInvitations', showToast: true, rethrow: false }))
+                        .catch(() => { });
+                }
+            );
+        })
+        .catch(() => { });
+
+    return () => {
+        cancelled = true;
+        unsubscribe();
+    };
+}
+
+/**
  * 내가 보낸 초대 취소
  */
 export async function cancelInvitation(invitationId, inviterSessionId) {

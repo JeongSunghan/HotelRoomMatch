@@ -48,6 +48,7 @@ export {
     acceptInvitation,
     rejectInvitation,
     subscribeToMyInvitations,
+    subscribeToReceivedInvitations,
     cancelInvitation,
     markInvitationNotified,
     cleanupUserInvitations

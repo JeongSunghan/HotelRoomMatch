@@ -7,7 +7,8 @@ import {
     checkPendingInvitations,
     acceptInvitation,
     rejectInvitation,
-    subscribeToMyInvitations
+    subscribeToMyInvitations,
+    subscribeToReceivedInvitations
 } from '../firebase/index';
 import { set, ref } from 'firebase/database';
 import { database } from '../firebase/config';
@@ -45,24 +46,25 @@ export function useInvitationHandlers(
         }
     }, [user?.selectedRoom, pendingInvitation]);
 
-    // 페이지 로드 시 대기 중인 초대 확인 (기존 사용자용)
+    // 받은 초대 실시간 구독 (onValue 사용)
     useEffect(() => {
-        const checkInvitations = async () => {
-            // 사용자가 로그인되어 있고, 아직 방이 배정되지 않았으며, 이미 확인하지 않은 경우
-            if (user?.name && !user.selectedRoom && !pendingInvitation) {
-                try {
-                    const invitations = await checkPendingInvitations(user.name);
-                    if (invitations.length > 0) {
-                        setPendingInvitation(invitations[0]);
-                    }
-                } catch (error) {
-                    console.error('초대 확인 실패:', error);
-                }
-            }
-        };
+        // 사용자가 로그인되어 있고, 아직 방이 배정되지 않은 경우에만 구독
+        if (!user?.name || user.selectedRoom) {
+            return;
+        }
 
-        checkInvitations();
-    }, [user?.name, user?.selectedRoom, pendingInvitation]);
+        const unsubscribe = subscribeToReceivedInvitations(user.name, (invitations) => {
+            // 가장 최근 초대만 표시 (여러 개가 있으면 첫 번째)
+            if (invitations.length > 0) {
+                setPendingInvitation(invitations[0]);
+            } else {
+                // 초대가 없거나 모두 처리된 경우
+                setPendingInvitation(null);
+            }
+        });
+
+        return () => unsubscribe();
+    }, [user?.name, user?.selectedRoom]);
 
     // 내가 보낸 초대 상태 구독 (거절 알림용)
     useEffect(() => {
@@ -92,11 +94,8 @@ export function useInvitationHandlers(
             setSelectedFloor(defaultFloor);
         }
 
-        // 대기 중인 초대 확인
-        const invitations = await checkPendingInvitations(newUser.name);
-        if (invitations.length > 0) {
-            setPendingInvitation(invitations[0]); // 첫 번째 초대만 처리
-        }
+        // 실시간 구독이 자동으로 초대를 감지하므로 별도 확인 불필요
+        // (위의 useEffect에서 subscribeToReceivedInvitations가 처리)
     }, [registerUser, setShowRegistrationModal, setSelectedFloor, floors, floorInfo]);
 
     // 초대 수락
