@@ -85,6 +85,11 @@ export function UIProvider({ children }) {
         // 모달별 상태 정리
         if (modalName === MODAL_TYPES.SELECTION) {
             setSelectedRoomNumber(null);
+            setModalData(prev => {
+                const next = { ...prev };
+                delete next[MODAL_TYPES.SELECTION];
+                return next;
+            });
         }
         if (modalName === MODAL_TYPES.WARNING) {
             setWarningContent([]);
@@ -102,9 +107,13 @@ export function UIProvider({ children }) {
     }, []);
 
     // 방 선택 (Selection 모달 열기)
-    const openSelectionModal = useCallback((roomNumber) => {
+    const openSelectionModal = useCallback((roomNumber, expiresAt = null) => {
         setSelectedRoomNumber(roomNumber);
         setModals(prev => ({ ...prev, [MODAL_TYPES.SELECTION]: true }));
+        // 예약 만료 시간 저장 (타이머 표시용)
+        if (expiresAt) {
+            setModalData(prev => ({ ...prev, [MODAL_TYPES.SELECTION]: { expiresAt } }));
+        }
     }, []);
 
     const value = {

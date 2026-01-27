@@ -96,9 +96,9 @@ export default function App() {
     const setShowSingleRoomModal = (val) => val ? openModal(MODAL_TYPES.SINGLE_ROOM) : closeModal(MODAL_TYPES.SINGLE_ROOM);
     const setShowSearchModal = (val) => val ? openModal(MODAL_TYPES.SEARCH) : closeModal(MODAL_TYPES.SEARCH);
     const setShowWarningModal = (val) => val ? openModal(MODAL_TYPES.WARNING) : closeModal(MODAL_TYPES.WARNING);
-    const setSelectedRoomForConfirm = (roomNum) => {
+    const setSelectedRoomForConfirm = (roomNum, expiresAt = null) => {
         if (roomNum) {
-            openSelectionModal(roomNum);
+            openSelectionModal(roomNum, expiresAt);
         } else {
             closeModal(MODAL_TYPES.SELECTION);
         }
@@ -403,6 +403,7 @@ export default function App() {
                             roomNumber={selectedRoomForConfirm}
                             roomStatus={getRoomStatus(selectedRoomForConfirm, user.gender, false, user?.singleRoom === 'Y', user?.sessionId)}
                             user={user}
+                            expiresAt={modalData?.[MODAL_TYPES.SELECTION]?.expiresAt || null}
                             onConfirm={handleConfirmSelection}
                             onCancel={() => handleCancelSelection(selectedRoomForConfirm)}
                         />

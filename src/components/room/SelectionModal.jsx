@@ -1,14 +1,16 @@
-import { useState } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { roomData } from '../../data/roomData';
 import { getGenderLabel } from '../../utils/genderUtils';
 
 /**
  * 객실 선택 확인 모달 - 룸메이트 선택 기능 추가
+ * PHASE 3: 60초 예약 타이머 표시 및 만료 시 자동 리다이렉션
  */
 export default function SelectionModal({
     roomNumber,
     roomStatus,
     user,
+    expiresAt = null,
     onConfirm,
     onCancel
 }) {
@@ -16,6 +18,33 @@ export default function SelectionModal({
     const [hasRoommate, setHasRoommate] = useState(null); // null, 'yes', 'no'
     const [roommateName, setRoommateName] = useState('');
     const [roommateCompany, setRoommateCompany] = useState('');
+    const [now, setNow] = useState(() => Date.now());
+
+    // 타이머 업데이트 (0.5초마다)
+    useEffect(() => {
+        if (!expiresAt) return;
+        const interval = setInterval(() => setNow(Date.now()), 500);
+        return () => clearInterval(interval);
+    }, [expiresAt]);
+
+    // 남은 시간 계산
+    const remainingSec = useMemo(() => {
+        if (!expiresAt) return null;
+        const exp = Number(expiresAt);
+        if (!Number.isFinite(exp)) return null;
+        return Math.max(0, Math.ceil((exp - now) / 1000));
+    }, [expiresAt, now]);
+
+    // 60초 만료 시 자동 취소 및 예약 해제
+    useEffect(() => {
+        if (remainingSec === 0 && expiresAt) {
+            // 약간의 지연을 두어 사용자가 만료 메시지를 볼 수 있게 함
+            const timeout = setTimeout(() => {
+                onCancel();
+            }, 1000);
+            return () => clearTimeout(timeout);
+        }
+    }, [remainingSec, expiresAt, onCancel]);
 
     if (!room) return null;
 
@@ -50,6 +79,35 @@ export default function SelectionModal({
                 <h2 className="text-xl font-bold text-gray-800 text-center mb-5">
                     객실 선택 확인
                 </h2>
+
+                {/* 예약 타이머 표시 (60초 제한) */}
+                {expiresAt && remainingSec !== null && (
+                    <div className={`mb-4 p-3 rounded-lg text-center ${
+                        remainingSec <= 10 
+                            ? 'bg-red-50 border border-red-200' 
+                            : remainingSec <= 30 
+                                ? 'bg-amber-50 border border-amber-200' 
+                                : 'bg-blue-50 border border-blue-200'
+                    }`}>
+                        <p className="text-sm font-medium mb-1">
+                            ⏱️ 선택 시간 제한
+                        </p>
+                        <p className={`text-lg font-bold ${
+                            remainingSec <= 10 
+                                ? 'text-red-700' 
+                                : remainingSec <= 30 
+                                    ? 'text-amber-700' 
+                                    : 'text-blue-700'
+                        }`}>
+                            {remainingSec > 0 ? `남은 시간: ${remainingSec}초` : '시간이 만료되었습니다.'}
+                        </p>
+                        {remainingSec === 0 && (
+                            <p className="text-xs text-gray-600 mt-1">
+                                자동으로 취소됩니다...
+                            </p>
+                        )}
+                    </div>
+                )}
 
                 {/* 객실 정보 */}
                 <div className="bg-gray-50 rounded-lg p-5 mb-5">

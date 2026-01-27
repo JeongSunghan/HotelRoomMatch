@@ -73,7 +73,10 @@ export function useRoomSelection({
                     }
                     return;
                 }
-                setSelectedRoomForConfirm(roomNumber);
+                
+                // 예약 성공 시 expiresAt를 함께 전달하여 SelectionModal에서 타이머 표시
+                const expiresAt = r.reservation?.expiresAt ? Number(r.reservation.expiresAt) : null;
+                setSelectedRoomForConfirm(roomNumber, expiresAt);
             } catch (e) {
                 toast.error(e?.message || '예약 처리 중 오류가 발생했습니다.');
             }
