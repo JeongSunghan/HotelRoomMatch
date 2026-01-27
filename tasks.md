@@ -43,6 +43,7 @@
 - [x] 유저 관리: 유저 삭제(permission-denied) 해결 (경로 불일치 + rooms 전체 덮어쓰기 제거)
 - [x] 방 배정 취소 승인/복구: 클라이언트 상태 동기화 안정화 (Realtime 구독 stale closure 방지)
 - [x] 사전등록 유저 관리: admin 편집(이름/소속, 미등록 시 이메일 변경) 기능 추가
+- [x] Firebase 에러 캐치/안내 강화: errorHandler의 show-toast 이벤트를 Toast UI에 연결 + RTDB 실시간 구독(onValue) 에러 콜백 처리
 
 ### User logic / Admin page (2026-01-26)
 - [x] allowedUsers.singleRoom === 'Y' 인 유저는 1인실 선택 가능 (비신청자는 기존 안내 모달 유지)

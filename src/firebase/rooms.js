@@ -18,10 +18,21 @@ export function subscribeToRooms(callback) {
     }
 
     const roomsRef = ref(database, 'rooms');
-    const unsubscribe = onValue(roomsRef, (snapshot) => {
-        const data = snapshot.val() || {};
-        callback(data);
-    });
+    let notified = false;
+    const unsubscribe = onValue(
+        roomsRef,
+        (snapshot) => {
+            const data = snapshot.val() || {};
+            callback(data);
+        },
+        (error) => {
+            if (notified) return;
+            notified = true;
+            import('../utils/errorHandler')
+                .then(({ handleFirebaseError }) => handleFirebaseError(error, { context: 'subscribeToRooms', showToast: true, rethrow: false }))
+                .catch(() => { });
+        }
+    );
 
     return unsubscribe;
 }

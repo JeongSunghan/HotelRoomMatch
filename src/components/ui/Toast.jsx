@@ -82,6 +82,28 @@ export function ToastProvider({ children }) {
         return id;
     }, []);
 
+    // errorHandler(handleFirebaseError)에서 dispatch하는 CustomEvent('show-toast') 브리지
+    // 왜: Firebase 모듈/유틸은 React Context를 직접 참조할 수 없어서, 이벤트 기반으로 UI에 전달한다.
+    useEffect(() => {
+        if (typeof window === 'undefined') return;
+
+        const handler = (e) => {
+            const detail = e?.detail || {};
+            const message = typeof detail.message === 'string' ? detail.message : '';
+            if (!message) return;
+
+            const type = (detail.type === 'success' || detail.type === 'error' || detail.type === 'warning' || detail.type === 'info')
+                ? detail.type
+                : 'info';
+            const duration = typeof detail.duration === 'number' ? detail.duration : 3500;
+
+            addToast(message, type, duration);
+        };
+
+        window.addEventListener('show-toast', handler);
+        return () => window.removeEventListener('show-toast', handler);
+    }, [addToast]);
+
     const removeToast = useCallback((id) => {
         setToasts(prev => prev.filter(t => t.id !== id));
     }, []);

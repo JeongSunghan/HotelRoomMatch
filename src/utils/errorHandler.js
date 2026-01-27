@@ -113,7 +113,10 @@ export function handleFirebaseError(error, options = {}) {
 
     // Toast 표시 (옵션)
     if (showToast) {
-        showErrorToast(errorInfo.message);
+        const toastType = errorInfo.severity === ERROR_SEVERITY.WARNING
+            ? 'warning'
+            : (errorInfo.severity === ERROR_SEVERITY.INFO ? 'info' : 'error');
+        showToastEvent(errorInfo.message, toastType, 4000);
     }
 
     // 커스텀 핸들러 실행
@@ -126,7 +129,9 @@ export function handleFirebaseError(error, options = {}) {
         const enhancedError = new Error(errorInfo.message);
         enhancedError.code = errorInfo.code;
         enhancedError.severity = errorInfo.severity;
-        enhancedError.context = errorInfo.context;
+        // 왜: context는 문자열(발생 위치)로 유지하고, 추가 메타는 별도 필드로 둔다.
+        enhancedError.context = context;
+        enhancedError.meta = errorInfo.context;
         throw enhancedError;
     }
 
@@ -152,7 +157,7 @@ export function handleError(error, options = {}) {
     }
 
     if (showToast) {
-        showErrorToast(errorInfo.message);
+        showToastEvent(errorInfo.message, 'error', 3500);
     }
 
     if (rethrow) {
@@ -165,14 +170,14 @@ export function handleError(error, options = {}) {
 /**
  * Toast 알림 표시 (동적 import로 순환 참조 방지)
  */
-function showErrorToast(message) {
-    // Toast 컴포넌트를 동적으로 불러와서 표시
-    // 실제 구현은 Toast 훅이나 전역 이벤트 사용
+function showToastEvent(message, type = 'error', duration = 3500) {
+    // Toast 훅/Context를 직접 참조하지 않기 위해 전역 이벤트를 사용한다.
     if (typeof window !== 'undefined') {
         window.dispatchEvent(new CustomEvent('show-toast', {
             detail: {
-                type: 'error',
-                message
+                type,
+                message,
+                duration
             }
         }));
     }

@@ -41,9 +41,20 @@ export function subscribeToUserSession(sessionId, callback) {
     }
 
     const userRef = ref(database, `users/${sessionId}`);
-    const unsubscribe = onValue(userRef, (snapshot) => {
-        callback(snapshot.val());
-    });
+    let notified = false;
+    const unsubscribe = onValue(
+        userRef,
+        (snapshot) => {
+            callback(snapshot.val());
+        },
+        (error) => {
+            if (notified) return;
+            notified = true;
+            import('../utils/errorHandler')
+                .then(({ handleFirebaseError }) => handleFirebaseError(error, { context: 'subscribeToUserSession', showToast: true, rethrow: false }))
+                .catch(() => { });
+        }
+    );
 
     return unsubscribe;
 }
@@ -71,14 +82,25 @@ export function subscribeToAllUsers(callback) {
     }
 
     const usersRef = ref(database, 'users');
-    const unsubscribe = onValue(usersRef, (snapshot) => {
-        const data = snapshot.val() || {};
-        const users = Object.entries(data).map(([sessionId, user]) => ({
-            sessionId,
-            ...user
-        }));
-        callback(users);
-    });
+    let notified = false;
+    const unsubscribe = onValue(
+        usersRef,
+        (snapshot) => {
+            const data = snapshot.val() || {};
+            const users = Object.entries(data).map(([sessionId, user]) => ({
+                sessionId,
+                ...user
+            }));
+            callback(users);
+        },
+        (error) => {
+            if (notified) return;
+            notified = true;
+            import('../utils/errorHandler')
+                .then(({ handleFirebaseError }) => handleFirebaseError(error, { context: 'subscribeToAllUsers', showToast: true, rethrow: false }))
+                .catch(() => { });
+        }
+    );
 
     return unsubscribe;
 }

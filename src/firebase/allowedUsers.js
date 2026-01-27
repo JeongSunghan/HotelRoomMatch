@@ -28,14 +28,25 @@ export function subscribeToAllowedUsers(callback) {
 
     const usersRef = ref(database, 'allowedUsers');
 
-    const unsubscribe = onValue(usersRef, (snapshot) => {
-        const data = snapshot.val() || {};
-        const users = Object.entries(data).map(([key, user]) => ({
-            id: key,
-            ...user
-        }));
-        callback(users);
-    });
+    let notified = false;
+    const unsubscribe = onValue(
+        usersRef,
+        (snapshot) => {
+            const data = snapshot.val() || {};
+            const users = Object.entries(data).map(([key, user]) => ({
+                id: key,
+                ...user
+            }));
+            callback(users);
+        },
+        (error) => {
+            if (notified) return;
+            notified = true;
+            import('../utils/errorHandler')
+                .then(({ handleFirebaseError }) => handleFirebaseError(error, { context: 'subscribeToAllowedUsers', showToast: true, rethrow: false }))
+                .catch(() => { });
+        }
+    );
 
     return unsubscribe;
 }

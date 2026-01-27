@@ -24,13 +24,24 @@ export function subscribeToSettings(callback) {
 
     const settingsRef = ref(database, 'settings');
 
-    const unsubscribe = onValue(settingsRef, (snapshot) => {
-        const data = snapshot.val() || DEFAULT_SETTINGS;
-        callback({
-            ...DEFAULT_SETTINGS,
-            ...data
-        });
-    });
+    let notified = false;
+    const unsubscribe = onValue(
+        settingsRef,
+        (snapshot) => {
+            const data = snapshot.val() || DEFAULT_SETTINGS;
+            callback({
+                ...DEFAULT_SETTINGS,
+                ...data
+            });
+        },
+        (error) => {
+            if (notified) return;
+            notified = true;
+            import('../utils/errorHandler')
+                .then(({ handleFirebaseError }) => handleFirebaseError(error, { context: 'subscribeToSettings', showToast: true, rethrow: false }))
+                .catch(() => { });
+        }
+    );
 
     return unsubscribe;
 }

@@ -36,11 +36,22 @@ export function subscribeToInquiries(callback) {
     }
 
     const inquiriesRef = ref(database, 'inquiries');
-    const unsubscribe = onValue(inquiriesRef, (snapshot) => {
-        const data = snapshot.val() || {};
-        const list = Object.values(data).sort((a, b) => b.createdAt - a.createdAt);
-        callback(list);
-    });
+    let notified = false;
+    const unsubscribe = onValue(
+        inquiriesRef,
+        (snapshot) => {
+            const data = snapshot.val() || {};
+            const list = Object.values(data).sort((a, b) => b.createdAt - a.createdAt);
+            callback(list);
+        },
+        (error) => {
+            if (notified) return;
+            notified = true;
+            import('../utils/errorHandler')
+                .then(({ handleFirebaseError }) => handleFirebaseError(error, { context: 'subscribeToInquiries', showToast: true, rethrow: false }))
+                .catch(() => { });
+        }
+    );
 
     return unsubscribe;
 }

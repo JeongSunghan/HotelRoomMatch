@@ -42,30 +42,41 @@ export function subscribeToJoinRequests(mySessionId, callback) {
 
     const requestsRef = ref(database, 'join_requests');
 
-    return onValue(requestsRef, (snapshot) => {
-        const data = snapshot.val();
-        if (!data) {
-            callback({ received: [], sent: [] });
-            return;
+    let notified = false;
+    return onValue(
+        requestsRef,
+        (snapshot) => {
+            const data = snapshot.val();
+            if (!data) {
+                callback({ received: [], sent: [] });
+                return;
+            }
+
+            const allRequests = Object.entries(data).map(([id, req]) => ({
+                id,
+                ...req
+            }));
+
+            // 내가 받은 요청 (Host) - 대기 중인 것만
+            const received = allRequests.filter(
+                req => req.toUserId === mySessionId && req.status === REQUEST_STATUS.PENDING
+            );
+
+            // 내가 보낸 요청 (Guest)
+            const sent = allRequests.filter(
+                req => req.fromUserId === mySessionId
+            );
+
+            callback({ received, sent });
+        },
+        (error) => {
+            if (notified) return;
+            notified = true;
+            import('../utils/errorHandler')
+                .then(({ handleFirebaseError }) => handleFirebaseError(error, { context: 'subscribeToJoinRequests', showToast: true, rethrow: false }))
+                .catch(() => { });
         }
-
-        const allRequests = Object.entries(data).map(([id, req]) => ({
-            id,
-            ...req
-        }));
-
-        // 내가 받은 요청 (Host) - 대기 중인 것만
-        const received = allRequests.filter(
-            req => req.toUserId === mySessionId && req.status === REQUEST_STATUS.PENDING
-        );
-
-        // 내가 보낸 요청 (Guest)
-        const sent = allRequests.filter(
-            req => req.fromUserId === mySessionId
-        );
-
-        callback({ received, sent });
-    });
+    );
 }
 
 /**

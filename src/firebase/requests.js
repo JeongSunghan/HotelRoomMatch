@@ -25,11 +25,22 @@ export function subscribeToRoomChangeRequests(callback) {
     }
 
     const requestsRef = ref(database, 'roomChangeRequests');
-    const unsubscribe = onValue(requestsRef, (snapshot) => {
-        const data = snapshot.val() || {};
-        const requests = Object.entries(data).map(([id, req]) => ({ id, ...req }));
-        callback(requests.sort((a, b) => b.createdAt - a.createdAt));
-    });
+    let notified = false;
+    const unsubscribe = onValue(
+        requestsRef,
+        (snapshot) => {
+            const data = snapshot.val() || {};
+            const requests = Object.entries(data).map(([id, req]) => ({ id, ...req }));
+            callback(requests.sort((a, b) => b.createdAt - a.createdAt));
+        },
+        (error) => {
+            if (notified) return;
+            notified = true;
+            import('../utils/errorHandler')
+                .then(({ handleFirebaseError }) => handleFirebaseError(error, { context: 'subscribeToRoomChangeRequests', showToast: true, rethrow: false }))
+                .catch(() => { });
+        }
+    );
 
     return unsubscribe;
 }

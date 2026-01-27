@@ -19,6 +19,7 @@
 
 ### Notes
 - `reserved`는 `expiresAt` 기반으로 **만료 시 자동으로 비활성 처리**되며, 현재는 “데이터 삭제”까지 강제하지는 않습니다(재예약 시 덮어쓰기).
+- Firebase 오류 안내는 `errorHandler → CustomEvent('show-toast') → ToastProvider` 경로로 일원화하여, permission/network 구독 오류도 사용자에게 즉시 표시합니다.
 
 ## PHASE 1. UI / UX 구조 개선
 

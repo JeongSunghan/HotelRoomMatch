@@ -232,18 +232,29 @@ export function subscribeToMyInvitations(sessionId, callback) {
     }
 
     const invitationsRef = ref(database, 'roommateInvitations');
-    const unsubscribe = onValue(invitationsRef, (snapshot) => {
-        const data = snapshot.val() || {};
-        const myInvitations = [];
+    let notified = false;
+    const unsubscribe = onValue(
+        invitationsRef,
+        (snapshot) => {
+            const data = snapshot.val() || {};
+            const myInvitations = [];
 
-        for (const [id, invitation] of Object.entries(data)) {
-            if (invitation.inviterSessionId === sessionId) {
-                myInvitations.push({ id, ...invitation });
+            for (const [id, invitation] of Object.entries(data)) {
+                if (invitation.inviterSessionId === sessionId) {
+                    myInvitations.push({ id, ...invitation });
+                }
             }
-        }
 
-        callback(myInvitations);
-    });
+            callback(myInvitations);
+        },
+        (error) => {
+            if (notified) return;
+            notified = true;
+            import('../utils/errorHandler')
+                .then(({ handleFirebaseError }) => handleFirebaseError(error, { context: 'subscribeToMyInvitations', showToast: true, rethrow: false }))
+                .catch(() => { });
+        }
+    );
 
     return unsubscribe;
 }

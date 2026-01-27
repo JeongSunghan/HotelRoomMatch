@@ -105,21 +105,32 @@ export function subscribeToHistory(callback, limit = 100) {
 
     const historyRef = ref(database, 'history');
 
-    const unsubscribe = onValue(historyRef, (snapshot) => {
-        const data = snapshot.val();
-        if (!data) {
-            callback([]);
-            return;
+    let notified = false;
+    const unsubscribe = onValue(
+        historyRef,
+        (snapshot) => {
+            const data = snapshot.val();
+            if (!data) {
+                callback([]);
+                return;
+            }
+
+            // 객체를 배열로 변환하고 시간순 정렬 (최신 먼저)
+            const historyList = Object.entries(data)
+                .map(([id, item]) => ({ id, ...item }))
+                .sort((a, b) => b.timestamp - a.timestamp)
+                .slice(0, limit);
+
+            callback(historyList);
+        },
+        (error) => {
+            if (notified) return;
+            notified = true;
+            import('../utils/errorHandler')
+                .then(({ handleFirebaseError }) => handleFirebaseError(error, { context: 'subscribeToHistory', showToast: true, rethrow: false }))
+                .catch(() => { });
         }
-
-        // 객체를 배열로 변환하고 시간순 정렬 (최신 먼저)
-        const historyList = Object.entries(data)
-            .map(([id, item]) => ({ id, ...item }))
-            .sort((a, b) => b.timestamp - a.timestamp)
-            .slice(0, limit);
-
-        callback(historyList);
-    });
+    );
 
     return unsubscribe;
 }
