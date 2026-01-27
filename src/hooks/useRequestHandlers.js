@@ -2,7 +2,7 @@
  * 입실 요청 처리 관리 훅
  * 요청 결과 감지 및 수락/거절 핸들러
  */
-import { useEffect, useCallback } from 'react';
+import { useEffect, useCallback, useRef } from 'react';
 import {
     notifyRequestAccepted,
     notifyRequestRejected
@@ -33,13 +33,20 @@ export function useRequestHandlers(
     setPendingSelection,
     REQUEST_STATUS
 ) {
+    // 이미 처리된 요청 ID 추적 (중복 알람 방지)
+    const processedRequestIds = useRef(new Set());
+
     // 요청 처리 결과 감지 Effect
     useEffect(() => {
         if (!user) return;
 
         // 거절된 요청 처리
-        const rejectedReq = requests.sent.find(r => r.status === REQUEST_STATUS.REJECTED);
+        const rejectedReq = requests.sent.find(r => 
+            r.status === REQUEST_STATUS.REJECTED && 
+            !processedRequestIds.current.has(r.id)
+        );
         if (rejectedReq) {
+            processedRequestIds.current.add(rejectedReq.id);
             toast.warning('룸메이트가 요청을 거절했습니다.');
             notifyRequestRejected();
             cleanup(rejectedReq.id);
@@ -50,8 +57,12 @@ export function useRequestHandlers(
         }
 
         // 수락된 요청 처리
-        const acceptedReq = requests.sent.find(r => r.status === REQUEST_STATUS.ACCEPTED);
+        const acceptedReq = requests.sent.find(r => 
+            r.status === REQUEST_STATUS.ACCEPTED && 
+            !processedRequestIds.current.has(r.id)
+        );
         if (acceptedReq) {
+            processedRequestIds.current.add(acceptedReq.id);
             toast.success('입장이 승인되었습니다!');
             notifyRequestAccepted(acceptedReq.toRoomNumber);
             cleanup(acceptedReq.id);
@@ -60,6 +71,15 @@ export function useRequestHandlers(
             setShowWarningModal(false);
             setPendingSelection(null);
         }
+
+        // 처리 완료된 요청은 추적 목록에서 제거 (메모리 누수 방지)
+        // 단, pending 상태로 돌아간 요청은 다시 처리 가능하도록
+        const allRequestIds = new Set(requests.sent.map(r => r.id));
+        processedRequestIds.current.forEach(id => {
+            if (!allRequestIds.has(id)) {
+                processedRequestIds.current.delete(id);
+            }
+        });
     }, [
         requests.sent,
         user,
@@ -79,7 +99,8 @@ export function useRequestHandlers(
             await cleanup(request.id);
             // 객실 선택 모달이 열려있으면 닫기
             setSelectedRoomForConfirm(null);
-            toast.success('입실 요청을 수락했습니다.');
+            // toast는 useEffect에서 실시간으로 처리하므로 중복 제거
+            // Host 측에서는 조용히 처리 (Guest 측에서 승인 알람이 표시됨)
         } catch (error) {
             toast.error('수락 처리 중 오류: ' + error.message);
         }

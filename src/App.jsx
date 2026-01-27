@@ -439,7 +439,7 @@ export default function App() {
                                     await cleanup(requests.received[0].id);
                                     // 객실 선택 모달이 열려있으면 닫기
                                     setSelectedRoomForConfirm(null);
-                                    toast.success('입실 요청을 수락했습니다.');
+                                    // toast는 useRequestHandlers에서 처리하므로 중복 제거
                                 } catch (error) {
                                     toast.error('수락 처리 중 오류: ' + error.message);
                                 }

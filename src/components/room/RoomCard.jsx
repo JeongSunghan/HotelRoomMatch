@@ -60,7 +60,7 @@ const RoomCard = memo(function RoomCard({
                 <h3 className="text-2xl font-bold text-gray-800">
                     {roomNumber}
                 </h3>
-                <span className="text-xs font-semibold text-gray-400">
+                <span className="text-sm font-semibold text-gray-400">
                     {capacity === 1 ? 'SINGLE' : 'DOUBLE'}
                 </span>
             </div>
