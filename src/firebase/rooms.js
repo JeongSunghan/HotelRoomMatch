@@ -4,6 +4,7 @@
 import { database, ref, onValue, set, get, runTransaction, update } from './config';
 import { isValidRoomNumber, isValidSessionId } from '../utils/sanitize';
 import { roomData as staticRoomData } from '../data/roomData';
+import { ensureAnonymousAuth } from './authGuard';
 
 const RESERVATION_TTL_MS = 60 * 1000;
 
@@ -11,47 +12,7 @@ function isActiveLock(lock, now) {
     return Boolean(lock?.expiresAt && Number(lock.expiresAt) > now);
 }
 
-// RTDB rules가 auth != null 이므로, 어떤 쓰기 작업이든 실행 전에 인증(익명 포함)을 보장해야 함.
-async function ensureAnonymousAuth() {
-    const { getAuth, signInAnonymously } = await import('firebase/auth');
-    const auth = getAuth();
-    
-    // 이미 인증되어 있으면 즉시 반환
-    if (auth.currentUser) {
-        return;
-    }
-    
-    // 인증 시도 (최대 3회 재시도)
-    let attempts = 0;
-    const maxAttempts = 3;
-    
-    while (attempts < maxAttempts && !auth.currentUser) {
-        try {
-            await signInAnonymously(auth);
-            // 인증 성공 확인
-            if (auth.currentUser) {
-                return;
-            }
-        } catch (error) {
-            attempts++;
-            if (attempts >= maxAttempts) {
-                const { handleFirebaseError } = await import('../utils/errorHandler');
-                handleFirebaseError(error, {
-                    context: 'ensureAnonymousAuth',
-                    showToast: true,
-                    rethrow: true
-                });
-            }
-            // 재시도 전 짧은 대기
-            await new Promise(resolve => setTimeout(resolve, 100 * attempts));
-        }
-    }
-    
-    // 여기까지 왔는데도 인증이 안 되면 에러
-    if (!auth.currentUser) {
-        throw new Error('익명 인증에 실패했습니다. 잠시 후 다시 시도해주세요.');
-    }
-}
+// auth 보장은 공통 유틸(authGuard)에서 수행한다.
 
 async function ensureRoomGuestsNode(roomNumber) {
     const guestsRef = ref(database, `rooms/${roomNumber}/guests`);
@@ -70,23 +31,38 @@ export function subscribeToRooms(callback) {
     }
 
     const roomsRef = ref(database, 'rooms');
-    let notified = false;
-    const unsubscribe = onValue(
-        roomsRef,
-        (snapshot) => {
-            const data = snapshot.val() || {};
-            callback(data);
-        },
-        (error) => {
-            if (notified) return;
-            notified = true;
-            import('../utils/errorHandler')
-                .then(({ handleFirebaseError }) => handleFirebaseError(error, { context: 'subscribeToRooms', showToast: true, rethrow: false }))
-                .catch(() => { });
-        }
-    );
 
-    return unsubscribe;
+    // Rules: rooms.read 는 auth != null 이므로, 구독 시작 전에 auth 확보
+    let unsubscribe = () => { };
+    let cancelled = false;
+    let notified = false;
+
+    ensureAnonymousAuth({ context: 'subscribeToRooms.ensureAuth', showToast: false, rethrow: false })
+        .then(() => {
+            if (cancelled) return;
+            unsubscribe = onValue(
+                roomsRef,
+                (snapshot) => {
+                    const data = snapshot.val() || {};
+                    callback(data);
+                },
+                (error) => {
+                    if (notified) return;
+                    notified = true;
+                    import('../utils/errorHandler')
+                        .then(({ handleFirebaseError }) => handleFirebaseError(error, { context: 'subscribeToRooms', showToast: true, rethrow: false }))
+                        .catch(() => { });
+                }
+            );
+        })
+        .catch(() => {
+            // ensureAuth에서 이미 처리(필요 시)됨
+        });
+
+    return () => {
+        cancelled = true;
+        unsubscribe();
+    };
 }
 
 /**
@@ -98,6 +74,9 @@ export function subscribeToRooms(callback) {
  */
 export async function selectRoom(roomNumber, guestData, maxCapacity = 2, roomGender = null) {
     if (!database) return false;
+
+    // write 이전에 auth 보장 (Rules: rooms.write auth != null)
+    await ensureAnonymousAuth({ context: 'selectRoom.ensureAuth', showToast: true, rethrow: true });
 
     // 0. 입력값 검증 (보안 강화)
     if (!isValidRoomNumber(roomNumber)) {
@@ -219,7 +198,7 @@ export async function reserveRoom(roomNumber, sessionId, ttlMs = RESERVATION_TTL
 
     // permission-denied 방지: 클릭 타이밍에 따라 auth 복원이 늦을 수 있으므로 reserve 시점에서 강제 보장
     try {
-        await ensureAnonymousAuth();
+        await ensureAnonymousAuth({ context: 'reserveRoom.ensureAuth', showToast: true, rethrow: true });
     } catch (authError) {
         const { handleFirebaseError } = await import('../utils/errorHandler');
         handleFirebaseError(authError, { context: 'reserveRoom.ensureAuth', showToast: true, rethrow: true });
@@ -254,7 +233,7 @@ export async function reserveRoom(roomNumber, sessionId, ttlMs = RESERVATION_TTL
 
     // 트랜잭션 실행 직전에 다시 한 번 auth 확인 (트랜잭션 실행 중 auth가 사라질 수 있음)
     try {
-        await ensureAnonymousAuth();
+        await ensureAnonymousAuth({ context: 'reserveRoom.preTransactionAuth', showToast: true, rethrow: true });
     } catch (authError) {
         const { handleFirebaseError } = await import('../utils/errorHandler');
         handleFirebaseError(authError, { context: 'reserveRoom.preTransactionAuth', showToast: true, rethrow: true });
@@ -276,7 +255,7 @@ export async function reserveRoom(roomNumber, sessionId, ttlMs = RESERVATION_TTL
         // permission_denied 에러인 경우 한 번 더 인증 시도 후 재시도
         if (error.code === 'permission-denied' || error.message?.includes('permission_denied')) {
             try {
-                await ensureAnonymousAuth();
+                await ensureAnonymousAuth({ context: 'reserveRoom.retry.ensureAuth', showToast: true, rethrow: true });
                 // 재시도
                 tx = await runTransaction(reservationRef, (current) => {
                     if (current?.expiresAt && Number(current.expiresAt) > now && current.reservedBy && current.reservedBy !== sessionId) {
@@ -316,7 +295,7 @@ export async function releaseRoomReservation(roomNumber, sessionId) {
     if (!database) return false;
 
     try {
-        await ensureAnonymousAuth();
+        await ensureAnonymousAuth({ context: 'releaseRoomReservation.ensureAuth', showToast: false, rethrow: false });
     } catch (authError) {
         const { handleFirebaseError } = await import('../utils/errorHandler');
         handleFirebaseError(authError, { context: 'releaseRoomReservation.ensureAuth', showToast: true, rethrow: false });
@@ -345,6 +324,7 @@ export async function releaseRoomReservation(roomNumber, sessionId) {
  */
 export async function setRoomPending(roomNumber, pending) {
     if (!database) throw new Error('Firebase not initialized');
+    await ensureAnonymousAuth({ context: 'setRoomPending.ensureAuth', showToast: true, rethrow: true });
 
     if (!isValidRoomNumber(String(roomNumber))) {
         throw new Error('유효하지 않은 방 번호입니다.');
@@ -391,6 +371,7 @@ export async function setRoomPending(roomNumber, pending) {
  */
 export async function allowRoomPendingAccept(roomNumber, invitationId, allowedSessionId) {
     if (!database) throw new Error('Firebase not initialized');
+    await ensureAnonymousAuth({ context: 'allowRoomPendingAccept.ensureAuth', showToast: true, rethrow: true });
 
     if (!isValidRoomNumber(String(roomNumber))) {
         throw new Error('유효하지 않은 방 번호입니다.');
@@ -423,6 +404,7 @@ export async function allowRoomPendingAccept(roomNumber, invitationId, allowedSe
  */
 export async function clearRoomPending(roomNumber, invitationId = null) {
     if (!database) return false;
+    await ensureAnonymousAuth({ context: 'clearRoomPending.ensureAuth', showToast: false, rethrow: false });
 
     const pendingRef = ref(database, `rooms/${roomNumber}/pending`);
     await runTransaction(pendingRef, (current) => {
@@ -445,6 +427,7 @@ export async function clearRoomPending(roomNumber, invitationId = null) {
  */
 export async function syncRoomsFromStaticRoomData() {
     if (!database) throw new Error('Firebase not initialized');
+    await ensureAnonymousAuth({ context: 'syncRoomsFromStaticRoomData.ensureAuth', showToast: true, rethrow: true });
 
     const allowed = new Set(Object.keys(staticRoomData));
     const roomsRef = ref(database, 'rooms');
@@ -492,6 +475,7 @@ export async function syncRoomsFromStaticRoomData() {
 
 export async function removeGuestFromRoom(roomNumber, sessionId) {
     if (!database) return false;
+    await ensureAnonymousAuth({ context: 'removeGuestFromRoom.ensureAuth', showToast: true, rethrow: true });
 
     const roomRef = ref(database, `rooms/${roomNumber}/guests`);
     const snapshot = await get(roomRef);
@@ -515,6 +499,7 @@ export async function removeGuestFromRoom(roomNumber, sessionId) {
  */
 export async function checkGuestInRoom(roomNumber, sessionId) {
     if (!database) return false;
+    await ensureAnonymousAuth({ context: 'checkGuestInRoom.ensureAuth', showToast: false, rethrow: false });
 
     const roomRef = ref(database, `rooms/${roomNumber}/guests`);
     const snapshot = await get(roomRef);
@@ -536,6 +521,7 @@ export async function checkGuestInRoom(roomNumber, sessionId) {
  */
 export async function updateGuestInfo(roomNumber, sessionId, newData) {
     if (!database) return false;
+    await ensureAnonymousAuth({ context: 'updateGuestInfo.ensureAuth', showToast: true, rethrow: true });
 
     const roomRef = ref(database, `rooms/${roomNumber}/guests`);
     const snapshot = await get(roomRef);
@@ -569,6 +555,7 @@ export async function updateGuestInfo(roomNumber, sessionId, newData) {
  */
 export async function checkDuplicateName(name, excludeSessionId = null) {
     if (!database) return { isDuplicate: false, roomNumber: null };
+    await ensureAnonymousAuth({ context: 'checkDuplicateName.ensureAuth', showToast: false, rethrow: false });
 
     const allRoomsRef = ref(database, 'rooms');
     const snapshot = await get(allRoomsRef);

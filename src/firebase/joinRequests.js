@@ -4,6 +4,7 @@
  */
 import { database, ref, push, set, onValue, remove, get, update, runTransaction } from './config';
 import { logGuestAdd } from './history';
+import { ensureAnonymousAuth } from './authGuard';
 
 // 요청 상태 상수
 export const REQUEST_STATUS = {
@@ -19,6 +20,7 @@ export const REQUEST_STATUS = {
  */
 export async function createJoinRequest(requestData) {
     if (!database) throw new Error('Firebase not initialized');
+    await ensureAnonymousAuth({ context: 'createJoinRequest.ensureAuth', showToast: true, rethrow: true });
 
     const requestsRef = ref(database, 'join_requests');
     const newRequestRef = push(requestsRef);
@@ -42,41 +44,54 @@ export function subscribeToJoinRequests(mySessionId, callback) {
 
     const requestsRef = ref(database, 'join_requests');
 
+    let unsubscribe = () => { };
+    let cancelled = false;
     let notified = false;
-    return onValue(
-        requestsRef,
-        (snapshot) => {
-            const data = snapshot.val();
-            if (!data) {
-                callback({ received: [], sent: [] });
-                return;
-            }
 
-            const allRequests = Object.entries(data).map(([id, req]) => ({
-                id,
-                ...req
-            }));
+    ensureAnonymousAuth({ context: 'subscribeToJoinRequests.ensureAuth', showToast: false, rethrow: false })
+        .then(() => {
+            if (cancelled) return;
+            unsubscribe = onValue(
+                requestsRef,
+                (snapshot) => {
+                    const data = snapshot.val();
+                    if (!data) {
+                        callback({ received: [], sent: [] });
+                        return;
+                    }
 
-            // 내가 받은 요청 (Host) - 대기 중인 것만
-            const received = allRequests.filter(
-                req => req.toUserId === mySessionId && req.status === REQUEST_STATUS.PENDING
+                    const allRequests = Object.entries(data).map(([id, req]) => ({
+                        id,
+                        ...req
+                    }));
+
+                    // 내가 받은 요청 (Host) - 대기 중인 것만
+                    const received = allRequests.filter(
+                        req => req.toUserId === mySessionId && req.status === REQUEST_STATUS.PENDING
+                    );
+
+                    // 내가 보낸 요청 (Guest)
+                    const sent = allRequests.filter(
+                        req => req.fromUserId === mySessionId
+                    );
+
+                    callback({ received, sent });
+                },
+                (error) => {
+                    if (notified) return;
+                    notified = true;
+                    import('../utils/errorHandler')
+                        .then(({ handleFirebaseError }) => handleFirebaseError(error, { context: 'subscribeToJoinRequests', showToast: true, rethrow: false }))
+                        .catch(() => { });
+                }
             );
+        })
+        .catch(() => { });
 
-            // 내가 보낸 요청 (Guest)
-            const sent = allRequests.filter(
-                req => req.fromUserId === mySessionId
-            );
-
-            callback({ received, sent });
-        },
-        (error) => {
-            if (notified) return;
-            notified = true;
-            import('../utils/errorHandler')
-                .then(({ handleFirebaseError }) => handleFirebaseError(error, { context: 'subscribeToJoinRequests', showToast: true, rethrow: false }))
-                .catch(() => { });
-        }
-    );
+    return () => {
+        cancelled = true;
+        unsubscribe();
+    };
 }
 
 /**
@@ -87,6 +102,7 @@ export function subscribeToJoinRequests(mySessionId, callback) {
  */
 export async function acceptJoinRequest(requestId, requestData) {
     if (!database) return;
+    await ensureAnonymousAuth({ context: 'acceptJoinRequest.ensureAuth', showToast: true, rethrow: true });
 
     // 1. 방에 게스트 추가 (Transaction)
     const roomRef = ref(database, `rooms/${requestData.toRoomNumber}/guests`);
@@ -136,6 +152,7 @@ export async function acceptJoinRequest(requestId, requestData) {
  */
 export async function rejectJoinRequest(requestId) {
     if (!database) return;
+    await ensureAnonymousAuth({ context: 'rejectJoinRequest.ensureAuth', showToast: true, rethrow: true });
 
     const reqRef = ref(database, `join_requests/${requestId}`);
     await update(reqRef, { status: REQUEST_STATUS.REJECTED });
@@ -146,6 +163,7 @@ export async function rejectJoinRequest(requestId) {
  */
 export async function cancelJoinRequest(requestId) {
     if (!database) return;
+    await ensureAnonymousAuth({ context: 'cancelJoinRequest.ensureAuth', showToast: true, rethrow: true });
     const reqRef = ref(database, `join_requests/${requestId}`);
     await remove(reqRef);
 }
@@ -156,6 +174,7 @@ export async function cancelJoinRequest(requestId) {
  */
 export async function cleanupRequest(requestId) {
     if (!database) return;
+    await ensureAnonymousAuth({ context: 'cleanupRequest.ensureAuth', showToast: true, rethrow: true });
     const reqRef = ref(database, `join_requests/${requestId}`);
     await remove(reqRef);
 }

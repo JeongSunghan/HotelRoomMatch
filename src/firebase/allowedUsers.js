@@ -4,6 +4,7 @@
  */
 import { database, ref, onValue, set, get, push, update } from './config';
 import { emailToKey, sanitizeEmail, isValidEmail } from '../utils/sanitize';
+import { ensureAnonymousAuth } from './authGuard';
 
 function normalizeSingleRoom(value) {
     if (value === true) return 'Y';
@@ -28,27 +29,38 @@ export function subscribeToAllowedUsers(callback) {
 
     const usersRef = ref(database, 'allowedUsers');
 
+    let unsubscribe = () => { };
+    let cancelled = false;
     let notified = false;
-    const unsubscribe = onValue(
-        usersRef,
-        (snapshot) => {
-            const data = snapshot.val() || {};
-            const users = Object.entries(data).map(([key, user]) => ({
-                id: key,
-                ...user
-            }));
-            callback(users);
-        },
-        (error) => {
-            if (notified) return;
-            notified = true;
-            import('../utils/errorHandler')
-                .then(({ handleFirebaseError }) => handleFirebaseError(error, { context: 'subscribeToAllowedUsers', showToast: true, rethrow: false }))
-                .catch(() => { });
-        }
-    );
 
-    return unsubscribe;
+    ensureAnonymousAuth({ context: 'subscribeToAllowedUsers.ensureAuth', showToast: false, rethrow: false })
+        .then(() => {
+            if (cancelled) return;
+            unsubscribe = onValue(
+                usersRef,
+                (snapshot) => {
+                    const data = snapshot.val() || {};
+                    const users = Object.entries(data).map(([key, user]) => ({
+                        id: key,
+                        ...user
+                    }));
+                    callback(users);
+                },
+                (error) => {
+                    if (notified) return;
+                    notified = true;
+                    import('../utils/errorHandler')
+                        .then(({ handleFirebaseError }) => handleFirebaseError(error, { context: 'subscribeToAllowedUsers', showToast: true, rethrow: false }))
+                        .catch(() => { });
+                }
+            );
+        })
+        .catch(() => { });
+
+    return () => {
+        cancelled = true;
+        unsubscribe();
+    };
 }
 
 /**
@@ -56,6 +68,7 @@ export function subscribeToAllowedUsers(callback) {
  */
 export async function getAllowedUsers() {
     if (!database) return [];
+    await ensureAnonymousAuth({ context: 'getAllowedUsers.ensureAuth', showToast: false, rethrow: false });
 
     const usersRef = ref(database, 'allowedUsers');
     const snapshot = await get(usersRef);
@@ -74,6 +87,7 @@ export async function getAllowedUsers() {
  */
 export async function verifyUser(email) {
     if (!database) return { valid: false, message: '데이터베이스 연결 실패' };
+    await ensureAnonymousAuth({ context: 'verifyUser.ensureAuth', showToast: false, rethrow: false });
 
     const sanitizedEmail = sanitizeEmail(email);
     const userKey = emailToKey(sanitizedEmail);
@@ -136,6 +150,7 @@ export async function verifyUser(email) {
  */
 export async function markUserAsRegistered(userEmail, sessionId, uid) {
     if (!database || !userEmail) return false;
+    await ensureAnonymousAuth({ context: 'markUserAsRegistered.ensureAuth', showToast: true, rethrow: true });
 
     const userKey = emailToKey(userEmail);
     if (!userKey) return false;
@@ -163,6 +178,7 @@ export async function markUserAsRegistered(userEmail, sessionId, uid) {
  */
 export async function addAllowedUser(userData) {
     if (!database) return null;
+    await ensureAnonymousAuth({ context: 'addAllowedUser.ensureAuth', showToast: true, rethrow: true });
 
     const email = sanitizeEmail(userData.email);
     const userKey = emailToKey(email);
@@ -191,6 +207,7 @@ export async function addAllowedUser(userData) {
  */
 export async function removeAllowedUser(userId) {
     if (!database || !userId) return false;
+    await ensureAnonymousAuth({ context: 'removeAllowedUser.ensureAuth', showToast: true, rethrow: true });
 
     // userId는 이미 Base64 Key라고 가정
     const userRef = ref(database, `allowedUsers/${userId}`);
@@ -210,6 +227,7 @@ export async function bulkRemoveAllowedUsers(userIds) {
     if (!database || !Array.isArray(userIds) || userIds.length === 0) {
         return { success: 0, failed: 0 };
     }
+    await ensureAnonymousAuth({ context: 'bulkRemoveAllowedUsers.ensureAuth', showToast: true, rethrow: true });
 
     // 중복 제거 + 빈 값 제거
     const ids = Array.from(new Set(userIds.filter(Boolean)));
@@ -241,6 +259,7 @@ export async function bulkRemoveAllowedUsers(userIds) {
  */
 export async function updateAllowedUser(userId, updates) {
     if (!database || !userId) return false;
+    await ensureAnonymousAuth({ context: 'updateAllowedUser.ensureAuth', showToast: true, rethrow: true });
 
     const userRef = ref(database, `allowedUsers/${userId}`);
     const snapshot = await get(userRef);
@@ -321,6 +340,7 @@ export async function updateAllowedUser(userId, updates) {
  */
 export async function bulkAddAllowedUsers(users) {
     if (!database || !Array.isArray(users)) return { success: 0, failed: 0 };
+    await ensureAnonymousAuth({ context: 'bulkAddAllowedUsers.ensureAuth', showToast: true, rethrow: true });
 
     let success = 0;
     let failed = 0;
@@ -361,6 +381,7 @@ export async function bulkAddAllowedUsers(users) {
  */
 export async function clearAllAllowedUsers() {
     if (!database) return false;
+    await ensureAnonymousAuth({ context: 'clearAllAllowedUsers.ensureAuth', showToast: true, rethrow: true });
 
     const usersRef = ref(database, 'allowedUsers');
     await set(usersRef, null);

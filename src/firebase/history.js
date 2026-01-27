@@ -3,6 +3,7 @@
  * 배정/삭제/이동 등의 이력을 기록
  */
 import { database, ref, push, onValue, get, query, orderByChild, limitToLast } from './config';
+import { ensureAnonymousAuth } from './authGuard';
 
 /**
  * 히스토리 액션 타입
@@ -22,6 +23,7 @@ export const HISTORY_ACTIONS = {
  */
 export async function addHistory(data) {
     if (!database) return null;
+    await ensureAnonymousAuth({ context: 'addHistory.ensureAuth', showToast: false, rethrow: false });
 
     const historyRef = ref(database, 'history');
     const historyData = {
@@ -105,34 +107,45 @@ export function subscribeToHistory(callback, limit = 100) {
 
     const historyRef = ref(database, 'history');
 
+    let unsubscribe = () => { };
+    let cancelled = false;
     let notified = false;
-    const unsubscribe = onValue(
-        historyRef,
-        (snapshot) => {
-            const data = snapshot.val();
-            if (!data) {
-                callback([]);
-                return;
-            }
 
-            // 객체를 배열로 변환하고 시간순 정렬 (최신 먼저)
-            const historyList = Object.entries(data)
-                .map(([id, item]) => ({ id, ...item }))
-                .sort((a, b) => b.timestamp - a.timestamp)
-                .slice(0, limit);
+    ensureAnonymousAuth({ context: 'subscribeToHistory.ensureAuth', showToast: false, rethrow: false })
+        .then(() => {
+            if (cancelled) return;
+            unsubscribe = onValue(
+                historyRef,
+                (snapshot) => {
+                    const data = snapshot.val();
+                    if (!data) {
+                        callback([]);
+                        return;
+                    }
 
-            callback(historyList);
-        },
-        (error) => {
-            if (notified) return;
-            notified = true;
-            import('../utils/errorHandler')
-                .then(({ handleFirebaseError }) => handleFirebaseError(error, { context: 'subscribeToHistory', showToast: true, rethrow: false }))
-                .catch(() => { });
-        }
-    );
+                    // 객체를 배열로 변환하고 시간순 정렬 (최신 먼저)
+                    const historyList = Object.entries(data)
+                        .map(([id, item]) => ({ id, ...item }))
+                        .sort((a, b) => b.timestamp - a.timestamp)
+                        .slice(0, limit);
 
-    return unsubscribe;
+                    callback(historyList);
+                },
+                (error) => {
+                    if (notified) return;
+                    notified = true;
+                    import('../utils/errorHandler')
+                        .then(({ handleFirebaseError }) => handleFirebaseError(error, { context: 'subscribeToHistory', showToast: true, rethrow: false }))
+                        .catch(() => { });
+                }
+            );
+        })
+        .catch(() => { });
+
+    return () => {
+        cancelled = true;
+        unsubscribe();
+    };
 }
 
 /**

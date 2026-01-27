@@ -4,6 +4,7 @@
 import { database, ref, onValue, set, update, get } from './config';
 import { selectRoom, setRoomPending, allowRoomPendingAccept, clearRoomPending } from './rooms';
 import { INVITATION_EXPIRY_MS } from '../utils/constants';
+import { ensureAnonymousAuth } from './authGuard';
 
 /**
  * 룸메이트 초대 생성
@@ -12,6 +13,7 @@ import { INVITATION_EXPIRY_MS } from '../utils/constants';
  */
 export async function createRoommateInvitation(inviterData, inviteeName) {
     if (!database) return null;
+    await ensureAnonymousAuth({ context: 'createRoommateInvitation.ensureAuth', showToast: true, rethrow: true });
 
     // 초대 대상이 이미 방에 배정되어 있는지 확인
     const allRoomsRef = ref(database, 'rooms');
@@ -72,6 +74,7 @@ export async function createRoommateInvitation(inviterData, inviteeName) {
  */
 export async function cleanupUserInvitations(sessionId) {
     if (!database) return;
+    await ensureAnonymousAuth({ context: 'cleanupUserInvitations.ensureAuth', showToast: false, rethrow: false });
 
     const invitationsRef = ref(database, 'roommateInvitations');
     const snapshot = await get(invitationsRef);
@@ -90,6 +93,7 @@ export async function cleanupUserInvitations(sessionId) {
 
 export async function checkPendingInvitations(userName) {
     if (!database) return [];
+    await ensureAnonymousAuth({ context: 'checkPendingInvitations.ensureAuth', showToast: false, rethrow: false });
 
     const invitationsRef = ref(database, 'roommateInvitations');
     const snapshot = await get(invitationsRef);
@@ -129,6 +133,7 @@ export async function checkPendingInvitations(userName) {
  */
 export async function acceptInvitation(invitationId, acceptorData, roomGender = null) {
     if (!database) return false;
+    await ensureAnonymousAuth({ context: 'acceptInvitation.ensureAuth', showToast: true, rethrow: true });
 
     const invitationRef = ref(database, `roommateInvitations/${invitationId}`);
     const snapshot = await get(invitationRef);
@@ -194,6 +199,7 @@ export async function acceptInvitation(invitationId, acceptorData, roomGender = 
 
 export async function rejectInvitation(invitationId, rejectorData) {
     if (!database) return false;
+    await ensureAnonymousAuth({ context: 'rejectInvitation.ensureAuth', showToast: true, rethrow: true });
 
     const invitationRef = ref(database, `roommateInvitations/${invitationId}`);
     const snapshot = await get(invitationRef);
@@ -219,6 +225,7 @@ export async function rejectInvitation(invitationId, rejectorData) {
  */
 export async function markInvitationNotified(invitationId) {
     if (!database) return false;
+    await ensureAnonymousAuth({ context: 'markInvitationNotified.ensureAuth', showToast: true, rethrow: true });
 
     const invitationRef = ref(database, `roommateInvitations/${invitationId}`);
     await update(invitationRef, { notified: true });
@@ -232,31 +239,43 @@ export function subscribeToMyInvitations(sessionId, callback) {
     }
 
     const invitationsRef = ref(database, 'roommateInvitations');
+
+    let unsubscribe = () => { };
+    let cancelled = false;
     let notified = false;
-    const unsubscribe = onValue(
-        invitationsRef,
-        (snapshot) => {
-            const data = snapshot.val() || {};
-            const myInvitations = [];
 
-            for (const [id, invitation] of Object.entries(data)) {
-                if (invitation.inviterSessionId === sessionId) {
-                    myInvitations.push({ id, ...invitation });
+    ensureAnonymousAuth({ context: 'subscribeToMyInvitations.ensureAuth', showToast: false, rethrow: false })
+        .then(() => {
+            if (cancelled) return;
+            unsubscribe = onValue(
+                invitationsRef,
+                (snapshot) => {
+                    const data = snapshot.val() || {};
+                    const myInvitations = [];
+
+                    for (const [id, invitation] of Object.entries(data)) {
+                        if (invitation.inviterSessionId === sessionId) {
+                            myInvitations.push({ id, ...invitation });
+                        }
+                    }
+
+                    callback(myInvitations);
+                },
+                (error) => {
+                    if (notified) return;
+                    notified = true;
+                    import('../utils/errorHandler')
+                        .then(({ handleFirebaseError }) => handleFirebaseError(error, { context: 'subscribeToMyInvitations', showToast: true, rethrow: false }))
+                        .catch(() => { });
                 }
-            }
+            );
+        })
+        .catch(() => { });
 
-            callback(myInvitations);
-        },
-        (error) => {
-            if (notified) return;
-            notified = true;
-            import('../utils/errorHandler')
-                .then(({ handleFirebaseError }) => handleFirebaseError(error, { context: 'subscribeToMyInvitations', showToast: true, rethrow: false }))
-                .catch(() => { });
-        }
-    );
-
-    return unsubscribe;
+    return () => {
+        cancelled = true;
+        unsubscribe();
+    };
 }
 
 /**
@@ -264,6 +283,7 @@ export function subscribeToMyInvitations(sessionId, callback) {
  */
 export async function cancelInvitation(invitationId, inviterSessionId) {
     if (!database) return false;
+    await ensureAnonymousAuth({ context: 'cancelInvitation.ensureAuth', showToast: true, rethrow: true });
 
     const invitationRef = ref(database, `roommateInvitations/${invitationId}`);
     const snapshot = await get(invitationRef);

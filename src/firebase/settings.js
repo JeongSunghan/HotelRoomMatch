@@ -3,6 +3,7 @@
  * 시스템 설정값 (마감시간 등) 관리
  */
 import { database, ref, onValue, set, get } from './config';
+import { ensureAnonymousAuth } from './authGuard';
 
 /**
  * 기본 설정값
@@ -24,26 +25,38 @@ export function subscribeToSettings(callback) {
 
     const settingsRef = ref(database, 'settings');
 
+    let unsubscribe = () => { };
+    let cancelled = false;
     let notified = false;
-    const unsubscribe = onValue(
-        settingsRef,
-        (snapshot) => {
-            const data = snapshot.val() || DEFAULT_SETTINGS;
-            callback({
-                ...DEFAULT_SETTINGS,
-                ...data
-            });
-        },
-        (error) => {
-            if (notified) return;
-            notified = true;
-            import('../utils/errorHandler')
-                .then(({ handleFirebaseError }) => handleFirebaseError(error, { context: 'subscribeToSettings', showToast: true, rethrow: false }))
-                .catch(() => { });
-        }
-    );
 
-    return unsubscribe;
+    // settings.read 는 rules에서 true지만, auth 기반 노드들과 초기화 타이밍을 맞추기 위해 베스트 에포트로 auth 확보
+    ensureAnonymousAuth({ context: 'subscribeToSettings.ensureAuth', showToast: false, rethrow: false })
+        .then(() => {
+            if (cancelled) return;
+            unsubscribe = onValue(
+                settingsRef,
+                (snapshot) => {
+                    const data = snapshot.val() || DEFAULT_SETTINGS;
+                    callback({
+                        ...DEFAULT_SETTINGS,
+                        ...data
+                    });
+                },
+                (error) => {
+                    if (notified) return;
+                    notified = true;
+                    import('../utils/errorHandler')
+                        .then(({ handleFirebaseError }) => handleFirebaseError(error, { context: 'subscribeToSettings', showToast: true, rethrow: false }))
+                        .catch(() => { });
+                }
+            );
+        })
+        .catch(() => { });
+
+    return () => {
+        cancelled = true;
+        unsubscribe();
+    };
 }
 
 /**
@@ -51,6 +64,9 @@ export function subscribeToSettings(callback) {
  */
 export async function getSettings() {
     if (!database) return DEFAULT_SETTINGS;
+
+    // settings.read 는 rules에서 true지만, 다른 노드들과 일관성을 위해 auth 확보(베스트 에포트)
+    await ensureAnonymousAuth({ context: 'getSettings.ensureAuth', showToast: false, rethrow: false });
 
     const settingsRef = ref(database, 'settings');
     const snapshot = await get(settingsRef);
@@ -65,6 +81,7 @@ export async function getSettings() {
  */
 export async function saveSettings(settings) {
     if (!database) return false;
+    await ensureAnonymousAuth({ context: 'saveSettings.ensureAuth', showToast: true, rethrow: true });
 
     const settingsRef = ref(database, 'settings');
     await set(settingsRef, {

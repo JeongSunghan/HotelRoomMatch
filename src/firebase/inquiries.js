@@ -3,12 +3,14 @@
  * Firebase 1:1 문의 관련 모듈
  */
 import { database, ref, onValue, set, update, get } from './config';
+import { ensureAnonymousAuth } from './authGuard';
 
 /**
  * 문의 생성
  */
 export async function createInquiry(data) {
     if (!database) return null;
+    await ensureAnonymousAuth({ context: 'createInquiry.ensureAuth', showToast: true, rethrow: true });
 
     const id = Date.now().toString();
     const inquiryRef = ref(database, `inquiries/${id}`);
@@ -36,24 +38,35 @@ export function subscribeToInquiries(callback) {
     }
 
     const inquiriesRef = ref(database, 'inquiries');
+    let unsubscribe = () => { };
+    let cancelled = false;
     let notified = false;
-    const unsubscribe = onValue(
-        inquiriesRef,
-        (snapshot) => {
-            const data = snapshot.val() || {};
-            const list = Object.values(data).sort((a, b) => b.createdAt - a.createdAt);
-            callback(list);
-        },
-        (error) => {
-            if (notified) return;
-            notified = true;
-            import('../utils/errorHandler')
-                .then(({ handleFirebaseError }) => handleFirebaseError(error, { context: 'subscribeToInquiries', showToast: true, rethrow: false }))
-                .catch(() => { });
-        }
-    );
 
-    return unsubscribe;
+    ensureAnonymousAuth({ context: 'subscribeToInquiries.ensureAuth', showToast: false, rethrow: false })
+        .then(() => {
+            if (cancelled) return;
+            unsubscribe = onValue(
+                inquiriesRef,
+                (snapshot) => {
+                    const data = snapshot.val() || {};
+                    const list = Object.values(data).sort((a, b) => b.createdAt - a.createdAt);
+                    callback(list);
+                },
+                (error) => {
+                    if (notified) return;
+                    notified = true;
+                    import('../utils/errorHandler')
+                        .then(({ handleFirebaseError }) => handleFirebaseError(error, { context: 'subscribeToInquiries', showToast: true, rethrow: false }))
+                        .catch(() => { });
+                }
+            );
+        })
+        .catch(() => { });
+
+    return () => {
+        cancelled = true;
+        unsubscribe();
+    };
 }
 
 /**
@@ -61,6 +74,7 @@ export function subscribeToInquiries(callback) {
  */
 export async function getMyInquiries(sessionId) {
     if (!database || !sessionId) return [];
+    await ensureAnonymousAuth({ context: 'getMyInquiries.ensureAuth', showToast: false, rethrow: false });
 
     // 인덱싱 없이 전체 조회 후 필터링 (데이터 양이 적으므로 가능)
     // 추후 데이터가 많아지면 query/orderByChild 적용 필요
@@ -78,6 +92,7 @@ export async function getMyInquiries(sessionId) {
  */
 export async function replyToInquiry(inquiryId, replyContent) {
     if (!database) return false;
+    await ensureAnonymousAuth({ context: 'replyToInquiry.ensureAuth', showToast: true, rethrow: true });
 
     const inquiryRef = ref(database, `inquiries/${inquiryId}`);
     await update(inquiryRef, {
@@ -94,6 +109,7 @@ export async function replyToInquiry(inquiryId, replyContent) {
  */
 export async function deleteInquiry(inquiryId) {
     if (!database) return false;
+    await ensureAnonymousAuth({ context: 'deleteInquiry.ensureAuth', showToast: true, rethrow: true });
 
     const inquiryRef = ref(database, `inquiries/${inquiryId}`);
     await set(inquiryRef, null);

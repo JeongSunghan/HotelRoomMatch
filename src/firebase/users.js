@@ -3,9 +3,11 @@
  */
 import { database, ref, onValue, set, update, get } from './config';
 import { emailToKey, sanitizeEmail } from '../utils/sanitize';
+import { ensureAnonymousAuth } from './authGuard';
 
 export async function saveUser(sessionId, userData) {
     if (!database) return false;
+    await ensureAnonymousAuth({ context: 'saveUser.ensureAuth', showToast: true, rethrow: true });
 
     const userRef = ref(database, `users/${sessionId}`);
     await set(userRef, {
@@ -19,6 +21,7 @@ export async function saveUser(sessionId, userData) {
 
 export async function updateUser(sessionId, updates) {
     if (!database) return false;
+    await ensureAnonymousAuth({ context: 'updateUser.ensureAuth', showToast: true, rethrow: true });
 
     const userRef = ref(database, `users/${sessionId}`);
     await update(userRef, updates);
@@ -27,6 +30,7 @@ export async function updateUser(sessionId, updates) {
 
 export async function getUser(sessionId) {
     if (!database) return null;
+    await ensureAnonymousAuth({ context: 'getUser.ensureAuth', showToast: false, rethrow: false });
 
     const userRef = ref(database, `users/${sessionId}`);
     const snapshot = await get(userRef);
@@ -41,26 +45,38 @@ export function subscribeToUserSession(sessionId, callback) {
     }
 
     const userRef = ref(database, `users/${sessionId}`);
+    let unsubscribe = () => { };
+    let cancelled = false;
     let notified = false;
-    const unsubscribe = onValue(
-        userRef,
-        (snapshot) => {
-            callback(snapshot.val());
-        },
-        (error) => {
-            if (notified) return;
-            notified = true;
-            import('../utils/errorHandler')
-                .then(({ handleFirebaseError }) => handleFirebaseError(error, { context: 'subscribeToUserSession', showToast: true, rethrow: false }))
-                .catch(() => { });
-        }
-    );
 
-    return unsubscribe;
+    ensureAnonymousAuth({ context: 'subscribeToUserSession.ensureAuth', showToast: false, rethrow: false })
+        .then(() => {
+            if (cancelled) return;
+            unsubscribe = onValue(
+                userRef,
+                (snapshot) => {
+                    callback(snapshot.val());
+                },
+                (error) => {
+                    if (notified) return;
+                    notified = true;
+                    import('../utils/errorHandler')
+                        .then(({ handleFirebaseError }) => handleFirebaseError(error, { context: 'subscribeToUserSession', showToast: true, rethrow: false }))
+                        .catch(() => { });
+                }
+            );
+        })
+        .catch(() => { });
+
+    return () => {
+        cancelled = true;
+        unsubscribe();
+    };
 }
 
 export async function clearUserSession(sessionId) {
     if (!database) return false;
+    await ensureAnonymousAuth({ context: 'clearUserSession.ensureAuth', showToast: true, rethrow: true });
 
     const userRef = ref(database, `users/${sessionId}`);
     await set(userRef, null);
@@ -82,27 +98,38 @@ export function subscribeToAllUsers(callback) {
     }
 
     const usersRef = ref(database, 'users');
+    let unsubscribe = () => { };
+    let cancelled = false;
     let notified = false;
-    const unsubscribe = onValue(
-        usersRef,
-        (snapshot) => {
-            const data = snapshot.val() || {};
-            const users = Object.entries(data).map(([sessionId, user]) => ({
-                sessionId,
-                ...user
-            }));
-            callback(users);
-        },
-        (error) => {
-            if (notified) return;
-            notified = true;
-            import('../utils/errorHandler')
-                .then(({ handleFirebaseError }) => handleFirebaseError(error, { context: 'subscribeToAllUsers', showToast: true, rethrow: false }))
-                .catch(() => { });
-        }
-    );
 
-    return unsubscribe;
+    ensureAnonymousAuth({ context: 'subscribeToAllUsers.ensureAuth', showToast: false, rethrow: false })
+        .then(() => {
+            if (cancelled) return;
+            unsubscribe = onValue(
+                usersRef,
+                (snapshot) => {
+                    const data = snapshot.val() || {};
+                    const users = Object.entries(data).map(([sessionId, user]) => ({
+                        sessionId,
+                        ...user
+                    }));
+                    callback(users);
+                },
+                (error) => {
+                    if (notified) return;
+                    notified = true;
+                    import('../utils/errorHandler')
+                        .then(({ handleFirebaseError }) => handleFirebaseError(error, { context: 'subscribeToAllUsers', showToast: true, rethrow: false }))
+                        .catch(() => { });
+                }
+            );
+        })
+        .catch(() => { });
+
+    return () => {
+        cancelled = true;
+        unsubscribe();
+    };
 }
 
 /**
@@ -114,6 +141,7 @@ export function subscribeToAllUsers(callback) {
  */
 export async function adminUpdateUser(sessionId, updates) {
     if (!database) return false;
+    await ensureAnonymousAuth({ context: 'adminUpdateUser.ensureAuth', showToast: true, rethrow: true });
 
     // 1. users/{sessionId} 업데이트
     const userRef = ref(database, `users/${sessionId}`);
@@ -163,6 +191,9 @@ export async function adminUpdateUser(sessionId, updates) {
  */
 export async function deleteUserCompletely(sessionId, email) {
     if (!database) return { success: false, message: 'Database not connected' };
+
+    // 삭제는 여러 노드 쓰기를 동반하므로 시작 전에 auth 보장
+    await ensureAnonymousAuth({ context: 'deleteUserCompletely.ensureAuth', showToast: true, rethrow: true });
 
     try {
         // 1. users/{sessionId}에서 유저 정보 조회
@@ -284,6 +315,9 @@ export async function createOtpRequest(email) {
         return Math.floor(100000 + Math.random() * 900000).toString();
     }
 
+    // Rules: otp_requests.write / allowedUsers.read 모두 auth 필요
+    await ensureAnonymousAuth({ context: 'createOtpRequest.ensureAuth', showToast: true, rethrow: true });
+
     const normalizedEmail = sanitizeEmail(email);
     const emailKey = emailToKey(normalizedEmail);
     if (!emailKey) {
@@ -325,6 +359,9 @@ export async function verifyOtpRequest(email, inputCode) {
         // Firebase 미연결 시 항상 실패 (보안)
         return { valid: false, message: 'Firebase 연결이 필요합니다.' };
     }
+
+    // Rules: otp_requests.read / allowedUsers.read 모두 auth 필요
+    await ensureAnonymousAuth({ context: 'verifyOtpRequest.ensureAuth', showToast: true, rethrow: true });
 
     const normalizedEmail = sanitizeEmail(email);
     const emailKey = emailToKey(normalizedEmail);

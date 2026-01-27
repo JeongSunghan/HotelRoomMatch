@@ -45,6 +45,7 @@
 - [x] 사전등록 유저 관리: admin 편집(이름/소속, 미등록 시 이메일 변경) 기능 추가
 - [x] Firebase 에러 캐치/안내 강화: errorHandler의 show-toast 이벤트를 Toast UI에 연결 + RTDB 실시간 구독(onValue) 에러 콜백 처리
 - [x] OTP/인증 안정화: otp_requests 키 통일(emailToKey) + deletedAt 계정 OTP 발급/검증 차단(삭제 후에도 메일 발송되는 문제 방지)
+- [x] RTDB Rules(auth != null) 준수 강화: 공통 ensureAnonymousAuth(authGuard) 도입 + 모든 read/write/subscribe 전에 auth 확보하도록 Firebase 모듈 정리(permission_denied 안정화)
 
 ### User logic / Admin page (2026-01-26)
 - [x] allowedUsers.singleRoom === 'Y' 인 유저는 1인실 선택 가능 (비신청자는 기존 안내 모달 유지)
