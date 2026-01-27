@@ -92,6 +92,17 @@ export async function verifyUser(email) {
     const userData = snapshot.val();
 
     if (userData) {
+        // 관리자에 의해 삭제/차단된 계정은 인증(OTP) 자체를 막는다.
+        // 왜: deleteUserCompletely()에서 allowedUsers를 완전 삭제하지 않고 deletedAt으로 표시하는 정책을 사용 중이며,
+        //     이 경우에도 OTP가 발급되면 "삭제했는데도 메일이 옴"으로 보이기 때문.
+        if (userData.deletedAt) {
+            return {
+                valid: false,
+                user: null,
+                message: '삭제(차단)된 계정입니다. 관리자에게 문의해주세요.'
+            };
+        }
+
         // 이미 등록 완료된 유저인지 확인
         // 이미 등록 완료된 유저인지 확인
         if (userData.registered) {

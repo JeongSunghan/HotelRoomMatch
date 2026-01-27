@@ -284,7 +284,22 @@ export async function createOtpRequest(email) {
         return Math.floor(100000 + Math.random() * 900000).toString();
     }
 
-    const emailKey = btoa(email.toLowerCase()).replace(/=/g, '');
+    const normalizedEmail = sanitizeEmail(email);
+    const emailKey = emailToKey(normalizedEmail);
+    if (!emailKey) {
+        throw new Error('유효하지 않은 이메일 형식입니다.');
+    }
+
+    // 사전등록/차단 상태를 서버(Realtime DB) 기준으로 재검증
+    // 왜: 클라이언트 UI에서 삭제되었는데도 메일이 발송되는 현상을 방지하려면,
+    //     OTP 발급 시점에 allowedUsers를 반드시 확인해야 한다.
+    const allowedRef = ref(database, `allowedUsers/${emailKey}`);
+    const allowedSnap = await get(allowedRef);
+    const allowedUser = allowedSnap.val();
+    if (!allowedUser || allowedUser.deletedAt) {
+        throw new Error('사전 등록되지 않았거나 삭제(차단)된 계정입니다. 관리자에게 문의해주세요.');
+    }
+
     const code = Math.floor(100000 + Math.random() * 900000).toString();
     const hashedCode = await simpleHash(code);
 
@@ -311,7 +326,20 @@ export async function verifyOtpRequest(email, inputCode) {
         return { valid: false, message: 'Firebase 연결이 필요합니다.' };
     }
 
-    const emailKey = btoa(email.toLowerCase()).replace(/=/g, '');
+    const normalizedEmail = sanitizeEmail(email);
+    const emailKey = emailToKey(normalizedEmail);
+    if (!emailKey) {
+        return { valid: false, message: '유효하지 않은 이메일 형식입니다.' };
+    }
+
+    // OTP 검증 시점에도 삭제(차단) 계정은 거부
+    const allowedRef = ref(database, `allowedUsers/${emailKey}`);
+    const allowedSnap = await get(allowedRef);
+    const allowedUser = allowedSnap.val();
+    if (!allowedUser || allowedUser.deletedAt) {
+        return { valid: false, message: '사전 등록되지 않았거나 삭제(차단)된 계정입니다.' };
+    }
+
     const otpRef = ref(database, `otp_requests/${emailKey}`);
     const snapshot = await get(otpRef);
 
