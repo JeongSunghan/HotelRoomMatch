@@ -66,8 +66,8 @@ export function useRoomSelection({
                     // Case 2: reserved(임시 예약)
                     const expiresAt = r.reservation?.expiresAt ? Number(r.reservation.expiresAt) : null;
                     const remainingSec = expiresAt ? Math.max(1, Math.ceil((expiresAt - Date.now()) / 1000)) : null;
-                    if (onRoomReserved && remainingSec) {
-                        onRoomReserved({ roomNumber, remainingSec });
+                    if (onRoomReserved && expiresAt) {
+                        onRoomReserved({ roomNumber, expiresAt });
                     } else {
                         toast.warning(remainingSec ? `다른 사용자가 선택 중입니다. (${remainingSec}초 후 재시도)` : '다른 사용자가 선택 중입니다.');
                     }

@@ -12,9 +12,10 @@
 - **PHASE 1 / STEP 1-2**: User Profile 영역 분리 + Room Assignment 영역 2열 레이아웃
 - **PHASE 3 (reserved)**: 60초 임시 예약 선점/해제 + UI “예약중” 표시
 - **PHASE 3 / Case 1 (pending)**: 룸메이트 초대 진행 중 방을 `pending`으로 잠그고(타인 접근 차단) 수락/거절/만료 시 해제
+- **PHASE 3 / Case 2 (reserved 안내)**: reserved 클릭 시 Redirection Modal(잔여초 표시)로 안내(기존 toast 대체)
 
 ### In Progress / Next
-- **PHASE 3 / Case 2 (reserved 안내)**: reserved 클릭 시 Redirection Modal(잔여초 표시)로 안내(현재는 toast)
+- (대기) 다음 Phase 선택 요청
 
 ### Notes
 - `reserved`는 `expiresAt` 기반으로 **만료 시 자동으로 비활성 처리**되며, 현재는 “데이터 삭제”까지 강제하지는 않습니다(재예약 시 덮어쓰기).

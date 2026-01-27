@@ -62,7 +62,7 @@
 - [x] PHASE 2 / STEP 2-1 1인실 선택 권한 적용 + 1인실 모달에서 룸메이트 UI 숨김/가드
 - [x] PHASE 3 reserved(60초 임시 예약) 선점/해제 + UI 표시
 - [x] PHASE 3 pending(룸메이트 초대 중 잠금) 연결
-- [ ] PHASE 3 reserved 안내 Redirection Modal(잔여초) 적용
+- [x] PHASE 3 reserved 안내 Redirection Modal(잔여초) 적용
 
 ## 기술 스택
 - React (Vite)

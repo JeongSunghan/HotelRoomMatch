@@ -27,6 +27,7 @@ const JoinRequestModal = lazy(() => import('./components/room/JoinRequestModal')
 const WaitingApprovalModal = lazy(() => import('./components/room/WaitingApprovalModal'));
 const CancelledModal = lazy(() => import('./components/room/CancelledModal'));
 const SingleRoomInfoModal = lazy(() => import('./components/room/SingleRoomInfoModal'));
+const ReservedRedirectModal = lazy(() => import('./components/room/ReservedRedirectModal'));
 
 
 /**
@@ -128,8 +129,8 @@ export default function App() {
         setWarningContent,
         setPendingSelection,
         setShowWarningModal,
-        onRoomReserved: ({ roomNumber, remainingSec }) => {
-            toast.warning(`${roomNumber}호는 다른 사용자가 선택 중입니다. (${remainingSec}초 후 재시도)`);
+        onRoomReserved: ({ roomNumber, expiresAt }) => {
+            setReservedRedirect({ roomNumber, expiresAt });
         },
         pendingSelection,
         warningContent
@@ -183,6 +184,9 @@ export default function App() {
 
     // 방 배정 취소 알림 모달
     const [showCancelledModal, setShowCancelledModal] = useState(false);
+
+    // PHASE 3 (Case 2): reserved 클릭 안내 모달
+    const [reservedRedirect, setReservedRedirect] = useState(null); // { roomNumber, expiresAt }
 
     // 사용자 성별에 맞는 기본 층 설정 (초기 진입 시)
     useEffect(() => {
@@ -466,6 +470,15 @@ export default function App() {
                     {/* 1인실 안내 모달 */}
                     {showSingleRoomModal && (
                         <SingleRoomInfoModal onClose={() => setShowSingleRoomModal(false)} />
+                    )}
+
+                    {/* PHASE 3 (Case 2): reserved 클릭 안내 모달 */}
+                    {reservedRedirect?.roomNumber && reservedRedirect?.expiresAt && (
+                        <ReservedRedirectModal
+                            roomNumber={reservedRedirect.roomNumber}
+                            expiresAt={reservedRedirect.expiresAt}
+                            onClose={() => setReservedRedirect(null)}
+                        />
                     )}
 
                     {/* 검색 모달 */}
