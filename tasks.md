@@ -49,7 +49,7 @@
 
 ### Bugfix (2026-01-27)
 - [x] 특이 케이스: locked=true 이지만 selectedRoom=null 인 경우 방 선택이 막히는 문제 완화(선택 차단 조건을 selectedRoom 기준으로 정리)
-- [x] 관리자 설정: 나이 제한(ageMin/ageMax) 설정 추가 + AdditionalInfoModal에서 범위 검증 적용
+- [ ] 관리자 설정: 나이 제한(ageMin/ageMax) 설정 추가 + AdditionalInfoModal에서 범위 검증 적용 (원복)
 
 ### User logic / Admin page (2026-01-26)
 - [x] allowedUsers.singleRoom === 'Y' 인 유저는 1인실 선택 가능 (비신청자는 기존 안내 모달 유지)

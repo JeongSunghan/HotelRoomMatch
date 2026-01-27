@@ -89,7 +89,6 @@ export {
     getSettings,
     saveSettings,
     setDeadline,
-    setAgeLimit,
     checkDeadline,
     getTimeUntilDeadline
 } from './settings';

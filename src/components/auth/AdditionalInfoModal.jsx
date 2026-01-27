@@ -1,6 +1,5 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { validateResidentId, getGenderLabel, getAgeFromResidentId } from '../../utils/genderUtils';
-import { subscribeToSettings } from '../../firebase/index';
 
 export default function AdditionalInfoModal({ user, onUpdate, onClose }) {
     const [residentIdFront, setResidentIdFront] = useState('');
@@ -10,18 +9,6 @@ export default function AdditionalInfoModal({ user, onUpdate, onClose }) {
     const [error, setError] = useState('');
     const [detectedGender, setDetectedGender] = useState(null);
     const [detectedAge, setDetectedAge] = useState(null);
-    const [ageMin, setAgeMin] = useState(null);
-    const [ageMax, setAgeMax] = useState(null);
-
-    useEffect(() => {
-        const unsubscribe = subscribeToSettings((data) => {
-            const min = data?.ageMin;
-            const max = data?.ageMax;
-            setAgeMin(Number.isFinite(Number(min)) ? Number(min) : null);
-            setAgeMax(Number.isFinite(Number(max)) ? Number(max) : null);
-        });
-        return () => unsubscribe();
-    }, []);
 
     // 주민번호 뒷자리 입력 시 성별/나이 감지
     const handleBackDigitChange = (value) => {
@@ -71,18 +58,6 @@ export default function AdditionalInfoModal({ user, onUpdate, onClose }) {
         if (!snoring) {
             setError('코골이 여부를 선택해주세요.');
             return;
-        }
-
-        // 나이 제한(관리자 설정) 검증
-        if (detectedAge !== null) {
-            if (ageMin !== null && detectedAge < ageMin) {
-                setError(`나이 제한: ${ageMin}세 이상만 등록할 수 있습니다.`);
-                return;
-            }
-            if (ageMax !== null && detectedAge > ageMax) {
-                setError(`나이 제한: ${ageMax}세 이하만 등록할 수 있습니다.`);
-                return;
-            }
         }
 
         onUpdate({
@@ -163,13 +138,6 @@ export default function AdditionalInfoModal({ user, onUpdate, onClose }) {
                                     {getGenderLabel(detectedGender)}
                                     {detectedAge && <span className="ml-2 text-gray-500">({detectedAge}세)</span>}
                                 </p>
-                                {(ageMin !== null || ageMax !== null) && (
-                                    <p className="text-xs text-gray-500 mt-1">
-                                        나이 제한: {ageMin !== null ? `${ageMin}세 이상` : '제한 없음'}
-                                        {' / '}
-                                        {ageMax !== null ? `${ageMax}세 이하` : '제한 없음'}
-                                    </p>
-                                )}
                             </div>
                         </div>
                     )}

@@ -11,10 +11,7 @@ import { ensureAnonymousAuth } from './authGuard';
 const DEFAULT_SETTINGS = {
     deadlineEnabled: false,
     deadlineTime: null,  // ISO 문자열 형태
-    deadlineMessage: '배정 마감 시간이 지났습니다. 관리자에게 문의하세요.',
-    // 나이 제한 (null이면 제한 없음)
-    ageMin: null,
-    ageMax: null
+    deadlineMessage: '배정 마감 시간이 지났습니다. 관리자에게 문의하세요.'
 };
 
 /**
@@ -108,34 +105,6 @@ export async function setDeadline(enabled, deadlineTime = null, message = null) 
         deadlineEnabled: enabled,
         deadlineTime: enabled ? deadlineTime : null,
         deadlineMessage: message || current.deadlineMessage
-    });
-}
-
-/**
- * 나이 제한 설정
- * @param {number|null} ageMin - 최소 나이 (null이면 제한 없음)
- * @param {number|null} ageMax - 최대 나이 (null이면 제한 없음)
- */
-export async function setAgeLimit(ageMin = null, ageMax = null) {
-    const current = await getSettings();
-
-    const min = Number.isFinite(ageMin) ? Number(ageMin) : null;
-    const max = Number.isFinite(ageMax) ? Number(ageMax) : null;
-
-    if (min !== null && (min < 1 || min > 150)) {
-        throw new Error('최소 나이는 1~150 사이여야 합니다.');
-    }
-    if (max !== null && (max < 1 || max > 150)) {
-        throw new Error('최대 나이는 1~150 사이여야 합니다.');
-    }
-    if (min !== null && max !== null && min > max) {
-        throw new Error('최소 나이는 최대 나이보다 클 수 없습니다.');
-    }
-
-    return saveSettings({
-        ...current,
-        ageMin: min,
-        ageMax: max
     });
 }
 
