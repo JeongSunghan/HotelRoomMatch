@@ -198,9 +198,9 @@ export default function App() {
         setSelectedFloor(defaultFloor || floors[0]);
     }, [user?.gender, selectedFloor]);
 
-    // 로그인 후 추가 정보(성별 등) 누락 시 모달 표시
+    // 로그인 후 추가 정보(성별/나이/코골이) 누락 시 모달 표시
     useEffect(() => {
-        if (user && !user.gender) {
+        if (user && (!user.gender || !user.age || !user.snoring)) {
             openModal(MODAL_TYPES.ADDITIONAL_INFO);
         } else {
             closeModal(MODAL_TYPES.ADDITIONAL_INFO);

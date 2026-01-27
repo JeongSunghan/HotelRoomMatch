@@ -202,19 +202,21 @@ export default function RegistrationModal({ onClose }) {
             });
 
             // 5. 로컬 스토리지 저장 (세션 복구용)
+            // 주의: age와 snoring은 AdditionalInfoModal에서 입력받아야 하므로 여기서는 설정하지 않음
             const sessionUser = {
                 sessionId: sessionId,
                 name: userData.name,
                 email: email,
                 company: userData.company,
                 position: userData.position,
-                gender: userData.gender,
+                gender: userData.gender, // allowedUsers에서 가져온 값 (있을 수도 없을 수도 있음)
                 singleRoom: userData.singleRoom || 'N',
                 passKey: passKey,
                 passKeyExpires: expiryDate,
                 locked: !!userData.registered, // 기존 등록 여부
                 selectedRoom: null, // 이후 로직에서 복구됨
                 registeredAt: Date.now()
+                // age와 snoring은 명시적으로 설정하지 않음 (AdditionalInfoModal에서 입력받음)
             };
 
             // 만약 기존 등록 유저라면 프로필 복구 시도 (클라이언트 측 병합)
