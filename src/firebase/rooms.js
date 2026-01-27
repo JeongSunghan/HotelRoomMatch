@@ -11,6 +11,15 @@ function isActiveLock(lock, now) {
     return Boolean(lock?.expiresAt && Number(lock.expiresAt) > now);
 }
 
+// RTDB rules가 auth != null 이므로, 어떤 쓰기 작업이든 실행 전에 인증(익명 포함)을 보장해야 함.
+async function ensureAnonymousAuth() {
+    const { getAuth, signInAnonymously } = await import('firebase/auth');
+    const auth = getAuth();
+    if (!auth.currentUser) {
+        await signInAnonymously(auth);
+    }
+}
+
 export function subscribeToRooms(callback) {
     if (!database) {
         callback({});
@@ -165,6 +174,14 @@ export async function reserveRoom(roomNumber, sessionId, ttlMs = RESERVATION_TTL
         throw new Error('유효하지 않은 세션입니다.');
     }
 
+    // permission-denied 방지: 클릭 타이밍에 따라 auth 복원이 늦을 수 있으므로 reserve 시점에서 강제 보장
+    try {
+        await ensureAnonymousAuth();
+    } catch (authError) {
+        const { handleFirebaseError } = await import('../utils/errorHandler');
+        handleFirebaseError(authError, { context: 'reserveRoom.ensureAuth', showToast: true, rethrow: true });
+    }
+
     const now = Date.now();
     const expiresAt = now + ttlMs;
 
@@ -184,16 +201,22 @@ export async function reserveRoom(roomNumber, sessionId, ttlMs = RESERVATION_TTL
 
     const reservationRef = ref(database, `rooms/${roomNumber}/reservation`);
 
-    const tx = await runTransaction(reservationRef, (current) => {
-        if (current?.expiresAt && Number(current.expiresAt) > now && current.reservedBy && current.reservedBy !== sessionId) {
-            return; // abort
-        }
-        return {
-            reservedBy: sessionId,
-            reservedAt: now,
-            expiresAt,
-        };
-    });
+    let tx;
+    try {
+        tx = await runTransaction(reservationRef, (current) => {
+            if (current?.expiresAt && Number(current.expiresAt) > now && current.reservedBy && current.reservedBy !== sessionId) {
+                return; // abort
+            }
+            return {
+                reservedBy: sessionId,
+                reservedAt: now,
+                expiresAt,
+            };
+        });
+    } catch (error) {
+        const { handleFirebaseError } = await import('../utils/errorHandler');
+        handleFirebaseError(error, { context: 'reserveRoom', showToast: true, rethrow: true });
+    }
 
     if (!tx.committed) {
         // 현재 예약 정보 조회(안내용)
@@ -212,6 +235,13 @@ export async function reserveRoom(roomNumber, sessionId, ttlMs = RESERVATION_TTL
 export async function releaseRoomReservation(roomNumber, sessionId) {
     if (!database) return false;
 
+    try {
+        await ensureAnonymousAuth();
+    } catch (authError) {
+        const { handleFirebaseError } = await import('../utils/errorHandler');
+        handleFirebaseError(authError, { context: 'releaseRoomReservation.ensureAuth', showToast: true, rethrow: false });
+    }
+
     const reservationRef = ref(database, `rooms/${roomNumber}/reservation`);
     const snap = await get(reservationRef);
     const r = snap.val();
@@ -220,7 +250,12 @@ export async function releaseRoomReservation(roomNumber, sessionId) {
         return false;
     }
 
-    await set(reservationRef, null);
+    try {
+        await set(reservationRef, null);
+    } catch (error) {
+        const { handleFirebaseError } = await import('../utils/errorHandler');
+        handleFirebaseError(error, { context: 'releaseRoomReservation', showToast: false, rethrow: false });
+    }
     return true;
 }
 
