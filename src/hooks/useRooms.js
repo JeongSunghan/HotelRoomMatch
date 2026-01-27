@@ -10,6 +10,7 @@ import { subscribeToRooms, isFirebaseInitialized, selectRoom as firebaseSelectRo
 export function useRooms() {
     const [roomGuests, setRoomGuests] = useState({});
     const [roomReservations, setRoomReservations] = useState({});
+    const [roomPendings, setRoomPendings] = useState({});
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState(null);
 
@@ -18,6 +19,7 @@ export function useRooms() {
             const unsubscribe = subscribeToRooms((data) => {
                 const guests = {};
                 const reservations = {};
+                const pendings = {};
                 for (const [roomNumber, roomInfo] of Object.entries(data)) {
                     let guestList = roomInfo.guests || [];
                     if (guestList && !Array.isArray(guestList)) {
@@ -28,9 +30,13 @@ export function useRooms() {
                     if (roomInfo.reservation) {
                         reservations[roomNumber] = roomInfo.reservation;
                     }
+                    if (roomInfo.pending) {
+                        pendings[roomNumber] = roomInfo.pending;
+                    }
                 }
                 setRoomGuests(guests);
                 setRoomReservations(reservations);
+                setRoomPendings(pendings);
                 setIsLoading(false);
             });
             return () => unsubscribe();
@@ -75,7 +81,8 @@ export function useRooms() {
             type: room.type,
             roomGender: room.gender,
             roomType: room.roomType,
-            reservation: roomReservations[roomNumber] || null
+            reservation: roomReservations[roomNumber] || null,
+            pending: roomPendings[roomNumber] || null
         };
 
         if (room.gender !== userGender) {
@@ -112,6 +119,33 @@ export function useRooms() {
             }
         }
 
+        // PHASE 3 (Case 1): pending 상태 (룸메이트 수락 대기)
+        // - reserved(60초) 만료 이후에도 2인실 2번째 슬롯을 타인이 선점하지 못하도록 차단
+        if (result.pending?.expiresAt) {
+            const now = Date.now();
+            const expiresAt = Number(result.pending.expiresAt);
+            const isActive = expiresAt > now;
+            const isAllowed = isActive && mySessionId && result.pending.allowedSessionId === mySessionId;
+
+            if (isActive && !isAdmin && !isAllowed) {
+                return {
+                    ...result,
+                    status: 'pending',
+                    canSelect: false,
+                    pendingRemainingMs: expiresAt - now,
+                };
+            }
+
+            if (isActive && (isAdmin || isAllowed)) {
+                return {
+                    ...result,
+                    status: 'pending',
+                    canSelect: true,
+                    pendingRemainingMs: expiresAt - now,
+                };
+            }
+        }
+
         // 1인실: allowedUsers.singleRoom === 'Y' 인 유저만 선택 가능
         if (room.capacity === 1) {
             if (guestCount === 0) {
@@ -140,7 +174,7 @@ export function useRooms() {
         }
 
         return { ...result, status: 'full', canSelect: false };
-    }, [roomGuests, roomReservations]);
+    }, [roomGuests, roomReservations, roomPendings]);
 
     const addGuestToRoom = useCallback(async (roomNumber, guestData) => {
         const room = roomData[roomNumber];

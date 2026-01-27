@@ -4,7 +4,13 @@
             ".read": "auth != null",
             ".write": "auth != null",
             "$roomId": {
-                ".validate": "newData.hasChildren(['capacity', 'floor', 'gender'])"
+                ".validate": "!newData.exists() || newData.hasChild('guests')",
+                "reservation": {
+                    ".validate": "!newData.exists() || (newData.hasChildren(['reservedBy', 'reservedAt', 'expiresAt']) && newData.child('reservedBy').isString() && newData.child('reservedAt').isNumber() && newData.child('expiresAt').isNumber())"
+                },
+                "pending": {
+                    ".validate": "!newData.exists() || (newData.hasChildren(['invitationId', 'inviterSessionId', 'createdAt', 'expiresAt', 'status']) && newData.child('invitationId').isString() && newData.child('inviterSessionId').isString() && newData.child('createdAt').isNumber() && newData.child('expiresAt').isNumber() && newData.child('status').isString())"
+                }
             }
         },
         "users": {

@@ -57,6 +57,13 @@ export function useRoomSelection({
             try {
                 const r = await reserveRoom(roomNumber, user.sessionId);
                 if (!r.ok) {
+                    // Case 1: pending 잠금(룸메이트 수락 대기)
+                    if (r.reason === 'pending' || r.pending) {
+                        toast.warning('룸메이트 수락 대기 중인 객실입니다.');
+                        return;
+                    }
+
+                    // Case 2: reserved(임시 예약)
                     const expiresAt = r.reservation?.expiresAt ? Number(r.reservation.expiresAt) : null;
                     const remainingSec = expiresAt ? Math.max(1, Math.ceil((expiresAt - Date.now()) / 1000)) : null;
                     if (onRoomReserved && remainingSec) {

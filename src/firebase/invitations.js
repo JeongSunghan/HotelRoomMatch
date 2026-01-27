@@ -2,7 +2,7 @@
  * Firebase 룸메이트 초대 관련 모듈
  */
 import { database, ref, onValue, set, update, get } from './config';
-import { selectRoom } from './rooms';
+import { selectRoom, setRoomPending, allowRoomPendingAccept, clearRoomPending } from './rooms';
 import { INVITATION_EXPIRY_MS } from '../utils/constants';
 
 /**
@@ -30,7 +30,9 @@ export async function createRoommateInvitation(inviterData, inviteeName) {
         }
     }
 
-    const newInvitationRef = ref(database, `roommateInvitations/${Date.now()}`);
+    const createdAt = Date.now();
+    const invitationId = String(createdAt);
+    const newInvitationRef = ref(database, `roommateInvitations/${invitationId}`);
 
     const invitation = {
         roomNumber: inviterData.roomNumber,
@@ -40,10 +42,27 @@ export async function createRoommateInvitation(inviterData, inviteeName) {
         inviterGender: inviterData.gender, // 성별 검증용
         inviteeName: inviteeName.trim(),
         status: 'pending',
-        createdAt: Date.now()
+        createdAt
     };
 
     await set(newInvitationRef, invitation);
+
+    // PHASE 3 (Case 1): 초대 진행 중 객실 pending 잠금 설정
+    // - reserved(60초) 만료 이후에도 2인실의 2번째 슬롯을 타인이 선점하지 못하도록 차단
+    try {
+        await setRoomPending(inviterData.roomNumber, {
+            invitationId,
+            inviterSessionId: inviterData.sessionId,
+            inviteeName: inviteeName.trim(),
+            createdAt,
+            expiresAt: createdAt + INVITATION_EXPIRY_MS,
+        });
+    } catch (e) {
+        // pending 잠금 설정 실패 시 초대도 롤백(무결성 유지)
+        await set(newInvitationRef, null);
+        throw e;
+    }
+
     return invitation;
 }
 
@@ -62,6 +81,8 @@ export async function cleanupUserInvitations(sessionId) {
         // 해당 유저가 보낸 pending 초대 삭제
         if (invitation.inviterSessionId === sessionId && invitation.status === 'pending') {
             await set(ref(database, `roommateInvitations/${id}`), null);
+            // 객실 pending 잠금도 함께 해제(베스트 에포트)
+            clearRoomPending(invitation.roomNumber, id).catch(() => { });
         }
     }
 }
@@ -81,6 +102,8 @@ export async function checkPendingInvitations(userName) {
         // 24시간 지난 pending 초대는 만료 처리
         if (invitation.status === 'pending' && invitation.createdAt && (now - invitation.createdAt) > INVITATION_EXPIRY_MS) {
             set(ref(database, `roommateInvitations/${id}`), null).catch(() => { });
+            // 만료된 초대에 연결된 pending 잠금도 함께 해제(베스트 에포트)
+            clearRoomPending(invitation.roomNumber, id).catch(() => { });
             continue;
         }
 
@@ -146,14 +169,26 @@ export async function acceptInvitation(invitationId, acceptorData, roomGender = 
     }
 
     // 5. 초대 상태 업데이트
+    // 5-1. pending 잠금에서 수락자 세션만 통과 허용(서버 검증용)
+    // - 구버전 초대(잠금이 없을 수도 있음)와의 호환을 위해 베스트 에포트로 처리
+    try {
+        await allowRoomPendingAccept(invitation.roomNumber, invitationId, acceptorData.sessionId);
+    } catch (_) {
+        // ignore
+    }
+
+    // 6. 방 선택 (selectRoom에서 추가 검증 수행)
+    await selectRoom(invitation.roomNumber, acceptorData, 2, roomGender);
+
+    // 7. 초대 상태 업데이트 (방 선택 성공 후 확정)
     await update(invitationRef, {
         status: 'accepted',
         acceptedAt: Date.now(),
         acceptorSessionId: acceptorData.sessionId
     });
 
-    // 6. 방 선택 (selectRoom에서 추가 검증 수행)
-    await selectRoom(invitation.roomNumber, acceptorData, 2, roomGender);
+    // 8. pending 잠금 해제(베스트 에포트)
+    clearRoomPending(invitation.roomNumber, invitationId).catch(() => { });
     return invitation.roomNumber;
 }
 
@@ -161,6 +196,8 @@ export async function rejectInvitation(invitationId, rejectorData) {
     if (!database) return false;
 
     const invitationRef = ref(database, `roommateInvitations/${invitationId}`);
+    const snapshot = await get(invitationRef);
+    const invitation = snapshot.val();
 
     await update(invitationRef, {
         status: 'rejected',
@@ -168,6 +205,11 @@ export async function rejectInvitation(invitationId, rejectorData) {
         rejectorSessionId: rejectorData.sessionId,
         notified: false // 초대자에게 알림 필요
     });
+
+    // pending 잠금 해제(베스트 에포트)
+    if (invitation?.roomNumber) {
+        clearRoomPending(invitation.roomNumber, invitationId).catch(() => { });
+    }
 
     return true;
 }
@@ -231,5 +273,7 @@ export async function cancelInvitation(invitationId, inviterSessionId) {
 
     // 초대 삭제
     await set(invitationRef, null);
+    // pending 잠금 해제(베스트 에포트)
+    clearRoomPending(invitation.roomNumber, invitationId).catch(() => { });
     return true;
 }

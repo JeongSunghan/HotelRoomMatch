@@ -11,9 +11,9 @@
 - **PHASE 1 / STEP 1-1**: 룸 카드 UI 표준화(고정 크기/섹션 분리/상태 칩)
 - **PHASE 1 / STEP 1-2**: User Profile 영역 분리 + Room Assignment 영역 2열 레이아웃
 - **PHASE 3 (reserved)**: 60초 임시 예약 선점/해제 + UI “예약중” 표시
+- **PHASE 3 / Case 1 (pending)**: 룸메이트 초대 진행 중 방을 `pending`으로 잠그고(타인 접근 차단) 수락/거절/만료 시 해제
 
 ### In Progress / Next
-- **PHASE 3 / Case 1 (pending)**: 룸메이트 초대 진행 중 방을 `pending`으로 잠그고(타인 접근 차단) 수락/거절/만료 처리 연결
 - **PHASE 3 / Case 2 (reserved 안내)**: reserved 클릭 시 Redirection Modal(잔여초 표시)로 안내(현재는 toast)
 
 ### Notes

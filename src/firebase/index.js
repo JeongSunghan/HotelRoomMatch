@@ -10,7 +10,20 @@ export { isFirebaseInitialized, database, ref, onValue, set, update, get } from 
 export { adminSignIn, adminSignOut, subscribeToAuthState } from './auth';
 
 // Rooms
-export { subscribeToRooms, selectRoom, reserveRoom, releaseRoomReservation, removeGuestFromRoom, checkGuestInRoom, updateGuestInfo, checkDuplicateName, syncRoomsFromStaticRoomData } from './rooms';
+export {
+    subscribeToRooms,
+    selectRoom,
+    reserveRoom,
+    releaseRoomReservation,
+    setRoomPending,
+    allowRoomPendingAccept,
+    clearRoomPending,
+    removeGuestFromRoom,
+    checkGuestInRoom,
+    updateGuestInfo,
+    checkDuplicateName,
+    syncRoomsFromStaticRoomData
+} from './rooms';
 
 // Users
 export {

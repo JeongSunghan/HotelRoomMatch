@@ -21,6 +21,10 @@ const RoomCard = memo(function RoomCard({
         // - available : 선택 가능
         // - occupied  : 배정 완료
         // - reserved  : 잠금/접근 불가(권한/성별 포함)
+        // - pending   : 룸메이트 수락 대기(타인 접근 차단)
+        if (status.status === 'pending') {
+            return { key: 'pending', label: '수락대기', icon: '⌛', tone: 'purple' };
+        }
         if (status.status === 'reserved') {
             return { key: 'reserved', label: '예약중', icon: '⏳', tone: 'amber' };
         }
@@ -49,6 +53,8 @@ const RoomCard = memo(function RoomCard({
                 return 'bg-pink-100 text-pink-700 border-pink-200';
             case 'amber':
                 return 'bg-amber-100 text-amber-700 border-amber-200';
+            case 'purple':
+                return 'bg-purple-100 text-purple-700 border-purple-200';
             default:
                 return 'bg-slate-100 text-slate-700 border-slate-200';
         }
@@ -86,6 +92,9 @@ const RoomCard = memo(function RoomCard({
             case 'reserved':
                 return 'bg-amber-50 border-2 border-amber-400 hover:border-amber-500';
 
+            case 'pending':
+                return 'bg-purple-50 border-2 border-purple-400 hover:border-purple-500';
+
             case 'wrong-gender':
                 return 'bg-gray-100 border border-gray-300 opacity-60';
 
@@ -95,13 +104,13 @@ const RoomCard = memo(function RoomCard({
     }, [isMyRoom, isLocked, status.status, roomGender]);
 
     // 클릭 가능 여부
-    const isClickable = canSelect || isAdmin || isLocked || status.status === 'reserved';
+    const isClickable = canSelect || isAdmin || isLocked || status.status === 'reserved' || status.status === 'pending';
 
     // 클릭 핸들러 - 메모이제이션
     const handleClick = useCallback(() => {
         if (isLocked) {
             onSingleRoomClick?.(roomNumber);
-        } else if (canSelect || isAdmin || status.status === 'reserved') {
+        } else if (canSelect || isAdmin || status.status === 'reserved' || status.status === 'pending') {
             onClick(roomNumber);
         }
     }, [isLocked, canSelect, isAdmin, onClick, onSingleRoomClick, roomNumber, status.status]);

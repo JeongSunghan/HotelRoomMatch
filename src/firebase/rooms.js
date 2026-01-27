@@ -7,6 +7,10 @@ import { roomData as staticRoomData } from '../data/roomData';
 
 const RESERVATION_TTL_MS = 60 * 1000;
 
+function isActiveLock(lock, now) {
+    return Boolean(lock?.expiresAt && Number(lock.expiresAt) > now);
+}
+
 export function subscribeToRooms(callback) {
     if (!database) {
         callback({});
@@ -55,6 +59,22 @@ export async function selectRoom(roomNumber, guestData, maxCapacity = 2, roomGen
         if (r?.expiresAt && Number(r.expiresAt) > now && r.reservedBy && r.reservedBy !== guestData.sessionId) {
             const remainingSec = Math.max(1, Math.ceil((Number(r.expiresAt) - now) / 1000));
             throw new Error(`다른 사용자가 객실을 선택 중입니다. (${remainingSec}초 후 재시도)`);
+        }
+    }
+
+    // 1-2. pending(룸메이트 수락 대기) 검증 (서버 측)
+    // 왜: 초대 진행 중에는 2인실의 2번째 슬롯을 다른 사용자가 선점하지 못하도록 서버에서도 차단해야 함.
+    {
+        const pendingRef = ref(database, `rooms/${roomNumber}/pending`);
+        const snap = await get(pendingRef);
+        const p = snap.val();
+        const now = Date.now();
+
+        if (isActiveLock(p, now)) {
+            const isAllowed = p.allowedSessionId && p.allowedSessionId === guestData.sessionId;
+            if (!isAllowed) {
+                throw new Error('룸메이트 초대 진행 중인 객실입니다.');
+            }
         }
     }
 
@@ -136,6 +156,21 @@ export async function reserveRoom(roomNumber, sessionId, ttlMs = RESERVATION_TTL
 
     const now = Date.now();
     const expiresAt = now + ttlMs;
+
+    // PHASE 3 (Case 1): pending 잠금이 걸린 객실은 예약 자체를 차단
+    // - 수락 처리 중인 초대자(allowedSessionId)만 예외 허용
+    {
+        const pendingRef = ref(database, `rooms/${roomNumber}/pending`);
+        const snap = await get(pendingRef);
+        const p = snap.val();
+        if (isActiveLock(p, now)) {
+            const isAllowed = p.allowedSessionId && p.allowedSessionId === sessionId;
+            if (!isAllowed) {
+                return { ok: false, reason: 'pending', pending: p || undefined };
+            }
+        }
+    }
+
     const reservationRef = ref(database, `rooms/${roomNumber}/reservation`);
 
     const tx = await runTransaction(reservationRef, (current) => {
@@ -153,7 +188,7 @@ export async function reserveRoom(roomNumber, sessionId, ttlMs = RESERVATION_TTL
         // 현재 예약 정보 조회(안내용)
         const snap = await get(reservationRef);
         const r = snap.val();
-        return { ok: false, reservation: r || undefined };
+        return { ok: false, reason: 'reserved', reservation: r || undefined };
     }
 
     return { ok: true, reservation: { reservedBy: sessionId, reservedAt: now, expiresAt } };
@@ -175,6 +210,103 @@ export async function releaseRoomReservation(roomNumber, sessionId) {
     }
 
     await set(reservationRef, null);
+    return true;
+}
+
+/**
+ * PHASE 3 (Case 1): 룸메이트 초대 진행 중 객실 잠금(pending) 설정
+ * - 초대가 pending인 동안 2인실의 2번째 슬롯을 다른 유저가 선점하지 못하도록 차단
+ */
+export async function setRoomPending(roomNumber, pending) {
+    if (!database) throw new Error('Firebase not initialized');
+
+    if (!isValidRoomNumber(String(roomNumber))) {
+        throw new Error('유효하지 않은 방 번호입니다.');
+    }
+    if (!pending || typeof pending !== 'object') {
+        throw new Error('유효하지 않은 pending 데이터입니다.');
+    }
+    if (typeof pending.invitationId !== 'string' || pending.invitationId.trim().length === 0) {
+        throw new Error('유효하지 않은 invitationId입니다.');
+    }
+    if (!isValidSessionId(String(pending.inviterSessionId))) {
+        throw new Error('유효하지 않은 inviterSessionId입니다.');
+    }
+    if (typeof pending.createdAt !== 'number' || typeof pending.expiresAt !== 'number') {
+        throw new Error('유효하지 않은 pending 시간 정보입니다.');
+    }
+
+    const now = Date.now();
+    const pendingRef = ref(database, `rooms/${roomNumber}/pending`);
+    const tx = await runTransaction(pendingRef, (current) => {
+        if (isActiveLock(current, now) && current.invitationId && current.invitationId !== pending.invitationId) {
+            return; // abort
+        }
+        return {
+            invitationId: pending.invitationId,
+            inviterSessionId: pending.inviterSessionId,
+            inviteeName: typeof pending.inviteeName === 'string' ? pending.inviteeName : '',
+            status: 'pending',
+            createdAt: pending.createdAt,
+            expiresAt: pending.expiresAt,
+        };
+    });
+
+    if (!tx.committed) {
+        throw new Error('이미 초대 진행 중인 객실입니다.');
+    }
+
+    return true;
+}
+
+/**
+ * 초대 수락 처리용: pending 잠금에서 특정 세션(수락자)만 통과 허용
+ * - selectRoom() 서버 검증에서 allowedSessionId가 일치할 때만 통과
+ */
+export async function allowRoomPendingAccept(roomNumber, invitationId, allowedSessionId) {
+    if (!database) throw new Error('Firebase not initialized');
+
+    if (!isValidRoomNumber(String(roomNumber))) {
+        throw new Error('유효하지 않은 방 번호입니다.');
+    }
+    if (typeof invitationId !== 'string' || invitationId.trim().length === 0) {
+        throw new Error('유효하지 않은 invitationId입니다.');
+    }
+    if (!isValidSessionId(String(allowedSessionId))) {
+        throw new Error('유효하지 않은 세션입니다.');
+    }
+
+    const now = Date.now();
+    const pendingRef = ref(database, `rooms/${roomNumber}/pending`);
+    const tx = await runTransaction(pendingRef, (current) => {
+        if (!current) return; // abort
+        if (current.invitationId && current.invitationId !== invitationId) return; // abort
+        if (current.expiresAt && Number(current.expiresAt) <= now) return null; // expired -> cleanup
+        return { ...current, allowedSessionId };
+    });
+
+    if (!tx.committed) {
+        throw new Error('초대 잠금 상태가 유효하지 않습니다.');
+    }
+
+    return true;
+}
+
+/**
+ * pending 잠금 해제(베스트 에포트)
+ */
+export async function clearRoomPending(roomNumber, invitationId = null) {
+    if (!database) return false;
+
+    const pendingRef = ref(database, `rooms/${roomNumber}/pending`);
+    await runTransaction(pendingRef, (current) => {
+        if (!current) return null;
+        if (invitationId && current.invitationId && current.invitationId !== invitationId) {
+            return current;
+        }
+        return null;
+    });
+
     return true;
 }
 
