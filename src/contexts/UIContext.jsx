@@ -15,6 +15,7 @@ const MODAL_TYPES = {
     SINGLE_ROOM: 'singleRoom',
     WARNING: 'warning',
     CANCELLED: 'cancelled',
+    RESERVED_REDIRECT: 'reservedRedirect',
     INVITATIONS: 'invitations',
     SELECTION: 'selection',  // 방 선택 확인 모달
 };
@@ -27,6 +28,7 @@ const initialModalState = {
     [MODAL_TYPES.SINGLE_ROOM]: false,
     [MODAL_TYPES.WARNING]: false,
     [MODAL_TYPES.CANCELLED]: false,
+    [MODAL_TYPES.RESERVED_REDIRECT]: false,
     [MODAL_TYPES.INVITATIONS]: false,
     [MODAL_TYPES.SELECTION]: false,
 };
@@ -34,6 +36,10 @@ const initialModalState = {
 export function UIProvider({ children }) {
     // 모달 상태 통합 관리
     const [modals, setModals] = useState(initialModalState);
+
+    // 모달 payload(예: reserved 잔여초 안내, 공통 Confirm 데이터 등)
+    // 왜: 모달마다 개별 useState로 흩어지면 App이 비대해지고, 상태 동기화 실수가 잦아짐.
+    const [modalData, setModalData] = useState({});
 
     // 선택된 방 번호 (SelectionModal용)
     const [selectedRoomNumber, setSelectedRoomNumber] = useState(null);
@@ -52,6 +58,10 @@ export function UIProvider({ children }) {
     const openModal = useCallback((modalName, data = null) => {
         setModals(prev => ({ ...prev, [modalName]: true }));
 
+        if (data !== null && data !== undefined) {
+            setModalData(prev => ({ ...prev, [modalName]: data }));
+        }
+
         // 모달별 추가 데이터 처리
         if (modalName === MODAL_TYPES.SELECTION && data?.roomNumber) {
             setSelectedRoomNumber(data.roomNumber);
@@ -65,6 +75,12 @@ export function UIProvider({ children }) {
     // 모달 닫기
     const closeModal = useCallback((modalName) => {
         setModals(prev => ({ ...prev, [modalName]: false }));
+        setModalData(prev => {
+            if (!Object.prototype.hasOwnProperty.call(prev, modalName)) return prev;
+            const next = { ...prev };
+            delete next[modalName];
+            return next;
+        });
 
         // 모달별 상태 정리
         if (modalName === MODAL_TYPES.SELECTION) {
@@ -79,6 +95,7 @@ export function UIProvider({ children }) {
     // 모든 모달 닫기
     const closeAllModals = useCallback(() => {
         setModals(initialModalState);
+        setModalData({});
         setWarningContent([]);
         setPendingSelection(null);
         setSelectedRoomNumber(null);
@@ -96,6 +113,7 @@ export function UIProvider({ children }) {
         openModal,
         closeModal,
         closeAllModals,
+        modalData,
 
         // 방 선택 관련
         selectedRoomNumber,

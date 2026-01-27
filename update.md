@@ -192,6 +192,11 @@ React 상태 관리 최적화 전문가
 
 ---
 
+### Progress
+- [x] **STEP 4-1/4-2 1차**: `UIContext`에 **modalData(payload)**를 추가하고, `App.jsx`의 **분산된 모달 상태(취소/예약 안내)**를 Context 기반으로 통합하여 useState/동기화 포인트를 감소
+
+---
+
 ## AI 작업 요청 가이드
 
 - Phase 단위로 분리 요청

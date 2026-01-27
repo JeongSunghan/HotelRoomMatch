@@ -62,6 +62,7 @@ export default function App() {
         modals,
         openModal,
         closeModal,
+        modalData,
         selectedRoomNumber,
         openSelectionModal,
         warningContent,
@@ -83,6 +84,8 @@ export default function App() {
     const showSingleRoomModal = modals[MODAL_TYPES.SINGLE_ROOM];
     const showSearchModal = modals[MODAL_TYPES.SEARCH];
     const showWarningModal = modals[MODAL_TYPES.WARNING];
+    const showCancelledModal = modals[MODAL_TYPES.CANCELLED];
+    const showReservedRedirectModal = modals[MODAL_TYPES.RESERVED_REDIRECT];
     // Toast 알림
     const toast = useToast();
 
@@ -130,7 +133,7 @@ export default function App() {
         setPendingSelection,
         setShowWarningModal,
         onRoomReserved: ({ roomNumber, expiresAt }) => {
-            setReservedRedirect({ roomNumber, expiresAt });
+            openModal(MODAL_TYPES.RESERVED_REDIRECT, { roomNumber, expiresAt });
         },
         pendingSelection,
         warningContent
@@ -182,11 +185,7 @@ export default function App() {
         navigateToRoom
     } = useFloorNavigation(user, selectedFloor, setSelectedFloor);
 
-    // 방 배정 취소 알림 모달
-    const [showCancelledModal, setShowCancelledModal] = useState(false);
-
-    // PHASE 3 (Case 2): reserved 클릭 안내 모달
-    const [reservedRedirect, setReservedRedirect] = useState(null); // { roomNumber, expiresAt }
+    const reservedRedirect = modalData?.[MODAL_TYPES.RESERVED_REDIRECT] || null;
 
     // 사용자 성별에 맞는 기본 층 설정 (초기 진입 시)
     useEffect(() => {
@@ -221,9 +220,9 @@ export default function App() {
 
         if (!amIStillInRoom && !showCancelledModal) {
             // 관리자가 나를 삭제함 → 취소 알림 모달 표시
-            setShowCancelledModal(true);
+            openModal(MODAL_TYPES.CANCELLED);
         }
-    }, [roomGuests, user?.selectedRoom, user?.sessionId, showCancelledModal, roomsLoading]);
+    }, [roomGuests, user?.selectedRoom, user?.sessionId, showCancelledModal, roomsLoading, openModal, MODAL_TYPES]);
 
     // 통계 계산
     const stats = useMemo(() => {
@@ -473,11 +472,11 @@ export default function App() {
                     )}
 
                     {/* PHASE 3 (Case 2): reserved 클릭 안내 모달 */}
-                    {reservedRedirect?.roomNumber && reservedRedirect?.expiresAt && (
+                    {showReservedRedirectModal && reservedRedirect?.roomNumber && reservedRedirect?.expiresAt && (
                         <ReservedRedirectModal
                             roomNumber={reservedRedirect.roomNumber}
                             expiresAt={reservedRedirect.expiresAt}
-                            onClose={() => setReservedRedirect(null)}
+                            onClose={() => closeModal(MODAL_TYPES.RESERVED_REDIRECT)}
                         />
                     )}
 

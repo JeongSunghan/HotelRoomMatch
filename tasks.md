@@ -63,6 +63,7 @@
 - [x] PHASE 3 reserved(60초 임시 예약) 선점/해제 + UI 표시
 - [x] PHASE 3 pending(룸메이트 초대 중 잠금) 연결
 - [x] PHASE 3 reserved 안내 Redirection Modal(잔여초) 적용
+- [진행 중] PHASE 4 React 상태 관리 리팩토링(1차: UIContext modalData + App 모달 상태 통합)
 
 ## 기술 스택
 - React (Vite)
