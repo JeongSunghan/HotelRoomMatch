@@ -204,9 +204,21 @@ const RoomCard = memo(function RoomCard({
 
             {/* 상태 인디케이터 */}
             <div className="mt-2 pt-2 border-t border-gray-200 flex items-center justify-between">
-                <span className="text-[11px] text-gray-600">
-                    {guestCount}/{capacity}
-                </span>
+                {/* 객실 배정 인원 표시 (사람 모양 아이콘) */}
+                <div className="flex items-center gap-1">
+                    {Array.from({ length: capacity }).map((_, idx) => {
+                        const isFilled = idx < guestCount;
+                        return (
+                            <span
+                                key={idx}
+                                className={`text-base ${isFilled ? 'opacity-100' : 'opacity-30'}`}
+                                title={isFilled ? '배정됨' : '빈 자리'}
+                            >
+                                {isFilled ? '👥' : '👤'}
+                            </span>
+                        );
+                    })}
+                </div>
                 <span className={`text-[11px] px-2 py-0.5 rounded-full border font-semibold ${statusChipClass}`}>
                     <span className="mr-1">{uiStatus.icon}</span>
                     {uiStatus.label}

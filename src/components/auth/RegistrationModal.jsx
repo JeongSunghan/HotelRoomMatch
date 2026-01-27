@@ -42,6 +42,25 @@ export default function RegistrationModal({ onClose }) {
         }
     };
 
+    // OTP 백스페이스 핸들러
+    const handleOtpKeyDown = (index, e) => {
+        if (e.key === 'Backspace') {
+            e.preventDefault();
+            const newOtp = [...otp];
+            
+            // 현재 칸에 값이 있으면 지우고, 없으면 이전 칸으로 이동하여 지우기
+            if (newOtp[index]) {
+                newOtp[index] = '';
+                setOtp(newOtp);
+            } else if (index > 0) {
+                // 이전 칸으로 이동하여 지우기
+                newOtp[index - 1] = '';
+                setOtp(newOtp);
+                otpRefs.current[index - 1].focus();
+            }
+        }
+    };
+
     // OTP 붙여넣기 지원
     const handlePaste = (e) => {
         e.preventDefault();
@@ -305,6 +324,7 @@ export default function RegistrationModal({ onClose }) {
                                     maxLength={1}
                                     value={digit}
                                     onChange={(e) => handleOtpChange(idx, e.target.value)}
+                                    onKeyDown={(e) => handleOtpKeyDown(idx, e)}
                                     onPaste={handlePaste}
                                     className="w-12 h-14 text-center text-2xl font-bold border-2 border-gray-200 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none transition-all"
                                 />
