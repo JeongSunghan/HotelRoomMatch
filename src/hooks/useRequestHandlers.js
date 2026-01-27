@@ -19,6 +19,7 @@ import {
  * @param {Function} setShowWarningModal - 경고 모달 제어 함수
  * @param {Function} setPendingSelection - 대기 선택 상태 setter
  * @param {string} REQUEST_STATUS - 요청 상태 상수
+ * @param {Function} selectUserRoom - 방 선택 함수 (요청 수락 시 Guest의 방 배정 상태 업데이트용)
  * @returns {Object} 요청 처리 핸들러
  */
 export function useRequestHandlers(
@@ -31,7 +32,8 @@ export function useRequestHandlers(
     setSelectedRoomForConfirm,
     setShowWarningModal,
     setPendingSelection,
-    REQUEST_STATUS
+    REQUEST_STATUS,
+    selectUserRoom
 ) {
     // 이미 처리된 요청 ID 추적 (중복 알람 방지)
     const processedRequestIds = useRef(new Set());
@@ -65,6 +67,15 @@ export function useRequestHandlers(
             processedRequestIds.current.add(acceptedReq.id);
             toast.success('입장이 승인되었습니다!');
             notifyRequestAccepted(acceptedReq.toRoomNumber);
+            
+            // 요청을 보낸 유저(Guest)의 방 배정 상태 업데이트
+            // acceptJoinRequest에서 이미 DB를 업데이트했지만, 클라이언트 상태도 동기화
+            if (selectUserRoom && acceptedReq.toRoomNumber) {
+                selectUserRoom(acceptedReq.toRoomNumber).catch(err => {
+                    console.error('방 배정 상태 업데이트 실패:', err);
+                });
+            }
+            
             cleanup(acceptedReq.id);
             // 모달들 닫기
             setSelectedRoomForConfirm(null);
@@ -88,7 +99,8 @@ export function useRequestHandlers(
         setSelectedRoomForConfirm,
         setShowWarningModal,
         setPendingSelection,
-        REQUEST_STATUS
+        REQUEST_STATUS,
+        selectUserRoom
     ]);
 
     // 요청 수락 핸들러 (Host용)

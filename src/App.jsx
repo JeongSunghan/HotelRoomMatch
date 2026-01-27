@@ -176,7 +176,8 @@ export default function App() {
         (room) => openSelectionModal(room),
         (show) => show ? openModal(MODAL_TYPES.WARNING) : closeModal(MODAL_TYPES.WARNING),
         setPendingSelection,
-        REQUEST_STATUS
+        REQUEST_STATUS,
+        selectUserRoom
     );
 
     // 층 네비게이션 Hook

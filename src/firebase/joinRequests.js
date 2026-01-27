@@ -98,7 +98,8 @@ export function subscribeToJoinRequests(mySessionId, callback) {
  * 입실 요청 수락 (Transaction으로 안전하게 처리)
  * 1. 요청 상태 accepted로 변경
  * 2. 방에 게스트 추가
- * 3. 요청 데이터 삭제 (또는 히스토리 보존 위해 남겨둘 수도 있음 -> 여기선 즉시 삭제하지 않고 accepted로 둠)
+ * 3. 요청을 보낸 유저(Guest)의 방 배정 상태 업데이트 (users/{fromUserId}, sessions/{fromUserId})
+ * 4. 요청 데이터 삭제 (또는 히스토리 보존 위해 남겨둘 수도 있음 -> 여기선 즉시 삭제하지 않고 accepted로 둠)
  */
 export async function acceptJoinRequest(requestId, requestData) {
     if (!database) return;
@@ -125,11 +126,20 @@ export async function acceptJoinRequest(requestId, requestData) {
             return [...currentGuests, requestData.guestInfo];
         });
 
-        // 2. 요청 상태 업데이트
+        // 2. 요청을 보낸 유저(Guest)의 방 배정 상태 업데이트
+        // 룸메이트 초대 수락과 동일하게 처리
+        const { updateUser } = await import('./users');
+        await updateUser(requestData.fromUserId, {
+            selectedRoom: requestData.toRoomNumber,
+            selectedAt: Date.now(),
+            locked: true
+        });
+
+        // 3. 요청 상태 업데이트
         const reqRef = ref(database, `join_requests/${requestId}`);
         await update(reqRef, { status: REQUEST_STATUS.ACCEPTED });
 
-        // 3. 로그 남기기
+        // 4. 로그 남기기
         await logGuestAdd(
             requestData.toRoomNumber,
             requestData.guestInfo,
