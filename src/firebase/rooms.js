@@ -15,8 +15,41 @@ function isActiveLock(lock, now) {
 async function ensureAnonymousAuth() {
     const { getAuth, signInAnonymously } = await import('firebase/auth');
     const auth = getAuth();
+    
+    // 이미 인증되어 있으면 즉시 반환
+    if (auth.currentUser) {
+        return;
+    }
+    
+    // 인증 시도 (최대 3회 재시도)
+    let attempts = 0;
+    const maxAttempts = 3;
+    
+    while (attempts < maxAttempts && !auth.currentUser) {
+        try {
+            await signInAnonymously(auth);
+            // 인증 성공 확인
+            if (auth.currentUser) {
+                return;
+            }
+        } catch (error) {
+            attempts++;
+            if (attempts >= maxAttempts) {
+                const { handleFirebaseError } = await import('../utils/errorHandler');
+                handleFirebaseError(error, {
+                    context: 'ensureAnonymousAuth',
+                    showToast: true,
+                    rethrow: true
+                });
+            }
+            // 재시도 전 짧은 대기
+            await new Promise(resolve => setTimeout(resolve, 100 * attempts));
+        }
+    }
+    
+    // 여기까지 왔는데도 인증이 안 되면 에러
     if (!auth.currentUser) {
-        await signInAnonymously(auth);
+        throw new Error('익명 인증에 실패했습니다. 잠시 후 다시 시도해주세요.');
     }
 }
 
@@ -219,6 +252,14 @@ export async function reserveRoom(roomNumber, sessionId, ttlMs = RESERVATION_TTL
 
     const reservationRef = ref(database, `rooms/${roomNumber}/reservation`);
 
+    // 트랜잭션 실행 직전에 다시 한 번 auth 확인 (트랜잭션 실행 중 auth가 사라질 수 있음)
+    try {
+        await ensureAnonymousAuth();
+    } catch (authError) {
+        const { handleFirebaseError } = await import('../utils/errorHandler');
+        handleFirebaseError(authError, { context: 'reserveRoom.preTransactionAuth', showToast: true, rethrow: true });
+    }
+
     let tx;
     try {
         tx = await runTransaction(reservationRef, (current) => {
@@ -232,8 +273,29 @@ export async function reserveRoom(roomNumber, sessionId, ttlMs = RESERVATION_TTL
             };
         });
     } catch (error) {
-        const { handleFirebaseError } = await import('../utils/errorHandler');
-        handleFirebaseError(error, { context: 'reserveRoom', showToast: true, rethrow: true });
+        // permission_denied 에러인 경우 한 번 더 인증 시도 후 재시도
+        if (error.code === 'permission-denied' || error.message?.includes('permission_denied')) {
+            try {
+                await ensureAnonymousAuth();
+                // 재시도
+                tx = await runTransaction(reservationRef, (current) => {
+                    if (current?.expiresAt && Number(current.expiresAt) > now && current.reservedBy && current.reservedBy !== sessionId) {
+                        return; // abort
+                    }
+                    return {
+                        reservedBy: sessionId,
+                        reservedAt: now,
+                        expiresAt,
+                    };
+                });
+            } catch (retryError) {
+                const { handleFirebaseError } = await import('../utils/errorHandler');
+                handleFirebaseError(retryError, { context: 'reserveRoom.retry', showToast: true, rethrow: true });
+            }
+        } else {
+            const { handleFirebaseError } = await import('../utils/errorHandler');
+            handleFirebaseError(error, { context: 'reserveRoom', showToast: true, rethrow: true });
+        }
     }
 
     if (!tx.committed) {
