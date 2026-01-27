@@ -34,6 +34,37 @@ const RoomCard = memo(function RoomCard({
         return { label: '대기', text: 'text-slate-400' };
     }, [status.status, guestCount, capacity, isLocked, canSelect, isAdmin, roomGender, isMyRoom]);
 
+    // Single/Double 색상 구분
+    const roomTypeColor = useMemo(() => {
+        if (capacity === 1) {
+            // Single: 보라색 계열
+            return {
+                bg: 'bg-purple-50',
+                border: 'border-purple-200',
+                text: 'text-purple-700',
+                badge: 'bg-purple-100 text-purple-700'
+            };
+        } else {
+            // Double: 초록색 계열
+            return {
+                bg: 'bg-emerald-50',
+                border: 'border-emerald-200',
+                text: 'text-emerald-700',
+                badge: 'bg-emerald-100 text-emerald-700'
+            };
+        }
+    }, [capacity]);
+
+    // 남성/여성 방 테두리 색상
+    const genderBorderColor = useMemo(() => {
+        if (roomGender === 'M') {
+            return 'border-blue-400 border-2'; // 남성: 파란색 두꺼운 테두리
+        } else if (roomGender === 'F') {
+            return 'border-pink-400 border-2'; // 여성: 핑크색 두꺼운 테두리
+        }
+        return 'border-gray-200 border'; // 기본
+    }, [roomGender]);
+
     const isClickable = canSelect || isAdmin || isLocked || status.status === 'reserved' || status.status === 'pending';
 
     const handleClick = useCallback(() => {
@@ -48,20 +79,21 @@ const RoomCard = memo(function RoomCard({
             tabIndex={isClickable ? 0 : -1}
             className={`
                 group relative flex flex-col
-                h-[220px] rounded-2xl border border-gray-100 bg-white
+                h-[220px] rounded-2xl
                 p-6 transition-all duration-200
-                ${isClickable ? 'cursor-pointer hover:shadow-md hover:border-gray-300' : 'opacity-60 cursor-not-allowed'}
-                ${isMyRoom ? 'ring-2 ring-emerald-300' : ''}
-                ${isHighlighted ? 'ring-4 ring-yellow-300' : ''}
+                ${roomTypeColor.bg} ${genderBorderColor}
+                ${isClickable ? 'cursor-pointer hover:shadow-lg hover:scale-[1.02]' : 'opacity-60 cursor-not-allowed'}
+                ${isMyRoom ? 'ring-2 ring-emerald-400 ring-offset-2' : ''}
+                ${isHighlighted ? 'ring-4 ring-yellow-400 ring-offset-2' : ''}
             `}
         >
             {/* Header */}
             <div className="flex justify-between items-center">
-                <h3 className="text-2xl font-bold text-gray-800">
+                <h3 className={`text-2xl font-bold ${roomTypeColor.text}`}>
                     {roomNumber}
                 </h3>
-                <span className="text-sm font-semibold text-gray-400">
-                    {capacity === 1 ? 'SINGLE' : 'DOUBLE'}
+                <span className={`text-xs font-bold px-2 py-1 rounded-full ${roomTypeColor.badge}`}>
+                    {capacity === 1 ? '1인실' : '2인실'}
                 </span>
             </div>
 
