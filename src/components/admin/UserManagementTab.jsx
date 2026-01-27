@@ -287,6 +287,47 @@ export default function UserManagementTab() {
                                     <option value="Y">Y</option>
                                 </select>
                             </div>
+
+                            {/* 나이 */}
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">나이</label>
+                                <input
+                                    type="number"
+                                    min="1"
+                                    max="150"
+                                    value={editForm.age}
+                                    onChange={(e) => setEditForm({ ...editForm, age: e.target.value })}
+                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                                    placeholder="나이를 입력하세요"
+                                />
+                            </div>
+
+                            {/* 코골이 여부 */}
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">코골이 여부</label>
+                                <div className="flex gap-4">
+                                    <label className="flex items-center gap-2">
+                                        <input
+                                            type="radio"
+                                            name="snoring"
+                                            value="no"
+                                            checked={editForm.snoring === 'no'}
+                                            onChange={(e) => setEditForm({ ...editForm, snoring: e.target.value })}
+                                        />
+                                        <span>{SNORING_LABELS.no}</span>
+                                    </label>
+                                    <label className="flex items-center gap-2">
+                                        <input
+                                            type="radio"
+                                            name="snoring"
+                                            value="yes"
+                                            checked={editForm.snoring === 'yes'}
+                                            onChange={(e) => setEditForm({ ...editForm, snoring: e.target.value })}
+                                        />
+                                        <span>{SNORING_LABELS.yes}</span>
+                                    </label>
+                                </div>
+                            </div>
                         </div>
 
                         <div className="flex gap-3 mt-6">

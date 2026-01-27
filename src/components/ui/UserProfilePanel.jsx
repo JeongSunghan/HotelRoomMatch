@@ -68,12 +68,12 @@ export default function UserProfilePanel({
                         }`}>
                         {gender === 'M' ? '♂' : '♀'}
                     </div>
-                    <div className="min-w-0">
+                    <div className="min-w-0 flex-1">
                         <p className="font-bold text-gray-800 text-lg truncate">{user?.name || '익명'}</p>
                         <p className="text-sm text-gray-600 truncate">
                             {user?.company || '-'}{user?.position ? ` · ${user.position}` : ''}
                         </p>
-                        <div className="flex items-center gap-2 mt-1">
+                        <div className="flex items-center gap-2 mt-1 flex-wrap">
                             <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${gender === 'M' ? 'bg-blue-200 text-blue-700' : 'bg-pink-200 text-pink-700'
                                 }`}>
                                 {genderLabel}
@@ -81,6 +81,31 @@ export default function UserProfilePanel({
                             {user?.age && <span className="text-xs text-gray-500">{user.age}세</span>}
                             <span className="text-xs text-gray-500">1인실: {singleRoomLabel}</span>
                         </div>
+                    </div>
+                </div>
+            </div>
+
+            {/* 상세 정보 */}
+            <div className="bg-gray-50 rounded-lg p-4 space-y-2">
+                <h3 className="text-sm font-semibold text-gray-700 mb-3">상세 정보</h3>
+                <div className="grid grid-cols-2 gap-3 text-sm">
+                    <div>
+                        <span className="text-gray-500">이메일</span>
+                        <p className="text-gray-800 font-medium mt-0.5 truncate">{user?.email || '-'}</p>
+                    </div>
+                    <div>
+                        <span className="text-gray-500">나이</span>
+                        <p className="text-gray-800 font-medium mt-0.5">{user?.age ? `${user.age}세` : '-'}</p>
+                    </div>
+                    <div>
+                        <span className="text-gray-500">코골이</span>
+                        <p className="text-gray-800 font-medium mt-0.5">
+                            {user?.snoring === 'yes' ? '😤 있음' : user?.snoring === 'no' ? '😴 없음' : '-'}
+                        </p>
+                    </div>
+                    <div>
+                        <span className="text-gray-500">1인실 여부</span>
+                        <p className="text-gray-800 font-medium mt-0.5">{singleRoomLabel}</p>
                     </div>
                 </div>
             </div>
