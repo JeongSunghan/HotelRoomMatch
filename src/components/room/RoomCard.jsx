@@ -139,8 +139,8 @@ const RoomCard = memo(function RoomCard({
                         ))}
                     </div>
 
-                    {/* 게스트 상세 (hover 시 노출) */}
-                    <div className="mt-4 space-y-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                    {/* 게스트 상세 (항상 노출) */}
+                    <div className="mt-4 space-y-1">
                         {guests.map((guest, idx) => (
                             <div key={idx} className="text-sm text-gray-600 truncate text-center">
                                 {guest.name || '입실자'}
