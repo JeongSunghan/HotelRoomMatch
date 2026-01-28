@@ -38,6 +38,12 @@
 - [x] 에러 처리
 - [진행 중] 테스트
 
+### 현장등록(배정만) → 정식 등록(OTP) 전환 (2026-01-28)
+- [x] 현장등록 guest 생성 시 tempGuestId 발급 및 tempGuests 레코드 생성(롤백 포함)
+- [x] 관리자 전환 기능: tempGuestId 기반으로 rooms.guests 치환 + users.selectedRoom/locked 동기화 + history 기록
+- [x] 관리자 UI: 객실 관리에서 현장 guest에 '전환' 버튼/모달 제공
+- [x] Realtime DB rules: tempGuests 경로 추가(최소 validate)
+
 ### Mobile UI/UX 개선 (2026-01-28)
 - [x] 모바일 반응형 디자인: RoomCard를 모바일에서 가로형 리스트 형태로 표시
 - [x] 모바일 반응형 디자인: RoomGrid를 모바일에서 리스트 레이아웃으로 변경

@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { getGenderLabel } from '../../utils/genderUtils';
-import { updateGuestInfo, checkDuplicateName, logGuestAdd, logGuestEdit } from '../../firebase/index';
+import { updateGuestInfo, checkDuplicateName, logGuestAdd, logGuestEdit, createTempGuestRecord, deleteTempGuestRecord } from '../../firebase/index';
+import OnsiteMigrationModal from './OnsiteMigrationModal';
 
 // /admin 경로에서만 로깅 허용
 const isAdminPath = () => window.location.pathname.includes('/admin');
@@ -24,6 +25,11 @@ export default function RoomManagementTab({
     const [editingGuest, setEditingGuest] = useState(null);
     const [editData, setEditData] = useState({ name: '', company: '', age: '' });
     const [isEditing, setIsEditing] = useState(false);
+
+    // 현장등록 -> 정식 등록 전환 모달
+    const [showMigrateModal, setShowMigrateModal] = useState(false);
+    const [migratingRoomNumber, setMigratingRoomNumber] = useState(null);
+    const [migratingGuest, setMigratingGuest] = useState(null);
 
     // 유저 등록 모달 열기
     const handleOpenAddModal = (room) => {
@@ -65,17 +71,37 @@ export default function RoomManagementTab({
                 }
             }
 
+            const onsiteSessionId = `admin-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+
+            // tempGuests 레코드 생성 (추후 OTP 등록유저로 치환하기 위한 단일 식별자)
+            // 왜: 이름/소속 기반 매칭은 동명이인 위험이 있으므로 tempGuestId 기반 전환만 허용
+            const { tempGuestId } = await createTempGuestRecord({
+                roomNumber: selectedRoom.roomNumber,
+                onsiteSessionId,
+                name: newGuest.name,
+                company: newGuest.company,
+                gender: selectedRoom.gender
+            });
+
             const guestData = {
                 name: newGuest.name.trim(),
                 company: newGuest.company.trim(),
                 gender: selectedRoom.gender,
                 age: newGuest.age ? parseInt(newGuest.age) : null,
-                sessionId: `admin-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+                sessionId: onsiteSessionId,
                 registeredAt: Date.now(),
-                registeredByAdmin: true
+                registeredByAdmin: true,
+                provisioningType: 'onsite',
+                tempGuestId
             };
 
-            await onAddGuest(selectedRoom.roomNumber, guestData);
+            try {
+                await onAddGuest(selectedRoom.roomNumber, guestData);
+            } catch (e) {
+                // 방 배정 실패 시 tempGuests 레코드도 롤백 (best-effort)
+                await deleteTempGuestRecord(tempGuestId);
+                throw e;
+            }
 
             // 히스토리 로깅 (관리자 경로에서만)
             if (isAdminPath()) {
@@ -226,7 +252,25 @@ export default function RoomManagementTab({
                                                     {guest.registeredByAdmin && (
                                                         <span className="text-xs ml-1 opacity-50">[관리자]</span>
                                                     )}
+                                                    {guest.provisioningType === 'onsite' && guest.tempGuestId && (
+                                                        <span className="text-xs ml-1 opacity-60">[현장]</span>
+                                                    )}
                                                 </div>
+
+                                                {guest.provisioningType === 'onsite' && guest.tempGuestId && (
+                                                    <button
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            setMigratingRoomNumber(room.roomNumber);
+                                                            setMigratingGuest(guest);
+                                                            setShowMigrateModal(true);
+                                                        }}
+                                                        className="px-2 py-1 rounded bg-white/60 hover:bg-white text-xs text-slate-700"
+                                                        title="정식 등록 전환(OTP 등록유저와 치환)"
+                                                    >
+                                                        전환
+                                                    </button>
+                                                )}
                                                 <button
                                                     onClick={(e) => {
                                                         e.stopPropagation();
@@ -411,6 +455,19 @@ export default function RoomManagementTab({
                         </div>
                     </div>
                 </div>
+            )}
+
+            {/* 현장등록 -> 정식 등록 전환 모달 */}
+            {showMigrateModal && migratingRoomNumber && migratingGuest && (
+                <OnsiteMigrationModal
+                    roomNumber={migratingRoomNumber}
+                    onsiteGuest={migratingGuest}
+                    onClose={() => {
+                        setShowMigrateModal(false);
+                        setMigratingRoomNumber(null);
+                        setMigratingGuest(null);
+                    }}
+                />
             )}
         </>
     );

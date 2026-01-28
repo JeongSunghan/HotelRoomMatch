@@ -83,6 +83,15 @@ export {
     getRoomHistory
 } from './history';
 
+// Temp Guests (현장등록 -> 추후 마이그레이션)
+export {
+    createTempGuestRecord,
+    deleteTempGuestRecord,
+    subscribeToTempGuests,
+    getTempGuestRecord,
+    migrateTempGuestToRegisteredUser
+} from './tempGuests';
+
 // Settings
 export {
     subscribeToSettings,
