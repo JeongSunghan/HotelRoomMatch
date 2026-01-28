@@ -7,6 +7,7 @@ node_modules/
 dist/
 build/
 .vite/
+*.md
 
 # Environment variables (보안 중요!)
 .env
