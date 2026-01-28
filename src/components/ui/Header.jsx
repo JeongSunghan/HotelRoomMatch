@@ -16,42 +16,6 @@ export default function Header({ stats }) {
                 </div>
             </div>
 
-            {/* 범례 */}
-            <div className="flex flex-wrap gap-4 mb-4 p-4 bg-gray-50 rounded-lg border border-gray-100">
-                <div className="legend-item">
-                    <div className="legend-color border-2 border-blue-500 bg-white" />
-                    <span className="text-gray-600">남성 빈 방</span>
-                </div>
-                <div className="legend-item">
-                    <div className="legend-color border-2 border-pink-500 bg-white" />
-                    <span className="text-gray-600">여성 빈 방</span>
-                </div>
-                <div className="legend-item">
-                    <div className="legend-color bg-blue-100 border border-blue-300" />
-                    <span className="text-gray-600">남성 1명 (2인실)</span>
-                </div>
-                <div className="legend-item">
-                    <div className="legend-color bg-pink-100 border border-pink-300" />
-                    <span className="text-gray-600">여성 1명 (2인실)</span>
-                </div>
-                <div className="legend-item">
-                    <div className="legend-color bg-blue-500" />
-                    <span className="text-gray-600">남성 배정완료</span>
-                </div>
-                <div className="legend-item">
-                    <div className="legend-color bg-pink-500" />
-                    <span className="text-gray-600">여성 배정완료</span>
-                </div>
-                <div className="legend-item">
-                    <div className="legend-color bg-emerald-500 ring-2 ring-emerald-300" />
-                    <span className="text-gray-600">내 방</span>
-                </div>
-                <div className="legend-item">
-                    <div className="legend-color bg-gray-300" />
-                    <span className="text-gray-600">1인실 (신청자만)</span>
-                </div>
-            </div>
-
             {/* 통계 */}
             {stats && (
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-3">

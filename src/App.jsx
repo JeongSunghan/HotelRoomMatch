@@ -305,9 +305,9 @@ export default function App() {
                 />
 
                 {/* STEP 1-2: User Profile / Room Assignment 영역 분리 */}
-                <div className="grid grid-cols-1 lg:grid-cols-[340px_1fr] gap-6">
+                <div className="grid grid-cols-1 lg:grid-cols-[340px_1fr] gap-4 md:gap-6">
                     {/* User Profile 영역 */}
-                    <div className="space-y-6">
+                    <div className="space-y-4 md:space-y-6">
                         <UserProfilePanel
                             user={user}
                             isRegistered={isRegistered}
@@ -317,7 +317,7 @@ export default function App() {
                     </div>
 
                     {/* Room Assignment 영역 */}
-                    <div className="space-y-6">
+                    <div className="space-y-4 md:space-y-6">
                         <FloorSelector
                             selectedFloor={selectedFloor}
                             onSelectFloor={setSelectedFloor}
