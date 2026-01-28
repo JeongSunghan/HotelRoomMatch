@@ -217,5 +217,6 @@ Private Project - All Rights Reserved
 ---
 
 <p align="center">
+  <sub>build With : Claude Code, Cursor </sub>
   <sub>Built with ❤️ for V-Up 58기 Workshops</sub>
 </p>
