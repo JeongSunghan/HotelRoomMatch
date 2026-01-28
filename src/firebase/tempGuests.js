@@ -11,6 +11,7 @@ import { isValidRoomNumber, isValidSessionId, sanitizeName, sanitizeCompany } fr
 import { roomData as staticRoomData } from '../data/roomData';
 import { addHistory, HISTORY_ACTIONS } from './history';
 import { getUser, updateUser } from './users';
+import { removeGuestFromRoom } from './rooms';
 
 function generateTempGuestId() {
     // 왜: admin-세션ID와 별도로 “마이그레이션용 단일 식별자”가 필요함 (동명이인/중복 대응)
@@ -132,9 +133,11 @@ export async function getTempGuestRecord(tempGuestId) {
  * - rooms/{roomNumber}/guests 는 transaction으로 치환(동시성 안전)
  * - users/{sessionId}는 치환 후 best-effort로 selectedRoom/locked 동기화
  */
-export async function migrateTempGuestToRegisteredUser(tempGuestId, targetSessionId) {
+export async function migrateTempGuestToRegisteredUser(tempGuestId, targetSessionId, options = {}) {
     if (!database) throw new Error('Firebase not initialized');
     await ensureAnonymousAuth({ context: 'migrateTempGuestToRegisteredUser.ensureAuth', showToast: true, rethrow: true });
+
+    const { allowMoveExistingAssignment = false } = options || {};
 
     if (!tempGuestId || typeof tempGuestId !== 'string') {
         throw new Error('tempGuestId가 필요합니다.');
@@ -159,7 +162,9 @@ export async function migrateTempGuestToRegisteredUser(tempGuestId, targetSessio
 
     const now = Date.now();
 
-    // 2) 다른 방 중복 배정 여부 사전 체크(서버(selectRoom) 검증을 우회하지 않기 위함)
+    // 2) 다른 방 중복 배정 여부 확인 (+ 옵션에 따라 “이동” 허용)
+    let existingAssignedRoom = null;
+    let existingAssignedGuestSnapshot = null;
     {
         const roomsSnap = await get(ref(database, 'rooms'));
         const allRooms = roomsSnap.val() || {};
@@ -170,59 +175,96 @@ export async function migrateTempGuestToRegisteredUser(tempGuestId, targetSessio
             let guests = roomInfo?.guests || [];
             if (!Array.isArray(guests)) guests = Object.values(guests);
             if (String(rid) !== roomNumber && guests.some(g => g?.sessionId === String(targetSessionId))) {
-                throw new Error(`이미 다른 객실(${rid}호)에 배정된 유저입니다. 먼저 기존 배정을 해제/이동하세요.`);
+                existingAssignedRoom = String(rid);
+                existingAssignedGuestSnapshot = guests.find(g => g?.sessionId === String(targetSessionId)) || null;
+                break;
             }
         }
     }
 
-    // 3) rooms/{roomNumber}/guests 내 onsite guest를 transaction으로 “치환”
-    const guestsRef = ref(database, `rooms/${roomNumber}/guests`);
-    const tx = await runTransaction(guestsRef, (currentGuests) => {
-        let guests = currentGuests || [];
-        if (!Array.isArray(guests)) guests = Object.values(guests);
-
-        // 이미 targetSessionId가 방에 있으면 중복이므로 중단
-        if (guests.some(g => g?.sessionId === String(targetSessionId))) {
-            return; // abort
+    if (existingAssignedRoom) {
+        if (!allowMoveExistingAssignment) {
+            throw new Error(`이미 다른 객실(${existingAssignedRoom}호)에 배정된 유저입니다. (이동 허용 옵션이 꺼져 있습니다)`);
         }
+        // 기존 방에서 제거 (베스트 에포트 복구를 위해 스냅샷 보관)
+        await removeGuestFromRoom(existingAssignedRoom, String(targetSessionId));
+    }
 
-        // tempGuestId로 대상 찾기(정석) + fallback: onsiteSessionId 매칭
-        const idx = guests.findIndex(g => g?.tempGuestId === tempGuestId) >= 0
-            ? guests.findIndex(g => g?.tempGuestId === tempGuestId)
-            : guests.findIndex(g => g?.sessionId === String(tg.onsiteSessionId));
+    try {
+        // 3) rooms/{roomNumber}/guests 내 onsite guest를 transaction으로 “치환”
+        const guestsRef = ref(database, `rooms/${roomNumber}/guests`);
+        const tx = await runTransaction(guestsRef, (currentGuests) => {
+            let guests = currentGuests || [];
+            if (!Array.isArray(guests)) guests = Object.values(guests);
 
-        if (idx < 0) {
-            return; // abort
+            // 이미 targetSessionId가 방에 있으면 중복이므로 중단
+            if (guests.some(g => g?.sessionId === String(targetSessionId))) {
+                return; // abort
+            }
+
+            // tempGuestId로 대상 찾기(정석) + fallback: onsiteSessionId 매칭
+            const primaryIdx = guests.findIndex(g => g?.tempGuestId === tempGuestId);
+            const idx = primaryIdx >= 0 ? primaryIdx : guests.findIndex(g => g?.sessionId === String(tg.onsiteSessionId));
+
+            if (idx < 0) {
+                return; // abort
+            }
+
+            const original = guests[idx] || {};
+            const next = {
+                // 등록유저 기준 프로필로 정규화
+                name: targetUser.name || original.name || tg.name || '',
+                company: targetUser.company || original.company || tg.company || '',
+                position: targetUser.position || original.position || '',
+                email: targetUser.email || original.email || '',
+                singleRoom: targetUser.singleRoom || original.singleRoom || 'N',
+                gender: targetUser.gender || original.gender || tg.gender || '',
+                age: targetUser.age ?? original.age ?? null,
+                snoring: targetUser.snoring || original.snoring || 'no',
+                sessionId: String(targetSessionId),
+                registeredAt: targetUser.registeredAt || original.registeredAt || now,
+
+                // 추적/감사
+                migratedFromTempGuestId: tempGuestId,
+                migratedFromOnsiteSessionId: String(tg.onsiteSessionId || original.sessionId || ''),
+                migratedAt: now,
+                provisioningType: 'registered', // why: onsite → registered로 전환 완료 표시
+            };
+
+            const updated = [...guests];
+            updated[idx] = next;
+            return updated;
+        });
+
+        if (!tx.committed) {
+            throw new Error('전환에 실패했습니다. (대상 게스트를 찾지 못했거나 이미 전환/중복 배정 상태일 수 있습니다)');
         }
-
-        const original = guests[idx] || {};
-        const next = {
-            // 등록유저 기준 프로필로 정규화
-            name: targetUser.name || original.name || tg.name || '',
-            company: targetUser.company || original.company || tg.company || '',
-            position: targetUser.position || original.position || '',
-            email: targetUser.email || original.email || '',
-            singleRoom: targetUser.singleRoom || original.singleRoom || 'N',
-            gender: targetUser.gender || original.gender || tg.gender || '',
-            age: targetUser.age ?? original.age ?? null,
-            snoring: targetUser.snoring || original.snoring || 'no',
-            sessionId: String(targetSessionId),
-            registeredAt: targetUser.registeredAt || original.registeredAt || now,
-
-            // 추적/감사
-            migratedFromTempGuestId: tempGuestId,
-            migratedFromOnsiteSessionId: String(tg.onsiteSessionId || original.sessionId || ''),
-            migratedAt: now,
-            provisioningType: 'registered', // why: onsite → registered로 전환 완료 표시
-        };
-
-        const updated = [...guests];
-        updated[idx] = next;
-        return updated;
-    });
-
-    if (!tx.committed) {
-        throw new Error('전환에 실패했습니다. (대상 게스트를 찾지 못했거나 이미 전환/중복 배정 상태일 수 있습니다)');
+    } catch (e) {
+        // 3-1) (선택) 기존 배정을 이동시킨 상태에서 전환이 실패하면, 베스트 에포트로 원상복구
+        if (existingAssignedRoom && existingAssignedGuestSnapshot) {
+            try {
+                const cap = staticRoomData[existingAssignedRoom]?.capacity || 2;
+                const prevRef = ref(database, `rooms/${existingAssignedRoom}/guests`);
+                await runTransaction(prevRef, (currentGuests) => {
+                    let guests = currentGuests || [];
+                    if (!Array.isArray(guests)) guests = Object.values(guests);
+                    if (guests.some(g => g?.sessionId === String(targetSessionId))) return guests;
+                    if (guests.length >= cap) return guests;
+                    return [...guests, existingAssignedGuestSnapshot];
+                });
+            } catch (_) {
+                // 복구 실패는 운영자가 확인할 수 있도록 history로 남긴다.
+                await addHistory({
+                    action: HISTORY_ACTIONS.ADMIN_MIGRATE_ONSITE,
+                    roomNumber,
+                    tempGuestId,
+                    targetSessionId: String(targetSessionId),
+                    status: 'rollback_failed',
+                    message: '전환 실패 후 기존 배정 복구에 실패했습니다. 수동 확인 필요.',
+                });
+            }
+        }
+        throw e;
     }
 
     // 4) users/{targetSessionId} selectedRoom/locked 동기화 (best-effort)
@@ -259,9 +301,9 @@ export async function migrateTempGuestToRegisteredUser(tempGuestId, targetSessio
         tempGuestId,
         onsiteSessionId: String(tg.onsiteSessionId || ''),
         targetSessionId: String(targetSessionId),
+        movedFromRoom: existingAssignedRoom || null,
         status: 'ok',
     });
 
     return true;
 }
-

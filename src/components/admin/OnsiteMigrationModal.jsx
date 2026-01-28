@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { migrateTempGuestToRegisteredUser, subscribeToAllUsers } from '../../firebase/index';
+import { migrateTempGuestToRegisteredUser, subscribeToAllUsers, subscribeToAllowedUsers } from '../../firebase/index';
 import { useToast } from '../ui/Toast';
 
 /**
@@ -12,12 +12,19 @@ import { useToast } from '../ui/Toast';
 export default function OnsiteMigrationModal({ roomNumber, onsiteGuest, onClose }) {
     const toast = useToast();
     const [users, setUsers] = useState([]);
+    const [allowedUsers, setAllowedUsers] = useState([]);
     const [search, setSearch] = useState('');
     const [selectedSessionId, setSelectedSessionId] = useState('');
+    const [allowMoveExisting, setAllowMoveExisting] = useState(true);
     const [isSubmitting, setIsSubmitting] = useState(false);
 
     useEffect(() => {
         const unsub = subscribeToAllUsers((allUsers) => setUsers(allUsers || []));
+        return () => unsub();
+    }, []);
+
+    useEffect(() => {
+        const unsub = subscribeToAllowedUsers((list) => setAllowedUsers(list || []));
         return () => unsub();
     }, []);
 
@@ -40,6 +47,20 @@ export default function OnsiteMigrationModal({ roomNumber, onsiteGuest, onClose 
         });
     }, [users, search]);
 
+    const allowedMatches = useMemo(() => {
+        const q = search.trim().toLowerCase();
+        if (!q) return [];
+        return allowedUsers
+            .filter(a => {
+                const parts = [a?.name, a?.email, a?.company, a?.position, a?.registeredSessionId]
+                    .filter(Boolean)
+                    .map(String)
+                    .map(s => s.toLowerCase());
+                return parts.some(p => p.includes(q));
+            })
+            .slice(0, 10);
+    }, [allowedUsers, search]);
+
     const handleMigrate = async () => {
         if (!onsiteGuest?.tempGuestId) {
             toast.error('tempGuestId가 없어 전환할 수 없습니다.');
@@ -50,18 +71,25 @@ export default function OnsiteMigrationModal({ roomNumber, onsiteGuest, onClose 
             return;
         }
 
+        const selectedUser = users.find(u => u?.sessionId === selectedSessionId) || null;
+        const assignedInfo = selectedUser?.selectedRoom ? `현재 ${selectedUser.selectedRoom}호 배정됨(이동)` : '현재 미배정';
+
         const ok = window.confirm(
             `현장등록 게스트를 정식 등록유저로 전환하시겠습니까?\n\n` +
             `- 방: ${roomNumber}호\n` +
             `- 현장 게스트: ${onsiteGuest.name}\n` +
             `- tempGuestId: ${onsiteGuest.tempGuestId}\n` +
-            `- 대상 sessionId: ${selectedSessionId}\n`
+            `- 대상 sessionId: ${selectedSessionId}\n` +
+            `- 대상 상태: ${assignedInfo}\n` +
+            `- 이동 허용: ${allowMoveExisting ? 'Y' : 'N'}\n`
         );
         if (!ok) return;
 
         setIsSubmitting(true);
         try {
-            await migrateTempGuestToRegisteredUser(onsiteGuest.tempGuestId, selectedSessionId);
+            await migrateTempGuestToRegisteredUser(onsiteGuest.tempGuestId, selectedSessionId, {
+                allowMoveExistingAssignment: allowMoveExisting
+            });
             toast.success('정식 등록 전환 완료');
             onClose();
         } catch (e) {
@@ -114,6 +142,15 @@ export default function OnsiteMigrationModal({ roomNumber, onsiteGuest, onClose 
                             className="w-full px-3 py-2 border rounded-lg text-sm mb-3"
                         />
 
+                        <label className="flex items-center gap-2 text-xs text-slate-700 mb-3">
+                            <input
+                                type="checkbox"
+                                checked={allowMoveExisting}
+                                onChange={(e) => setAllowMoveExisting(e.target.checked)}
+                            />
+                            이미 다른 방에 배정된 유저도 “이동” 후 전환 허용
+                        </label>
+
                         <div className="max-h-64 overflow-y-auto border rounded-lg">
                             {filtered.length === 0 ? (
                                 <div className="p-4 text-sm text-gray-500">검색 결과가 없습니다.</div>
@@ -134,7 +171,7 @@ export default function OnsiteMigrationModal({ roomNumber, onsiteGuest, onClose 
                                             <div className="min-w-0">
                                                 <div className="text-sm text-slate-800 truncate">{label}</div>
                                                 <div className="text-xs text-slate-500 mt-0.5">
-                                                    성별: {u?.gender || '-'} / 1인실: {u?.singleRoom === 'Y' ? 'Y' : 'N'} / 현재방: {u?.selectedRoom ? `${u.selectedRoom}호` : '미배정'}
+                                                    성별: {u?.gender || '-'} / 1인실: {u?.singleRoom === 'Y' ? 'Y' : 'N'} / 잠금: {u?.locked ? 'Y' : 'N'} / 현재방: {u?.selectedRoom ? `${u.selectedRoom}호` : '미배정'}
                                                 </div>
                                             </div>
                                         </label>
@@ -143,6 +180,53 @@ export default function OnsiteMigrationModal({ roomNumber, onsiteGuest, onClose 
                             )}
                         </div>
                     </div>
+                </div>
+
+                {/* 사전등록(allowedUsers) 검색 결과: 하단 정보 패널 */}
+                <div className="mt-4 border rounded-lg p-4 bg-white">
+                    <div className="flex items-center justify-between gap-3 mb-2">
+                        <p className="text-xs font-semibold text-slate-600">사전등록 검색 결과(allowedUsers)</p>
+                        <span className="text-xs text-slate-400">
+                            {search.trim() ? `${allowedMatches.length}건` : '검색어 입력 시 표시'}
+                        </span>
+                    </div>
+                    {!search.trim() ? (
+                        <div className="text-sm text-gray-400">검색어를 입력하면 사전등록 목록에서도 함께 찾습니다.</div>
+                    ) : allowedMatches.length === 0 ? (
+                        <div className="text-sm text-gray-400">사전등록 목록에서 일치 항목이 없습니다.</div>
+                    ) : (
+                        <div className="space-y-2">
+                            {allowedMatches.map((a) => {
+                                const canPick = !!a?.registeredSessionId;
+                                return (
+                                    <div key={a.id} className="flex items-start justify-between gap-3 p-3 border rounded-lg">
+                                        <div className="min-w-0">
+                                            <div className="text-sm text-slate-800 truncate">
+                                                {a?.name || '-'} • {a?.email || '-'} • {a?.company || '-'}
+                                            </div>
+                                            <div className="text-xs text-slate-500 mt-0.5">
+                                                상태: {a?.registered ? '등록완료' : '미등록'} / 성별: {a?.gender || '-'} / 1인실: {a?.singleRoom === 'Y' ? 'Y' : 'N'}
+                                            </div>
+                                            {a?.registeredSessionId && (
+                                                <div className="text-xs text-slate-500 mt-0.5 break-all">
+                                                    registeredSessionId: {a.registeredSessionId}
+                                                </div>
+                                            )}
+                                        </div>
+                                        <button
+                                            type="button"
+                                            disabled={!canPick}
+                                            onClick={() => setSelectedSessionId(a.registeredSessionId)}
+                                            className="px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-100 hover:bg-slate-200 text-slate-700 disabled:opacity-50"
+                                            title={canPick ? '해당 등록유저 sessionId로 선택' : '미등록 유저는 전환 대상이 될 수 없습니다(먼저 OTP 로그인 필요)'}
+                                        >
+                                            {canPick ? '선택' : '미등록'}
+                                        </button>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    )}
                 </div>
 
                 <div className="flex gap-3 mt-6">
