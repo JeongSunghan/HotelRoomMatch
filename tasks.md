@@ -38,6 +38,24 @@
 - [x] 에러 처리
 - [진행 중] 테스트
 
+### 현장등록(배정만) → 정식 등록(OTP) 전환 (2026-01-28)
+- [x] 현장등록 guest 생성 시 tempGuestId 발급 및 tempGuests 레코드 생성(롤백 포함)
+- [x] 관리자 전환 기능: tempGuestId 기반으로 rooms.guests 치환 + users.selectedRoom/locked 동기화 + history 기록
+- [x] 관리자 UI: 객실 관리에서 현장 guest에 '전환' 버튼/모달 제공
+- [x] Realtime DB rules: tempGuests 경로 추가(최소 validate)
+- [x] 전환 대상 등록유저가 이미 배정/잠금 상태여도 선택 가능 + (옵션) 기존 배정 자동 이동 지원
+- [x] 전환 모달 검색: 사전등록(allowedUsers)도 하단 정보 패널로 함께 표시
+
+### 관리자 객실 등록 UX 개선 (2026-01-28)
+- [x] 객실 등록 모달에 '등록유저 배정(userlist)' 탭 추가 + 검색/선택으로 즉시 배정
+- [x] 이미 다른 방에 배정된 유저도 (옵션) 이동 후 배정 가능
+- [x] 사전등록(allowedUsers) 검색 결과를 하단에 표시(registeredSessionId 있으면 선택 가능)
+
+### Mobile UI/UX 개선 (2026-01-28)
+- [x] 모바일 반응형 디자인: RoomCard를 모바일에서 가로형 리스트 형태로 표시
+- [x] 모바일 반응형 디자인: RoomGrid를 모바일에서 리스트 레이아웃으로 변경
+- [x] 모바일 반응형 디자인: App.jsx 레이아웃 간격 조정
+
 ### Bugfix (2026-01-26)
 - [x] Realtime DB rules: 삭제/부분 업데이트가 `.validate`에 의해 막히지 않도록 개선
 - [x] 유저 관리: 유저 삭제(permission-denied) 해결 (경로 불일치 + rooms 전체 덮어쓰기 제거)

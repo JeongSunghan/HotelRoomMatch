@@ -70,6 +70,13 @@
                 ".validate": "newData.hasChildren(['action', 'timestamp'])"
             }
         },
+        "tempGuests": {
+            ".read": "auth != null",
+            ".write": "auth != null",
+            "$tempGuestId": {
+                ".validate": "!newData.exists() || (newData.hasChildren(['tempGuestId','roomNumber','onsiteSessionId','name','gender','status','createdAt']) && newData.child('tempGuestId').isString() && newData.child('roomNumber').isString() && newData.child('onsiteSessionId').isString() && newData.child('name').isString() && newData.child('gender').isString() && newData.child('status').isString() && newData.child('createdAt').isNumber())"
+            }
+        },
         "settings": {
             ".read": true,
             ".write": "auth != null",

@@ -14,7 +14,8 @@ export const HISTORY_ACTIONS = {
     ADMIN_REMOVE: 'admin_remove', // 관리자 삭제
     ADMIN_EDIT: 'admin_edit',  // 관리자 수정
     CSV_UPLOAD: 'csv_upload',  // CSV 일괄 업로드
-    ROOM_CHANGE: 'room_change' // 방 변경
+    ROOM_CHANGE: 'room_change', // 방 변경
+    ADMIN_MIGRATE_ONSITE: 'admin_migrate_onsite' // 현장등록(배정만) -> 등록유저 전환
 };
 
 /**
