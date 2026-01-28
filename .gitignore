@@ -7,7 +7,6 @@ node_modules/
 dist/
 build/
 .vite/
-*.md
 
 # Environment variables (보안 중요!)
 .env
@@ -33,6 +32,10 @@ yarn-error.log*
 *.sln
 *.sw?
 *.swp
+# 내부 문서 (README.md는 제외)
+CODE_IMPROVEMENT_PLAN.md
+tasks.md
+update.md
 
 # OS generated files
 .DS_Store
