@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useUser } from '../hooks/useUser';
 import { useRooms } from '../hooks/useRooms';
+import { subscribeToAllUsers } from '../firebase/index';
 import AdminDashboard from '../components/admin/AdminDashboard';
 import AdminLoginModal from '../components/auth/AdminLoginModal';
 
@@ -27,6 +28,13 @@ export default function AdminPage() {
     const [showLoginModal, setShowLoginModal] = useState(false);
     const [loginLoading, setLoginLoading] = useState(false);
     const [loginError, setLoginError] = useState(null);
+    const [allUsers, setAllUsers] = useState([]);
+
+    // CSV 내보내기 시 age/snoring 보강용 users 구독
+    useEffect(() => {
+        const unsub = subscribeToAllUsers((list) => setAllUsers(list || []));
+        return () => unsub?.();
+    }, []);
 
     // 관리자가 아니면 로그인 모달 표시
     useEffect(() => {
@@ -69,6 +77,7 @@ export default function AdminPage() {
             {isAdmin ? (
                 <AdminDashboard
                     roomGuests={roomGuests}
+                    allUsers={allUsers}
                     onRemoveGuest={removeGuestFromRoom}
                     onAddGuest={addGuestToRoom}
                     onLogout={logoutAdmin}

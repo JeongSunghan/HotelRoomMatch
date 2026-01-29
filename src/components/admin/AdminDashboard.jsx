@@ -33,6 +33,7 @@ import { useToast } from '../ui/Toast';
  */
 export default function AdminDashboard({
     roomGuests,
+    allUsers = [],
     onRemoveGuest,
     onAddGuest,
     onLogout,
@@ -280,7 +281,7 @@ export default function AdminDashboard({
                                     📤 CSV 업로드
                                 </button>
                                 <button
-                                    onClick={() => exportRoomAssignmentsToCSV(roomGuests, roomData)}
+                                    onClick={() => exportRoomAssignmentsToCSV(roomGuests, roomData, { users: allUsers })}
                                     className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm font-medium"
                                 >
                                     📥 CSV 다운로드
