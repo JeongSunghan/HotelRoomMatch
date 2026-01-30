@@ -50,6 +50,38 @@ export default function RoomManagementTab({
     const [migratingRoomNumber, setMigratingRoomNumber] = useState(null);
     const [migratingGuest, setMigratingGuest] = useState(null);
 
+    // 층별 접기/펼치기 (객실 많을 때 한 화면에서 층만 보고 필요한 층만 펼쳐 확인)
+    const [collapsedFloors, setCollapsedFloors] = useState(new Set());
+
+    const toggleFloor = (floor) => {
+        setCollapsedFloors((prev) => {
+            const next = new Set(prev);
+            if (next.has(floor)) next.delete(floor);
+            else next.add(floor);
+            return next;
+        });
+    };
+    const expandAllFloors = () => setCollapsedFloors(new Set());
+    const collapseAllFloors = () => {
+        const floors = [...new Set(assignedRooms.map((r) => r.floor))];
+        setCollapsedFloors(new Set(floors));
+    };
+
+    // 층별 그룹 (정렬: 층 내림차순 → 호수 오름차순)
+    const roomsByFloor = useMemo(() => {
+        const map = new Map();
+        for (const room of assignedRooms) {
+            const f = room.floor;
+            if (!map.has(f)) map.set(f, []);
+            map.get(f).push(room);
+        }
+        for (const list of map.values()) {
+            list.sort((a, b) => String(a.roomNumber).localeCompare(String(b.roomNumber), undefined, { numeric: true }));
+        }
+        const entries = [...map.entries()].sort((a, b) => b[0] - a[0]);
+        return entries;
+    }, [assignedRooms]);
+
     // 유저 등록 모달 열기
     const handleOpenAddModal = (room) => {
         setSelectedRoom(room);
@@ -326,134 +358,165 @@ export default function RoomManagementTab({
 
     return (
         <>
-            <div className="space-y-3">
-                {assignedRooms.map(room => (
-                    <div
-                        key={room.roomNumber}
-                        className={`
-                            p-4 rounded-lg border bg-white transition-colors
-                            ${room.isFull
-                                ? room.gender === 'M'
-                                    ? 'border-blue-300'
-                                    : 'border-pink-300'
-                                : room.guests.length > 0
-                                    ? 'border-gray-300'
-                                    : 'border-gray-200'
-                            }
-                        `}
-                    >
-                        <div className="flex flex-wrap items-start justify-between gap-4">
-                            <div className="flex items-center gap-4">
-                                <div className={`
-                                    w-12 h-12 rounded-lg flex items-center justify-center font-bold text-white
-                                    ${room.gender === 'M' ? 'bg-blue-500' : 'bg-pink-500'}
-                                `}>
-                                    {room.roomNumber}
-                                </div>
-                                <div>
-                                    <div className="flex items-center gap-2">
-                                        <span className="font-semibold text-gray-800">{room.floor}층</span>
-                                        <span className="text-gray-400">•</span>
-                                        <span className="text-gray-500 text-sm">{room.roomType}</span>
-                                        <span className={`
-                                            text-xs px-2 py-0.5 rounded-full font-medium
-                                            ${room.capacity === 2 ? 'bg-purple-100 text-purple-700' : 'bg-gray-100 text-gray-600'}
-                                        `}>
-                                            {room.capacity === 2 ? '2인실' : '1인실'}
-                                        </span>
-                                    </div>
-                                    <p className="text-sm text-gray-500">
-                                        {getGenderLabel(room.gender)} 전용 • {room.guests.length}/{room.capacity} 배정
-                                    </p>
-                                </div>
-                            </div>
+            {/* 층별 접기/전체 펼치기·접기 */}
+            <div className="flex items-center gap-2 mb-3 text-sm text-gray-600">
+                <span className="font-medium">층별 보기</span>
+                <button
+                    type="button"
+                    onClick={expandAllFloors}
+                    className="px-2 py-1 rounded border border-gray-300 hover:bg-gray-100"
+                >
+                    모두 펼치기
+                </button>
+                <button
+                    type="button"
+                    onClick={collapseAllFloors}
+                    className="px-2 py-1 rounded border border-gray-300 hover:bg-gray-100"
+                >
+                    모두 접기
+                </button>
+            </div>
 
-                            <div className="flex flex-wrap gap-2 items-center">
-                                {room.guests.length === 0 ? (
-                                    <>
-                                        <span className="text-gray-400 text-sm italic">빈 방</span>
-                                        <button
-                                            onClick={() => handleOpenAddModal(room)}
-                                            className="flex items-center gap-1 px-3 py-1.5 bg-emerald-500 hover:bg-emerald-600 text-white rounded-lg text-sm font-medium transition-colors"
-                                            title="유저 등록"
+            <div className="space-y-4">
+                {roomsByFloor.map(([floor, rooms]) => {
+                    const isCollapsed = collapsedFloors.has(floor);
+                    const firstRoom = rooms[0];
+                    const genderLabel = firstRoom ? getGenderLabel(firstRoom.gender) : '';
+                    const roomTypeLabel = firstRoom?.roomType === 'single' ? '1인실' : '2인실';
+
+                    return (
+                        <div key={floor} className="rounded-lg border border-gray-200 bg-gray-50/50 overflow-hidden">
+                            <button
+                                type="button"
+                                onClick={() => toggleFloor(floor)}
+                                className="w-full flex items-center justify-between px-4 py-3 bg-white border-b border-gray-200 hover:bg-gray-50 text-left"
+                            >
+                                <span className="font-semibold text-gray-800">
+                                    {floor}층
+                                    <span className="ml-2 text-gray-500 font-normal text-sm">
+                                        {genderLabel} · {roomTypeLabel} · {rooms.length}개실
+                                    </span>
+                                </span>
+                                <span className="text-gray-400">
+                                    {isCollapsed ? (
+                                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                        </svg>
+                                    ) : (
+                                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
+                                        </svg>
+                                    )}
+                                </span>
+                            </button>
+                            {!isCollapsed && (
+                                <div className="p-3 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-3">
+                                    {rooms.map((room) => (
+                                        <div
+                                            key={room.roomNumber}
+                                            className={`
+                                                p-3 rounded-lg border bg-white transition-colors
+                                                ${room.isFull
+                                                    ? room.gender === 'M'
+                                                        ? 'border-blue-300'
+                                                        : 'border-pink-300'
+                                                    : room.guests.length > 0
+                                                        ? 'border-gray-300'
+                                                        : 'border-gray-200'
+                                                }
+                                            `}
                                         >
-                                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                                            </svg>
-                                            등록
-                                        </button>
-                                    </>
-                                ) : (
-                                    <>
-                                        {room.guests.map((guest, idx) => (
-                                            <div
-                                                key={idx}
-                                                className={`
-                                                    flex items-center gap-2 px-3 py-1.5 rounded-lg cursor-pointer hover:opacity-80 transition-opacity
-                                                    ${guest.gender === 'M' ? 'bg-blue-100 text-blue-800' : 'bg-pink-100 text-pink-800'}
-                                                `}
-                                                onClick={() => handleOpenEditModal(room, guest)}
-                                                title="클릭하여 수정"
-                                            >
-                                                <div>
-                                                    <span className="font-medium">{guest.name}</span>
-                                                    {guest.company && (
-                                                        <span className="text-xs ml-1 opacity-70">({guest.company})</span>
-                                                    )}
-                                                    {guest.registeredByAdmin && (
-                                                        <span className="text-xs ml-1 opacity-50">[관리자]</span>
-                                                    )}
-                                                    {guest.provisioningType === 'onsite' && guest.tempGuestId && (
-                                                        <span className="text-xs ml-1 opacity-60">[현장]</span>
-                                                    )}
+                                            <div className="flex items-center justify-between gap-2 mb-2">
+                                                <div className={`
+                                                    w-10 h-10 rounded-lg flex items-center justify-center font-bold text-white text-sm shrink-0
+                                                    ${room.gender === 'M' ? 'bg-blue-500' : 'bg-pink-500'}
+                                                `}>
+                                                    {room.roomNumber}
                                                 </div>
-
-                                                {guest.provisioningType === 'onsite' && guest.tempGuestId && (
-                                                    <button
-                                                        onClick={(e) => {
-                                                            e.stopPropagation();
-                                                            setMigratingRoomNumber(room.roomNumber);
-                                                            setMigratingGuest(guest);
-                                                            setShowMigrateModal(true);
-                                                        }}
-                                                        className="px-2 py-1 rounded bg-white/60 hover:bg-white text-xs text-slate-700"
-                                                        title="정식 등록 전환(OTP 등록유저와 치환)"
-                                                    >
-                                                        전환
-                                                    </button>
-                                                )}
-                                                <button
-                                                    onClick={(e) => {
-                                                        e.stopPropagation();
-                                                        onRemoveGuest(room.roomNumber, guest.sessionId, guest.name);
-                                                    }}
-                                                    className="p-1 hover:bg-red-100 rounded transition-colors"
-                                                    title="삭제"
-                                                >
-                                                    <svg className="w-4 h-4 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                                                    </svg>
-                                                </button>
+                                                <span className="text-xs text-gray-500">
+                                                    {room.guests.length}/{room.capacity}
+                                                </span>
                                             </div>
-                                        ))}
-                                        {room.capacity === 2 && room.guests.length < room.capacity && (
-                                            <button
-                                                onClick={() => handleOpenAddModal(room)}
-                                                className="flex items-center gap-1 px-3 py-1.5 bg-emerald-500 hover:bg-emerald-600 text-white rounded-lg text-sm font-medium transition-colors"
-                                                title="추가 등록"
-                                            >
-                                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                                                </svg>
-                                                추가
-                                            </button>
-                                        )}
-                                    </>
-                                )}
-                            </div>
+                                            <div className="flex flex-wrap gap-1.5 items-center">
+                                                {room.guests.length === 0 ? (
+                                                    <>
+                                                        <span className="text-gray-400 text-xs italic">빈 방</span>
+                                                        <button
+                                                            onClick={() => handleOpenAddModal(room)}
+                                                            className="flex items-center gap-1 px-2 py-1 bg-emerald-500 hover:bg-emerald-600 text-white rounded text-xs font-medium"
+                                                            title="유저 등록"
+                                                        >
+                                                            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                                                            </svg>
+                                                            등록
+                                                        </button>
+                                                    </>
+                                                ) : (
+                                                    <>
+                                                        {room.guests.map((guest, idx) => (
+                                                            <div
+                                                                key={idx}
+                                                                className={`
+                                                                    flex items-center gap-1.5 px-2 py-1 rounded-md cursor-pointer hover:opacity-90 transition-opacity text-xs max-w-full min-w-0
+                                                                    ${guest.gender === 'M' ? 'bg-blue-100 text-blue-800' : 'bg-pink-100 text-pink-800'}
+                                                                `}
+                                                                onClick={() => handleOpenEditModal(room, guest)}
+                                                                title={`${guest.name}${guest.company ? ` (${guest.company})` : ''} · 클릭하여 수정`}
+                                                            >
+                                                                <span className="truncate font-medium">{guest.name}</span>
+                                                                {guest.registeredByAdmin && <span className="opacity-60 shrink-0">[관]</span>}
+                                                                {guest.provisioningType === 'onsite' && guest.tempGuestId && <span className="opacity-60 shrink-0">[현]</span>}
+                                                                {guest.provisioningType === 'onsite' && guest.tempGuestId && (
+                                                                    <button
+                                                                        onClick={(e) => {
+                                                                            e.stopPropagation();
+                                                                            setMigratingRoomNumber(room.roomNumber);
+                                                                            setMigratingGuest(guest);
+                                                                            setShowMigrateModal(true);
+                                                                        }}
+                                                                        className="shrink-0 px-1.5 py-0.5 rounded bg-white/60 hover:bg-white text-slate-700"
+                                                                        title="정식 등록 전환"
+                                                                    >
+                                                                        전환
+                                                                    </button>
+                                                                )}
+                                                                <button
+                                                                    onClick={(e) => {
+                                                                        e.stopPropagation();
+                                                                        onRemoveGuest(room.roomNumber, guest.sessionId, guest.name);
+                                                                    }}
+                                                                    className="shrink-0 p-0.5 hover:bg-red-100 rounded"
+                                                                    title="삭제"
+                                                                >
+                                                                    <svg className="w-3.5 h-3.5 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                                                    </svg>
+                                                                </button>
+                                                            </div>
+                                                        ))}
+                                                        {room.capacity === 2 && room.guests.length < room.capacity && (
+                                                            <button
+                                                                onClick={() => handleOpenAddModal(room)}
+                                                                className="flex items-center gap-1 px-2 py-1 bg-emerald-500 hover:bg-emerald-600 text-white rounded text-xs font-medium"
+                                                                title="추가 등록"
+                                                            >
+                                                                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                                                                </svg>
+                                                                추가
+                                                            </button>
+                                                        )}
+                                                    </>
+                                                )}
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
                         </div>
-                    </div>
-                ))}
+                    );
+                })}
             </div>
 
             {/* 유저 등록 모달 */}
