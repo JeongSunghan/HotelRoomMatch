@@ -225,6 +225,37 @@ export default function App() {
         }
     }, [roomGuests, user?.selectedRoom, user?.sessionId, showCancelledModal, roomsLoading, openModal, MODAL_TYPES]);
 
+    // 관리자 강제 배정(등록유저 기준) 동기화 보강:
+    // - why: rooms/{roomNumber}/guests 에는 배정이 반영됐지만, users/{sessionId}.selectedRoom 업데이트가 누락/지연되면
+    //        UI가 "내 방"을 못 찾는 문제가 발생한다(MyRoomModal은 selectedRoom 없으면 렌더링 안 함).
+    // - 따라서 selectedRoom이 비어있고 rooms 데이터가 로드된 경우, roomGuests에서 내 sessionId를 역추적해 best-effort로 복구한다.
+    useEffect(() => {
+        if (!user?.sessionId || roomsLoading) return;
+        if (user?.selectedRoom) return;
+
+        let inferredRoomNumber = null;
+        const entries = Object.entries(roomGuests || {});
+        for (const [roomNumber, rawGuests] of entries) {
+            let guests = rawGuests || [];
+            if (guests && !Array.isArray(guests)) {
+                guests = Object.values(guests);
+            }
+            if (Array.isArray(guests) && guests.some(g => g?.sessionId === user.sessionId)) {
+                inferredRoomNumber = String(roomNumber);
+                break;
+            }
+        }
+
+        if (!inferredRoomNumber) return;
+
+        // best-effort: 로컬/DB 모두 동기화 시도 (DB가 rules로 막히더라도 로컬은 유지되어 UX가 깨지지 않는다)
+        updateUser({
+            selectedRoom: inferredRoomNumber,
+            selectedAt: Date.now(),
+            locked: true
+        });
+    }, [roomGuests, user?.sessionId, user?.selectedRoom, roomsLoading, updateUser]);
+
     // 통계 계산
     const stats = useMemo(() => {
         return {
