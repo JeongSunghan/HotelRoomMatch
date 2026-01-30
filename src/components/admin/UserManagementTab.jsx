@@ -134,9 +134,14 @@ export default function UserManagementTab() {
             </div>
 
             {/* 유저 목록 테이블 */}
-            <div className="bg-white rounded-lg shadow overflow-x-auto">
+            {/* why: AdminDashboard가 스크롤 컨테이너(overflow-y-auto)인 상태에서,
+                테이블 래퍼가 overflow-x-auto만 가지고 있으면 일부 환경(특히 Windows/터치패드/휠)에서
+                휠 스크롤이 가로 스크롤로 흡수되거나 상위 스크롤로 자연스럽게 전달되지 않아
+                “마우스 휠 업/다운이 안 되는” 문제가 발생할 수 있다.
+                테이블 영역 자체를 overflow-auto(+max-height)로 만들어 휠 스크롤을 안정화한다. */}
+            <div className="bg-white rounded-lg shadow overflow-auto max-h-[calc(100vh-240px)]">
                 <table className="min-w-full divide-y divide-gray-200">
-                    <thead className="bg-gray-50">
+                    <thead className="bg-gray-50 sticky top-0 z-10">
                         <tr>
                             <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">소속</th>
                             <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">성명</th>
