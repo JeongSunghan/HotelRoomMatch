@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import {
     subscribeToAllUsers,
     adminUpdateUser,
@@ -16,6 +16,7 @@ import { useToast } from '../ui/Toast';
 export default function UserManagementTab() {
     const [users, setUsers] = useState([]);
     const [searchTerm, setSearchTerm] = useState('');
+    const [sortConfig, setSortConfig] = useState({ key: 'name', direction: 'asc' }); // 'asc' | 'desc'
     const [editingUser, setEditingUser] = useState(null);
     const [editForm, setEditForm] = useState({});
     const [isSubmitting, setIsSubmitting] = useState(false);
@@ -31,17 +32,90 @@ export default function UserManagementTab() {
         return () => unsubscribe();
     }, []);
 
-    // 검색 필터링
-    const filteredUsers = users.filter(user => {
-        const term = searchTerm.toLowerCase();
-        return (
-            user.name?.toLowerCase().includes(term) ||
-            user.email?.toLowerCase().includes(term) ||
-            user.company?.toLowerCase().includes(term) ||
-            user.position?.toLowerCase().includes(term) ||
-            user.selectedRoom?.toString().includes(term)
-        );
-    });
+    function toggleSort(key) {
+        setSortConfig((prev) => {
+            if (prev.key !== key) return { key, direction: 'asc' };
+            return { key, direction: prev.direction === 'asc' ? 'desc' : 'asc' };
+        });
+    }
+
+    function getSortValue(user, key) {
+        const u = user || {};
+        switch (key) {
+            case 'company':
+            case 'name':
+            case 'position':
+            case 'email':
+                return String(u[key] || '').trim();
+            case 'singleRoom':
+                return (u.singleRoom === 'Y') ? 1 : 0;
+            case 'gender':
+                // M 먼저, 그 다음 F (기타/미입력은 뒤)
+                if (u.gender === 'M') return 0;
+                if (u.gender === 'F') return 1;
+                return 2;
+            case 'selectedRoom': {
+                const v = u.selectedRoom;
+                if (v == null || v === '') return null;
+                const s = String(v);
+                const n = Number.parseInt(s, 10);
+                return Number.isFinite(n) ? n : s;
+            }
+            default:
+                return String(u[key] ?? '').trim();
+        }
+    }
+
+    function compareValues(a, b) {
+        // null/빈값은 마지막으로
+        if (a == null || a === '') return (b == null || b === '') ? 0 : 1;
+        if (b == null || b === '') return -1;
+
+        // number 우선 비교
+        if (typeof a === 'number' && typeof b === 'number') {
+            return a - b;
+        }
+
+        return String(a).localeCompare(String(b), 'ko-KR', { numeric: true, sensitivity: 'base' });
+    }
+
+    // 검색 + 정렬
+    const filteredUsers = useMemo(() => {
+        const term = String(searchTerm || '').toLowerCase().trim();
+
+        const base = Array.isArray(users) ? users : [];
+        const searched = term
+            ? base.filter(user => {
+                const name = String(user?.name || '').toLowerCase();
+                const email = String(user?.email || '').toLowerCase();
+                const company = String(user?.company || '').toLowerCase();
+                const position = String(user?.position || '').toLowerCase();
+                const selectedRoom = user?.selectedRoom != null ? String(user.selectedRoom).toLowerCase() : '';
+                return (
+                    name.includes(term) ||
+                    email.includes(term) ||
+                    company.includes(term) ||
+                    position.includes(term) ||
+                    selectedRoom.includes(term)
+                );
+            })
+            : base;
+
+        const { key, direction } = sortConfig || { key: 'name', direction: 'asc' };
+        const dir = direction === 'desc' ? -1 : 1;
+
+        // stable sort (원본 인덱스를 tie-breaker로 사용)
+        return searched
+            .map((u, idx) => ({ u, idx }))
+            .sort((x, y) => {
+                const av = getSortValue(x.u, key);
+                const bv = getSortValue(y.u, key);
+                const c = compareValues(av, bv);
+                if (c !== 0) return c * dir;
+                return x.idx - y.idx;
+            })
+            .map(x => x.u);
+    }, [users, searchTerm, sortConfig]);
 
     // 편집 시작
     const handleEdit = (user) => {
@@ -143,13 +217,69 @@ export default function UserManagementTab() {
                 <table className="min-w-full divide-y divide-gray-200">
                     <thead className="bg-gray-50 sticky top-0 z-10">
                         <tr>
-                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">소속</th>
-                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">성명</th>
-                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">직위</th>
-                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">이메일</th>
-                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">1인실 여부</th>
-                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">성별</th>
-                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">객실</th>
+                            <th
+                                className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap"
+                                aria-sort={sortConfig.key === 'company' ? (sortConfig.direction === 'asc' ? 'ascending' : 'descending') : 'none'}
+                            >
+                                <button type="button" onClick={() => toggleSort('company')} className="flex items-center gap-1 hover:text-gray-700">
+                                    <span>소속</span>
+                                    {sortConfig.key === 'company' ? <span>{sortConfig.direction === 'asc' ? '▲' : '▼'}</span> : null}
+                                </button>
+                            </th>
+                            <th
+                                className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap"
+                                aria-sort={sortConfig.key === 'name' ? (sortConfig.direction === 'asc' ? 'ascending' : 'descending') : 'none'}
+                            >
+                                <button type="button" onClick={() => toggleSort('name')} className="flex items-center gap-1 hover:text-gray-700">
+                                    <span>성명</span>
+                                    {sortConfig.key === 'name' ? <span>{sortConfig.direction === 'asc' ? '▲' : '▼'}</span> : null}
+                                </button>
+                            </th>
+                            <th
+                                className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap"
+                                aria-sort={sortConfig.key === 'position' ? (sortConfig.direction === 'asc' ? 'ascending' : 'descending') : 'none'}
+                            >
+                                <button type="button" onClick={() => toggleSort('position')} className="flex items-center gap-1 hover:text-gray-700">
+                                    <span>직위</span>
+                                    {sortConfig.key === 'position' ? <span>{sortConfig.direction === 'asc' ? '▲' : '▼'}</span> : null}
+                                </button>
+                            </th>
+                            <th
+                                className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap"
+                                aria-sort={sortConfig.key === 'email' ? (sortConfig.direction === 'asc' ? 'ascending' : 'descending') : 'none'}
+                            >
+                                <button type="button" onClick={() => toggleSort('email')} className="flex items-center gap-1 hover:text-gray-700">
+                                    <span>이메일</span>
+                                    {sortConfig.key === 'email' ? <span>{sortConfig.direction === 'asc' ? '▲' : '▼'}</span> : null}
+                                </button>
+                            </th>
+                            <th
+                                className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap"
+                                aria-sort={sortConfig.key === 'singleRoom' ? (sortConfig.direction === 'asc' ? 'ascending' : 'descending') : 'none'}
+                            >
+                                <button type="button" onClick={() => toggleSort('singleRoom')} className="flex items-center gap-1 hover:text-gray-700">
+                                    <span>1인실 여부</span>
+                                    {sortConfig.key === 'singleRoom' ? <span>{sortConfig.direction === 'asc' ? '▲' : '▼'}</span> : null}
+                                </button>
+                            </th>
+                            <th
+                                className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap"
+                                aria-sort={sortConfig.key === 'gender' ? (sortConfig.direction === 'asc' ? 'ascending' : 'descending') : 'none'}
+                            >
+                                <button type="button" onClick={() => toggleSort('gender')} className="flex items-center gap-1 hover:text-gray-700">
+                                    <span>성별</span>
+                                    {sortConfig.key === 'gender' ? <span>{sortConfig.direction === 'asc' ? '▲' : '▼'}</span> : null}
+                                </button>
+                            </th>
+                            <th
+                                className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap"
+                                aria-sort={sortConfig.key === 'selectedRoom' ? (sortConfig.direction === 'asc' ? 'ascending' : 'descending') : 'none'}
+                            >
+                                <button type="button" onClick={() => toggleSort('selectedRoom')} className="flex items-center gap-1 hover:text-gray-700">
+                                    <span>객실</span>
+                                    {sortConfig.key === 'selectedRoom' ? <span>{sortConfig.direction === 'asc' ? '▲' : '▼'}</span> : null}
+                                </button>
+                            </th>
                             <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">액션</th>
                         </tr>
                     </thead>
